@@ -21,8 +21,8 @@
  *   Y+  : 上方
  *   内耳は Z < −7.0 の側頭骨内部に配置
  *   卵円窓基準    : [-0.8, -1.5, -6.8]
- *   前庭中心      : VESTIBULE_CENTER = [-0.8, -1.5, -9.0]
- *   蝸牛底回転中心: COCHLEA_CENTER   = [ 1.5, -4.0, -9.5]
+ *   前庭中心      : VESTIBULE_CENTER = [-0.8, -1.5, -3.5]
+ *   蝸牛底回転中心: COCHLEA_CENTER   = [ 1.5, -4.0, -4.0]
  */
 
 import { useMemo } from 'react';
@@ -30,9 +30,9 @@ import * as THREE from 'three';
 
 // ── 位置定数 ──────────────────────────────────────────────────────────
 /** 前庭中心（卵円窓の直内側） */
-export const VESTIBULE_CENTER = new THREE.Vector3(-0.8, -1.5, -9.0);
+export const VESTIBULE_CENTER = new THREE.Vector3(-0.8, -1.5, -3.5);
 /** 蝸牛底回転の中心（前庭の前下方） */
-export const COCHLEA_CENTER   = new THREE.Vector3( 1.5, -4.0, -9.5);
+export const COCHLEA_CENTER   = new THREE.Vector3( 1.5, -4.0, -4.0);
 
 // ── 色定数 ──────────────────────────────────────────────────────────
 const COCHLEA_COL   = '#d4b896'; // 骨迷路色（蝸牛管）
