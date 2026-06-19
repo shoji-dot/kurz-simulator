@@ -2,6 +2,7 @@ import { useSimStore } from './store/useSimStore';
 import { HomeScreen } from './components/HomeScreen';
 import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
+import { SurgicalMode } from './components/SurgicalMode';
 
 function AppHeader() {
   const { screen, setScreen, resetSimulation } = useSimStore();
@@ -31,6 +32,12 @@ function AppHeader() {
         >
           🎯 シミュレーション
         </button>
+        <button
+          className={`btn btn-sm ${screen === 'surgical' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setScreen('surgical')}
+        >
+          🔧 手術
+        </button>
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>
@@ -49,6 +56,7 @@ function App() {
       {screen === 'home' && <HomeScreen />}
       {screen === 'learning' && <LearningMode />}
       {screen === 'simulation' && <SimulationMode />}
+      {screen === 'surgical' && <SurgicalMode />}
     </>
   );
 }

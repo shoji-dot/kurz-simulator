@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
 
-export type Screen = 'home' | 'learning' | 'simulation';
+export type Screen = 'home' | 'learning' | 'simulation' | 'surgical';
 export type SimStep = 'case-select' | 'product-select' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure';
 
@@ -32,6 +32,7 @@ interface SimStore {
   placement: PlacementState;
   scoreResult: ScoreResult | null;
   highlightedStructure: string | null;
+  drillStep: number;
 
   setScreen: (s: Screen) => void;
   setLearningTab: (t: LearningTab) => void;
@@ -42,6 +43,7 @@ interface SimStore {
   computeScore: () => void;
   resetSimulation: () => void;
   setHighlightedStructure: (s: string | null) => void;
+  setDrillStep: (n: number) => void;
 }
 
 function computeRank(total: number): 'S' | 'A' | 'B' | 'C' | 'D' {
@@ -55,6 +57,7 @@ function computeRank(total: number): 'S' | 'A' | 'B' | 'C' | 'D' {
 export const useSimStore = create<SimStore>((set, get) => ({
   screen: 'home',
   learningTab: 'anatomy',
+  drillStep: 0,
   simStep: 'case-select',
   selectedCase: null,
   selectedProduct: null,
@@ -73,6 +76,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
   setHighlightedStructure: (s) => set({ highlightedStructure: s }),
+  setDrillStep: (n) => set({ drillStep: n }),
 
   computeScore: () => {
     const { selectedCase, placement } = get();
