@@ -11,7 +11,7 @@
  *   GLBモデルはアブミ骨を原点として配置済み → groupでオフセット適用
  */
 
-import { Suspense, useMemo } from 'react';
+import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -27,42 +27,6 @@ const STAPES_FOOTPLATE: [number, number, number] = [0.84, -2.65, 2.12];
 const BONE_WALL  = '#e4d8c0';
 const BONE_INNER = '#d0c4aa';
 const PROM_COLOR = '#c8bc9c';
-
-// ══════════════════════════════════════════════════════════════════
-// 外耳道（External Auditory Canal / EAC）
-//
-// CatmullRomCurve3 で若干湾曲した管を作成。
-// BackSide で管の内側を描画 → 術者が覗き込む視点を再現。
-// 外耳道長: ~25mm, 径: ~7mm (半径 3.6mm)
-// ══════════════════════════════════════════════════════════════════
-function ExternalEarCanal() {
-  const [geoInner, geoOuter] = useMemo(() => {
-    const pts = [
-      new THREE.Vector3( 0.0,  2.0,  5.0),  // 鼓膜付近
-      new THREE.Vector3( 0.5,  1.0, 12.0),  // やや前下方へ湾曲
-      new THREE.Vector3( 1.0,  0.0, 19.0),
-      new THREE.Vector3( 0.5, -0.8, 26.0),
-      new THREE.Vector3( 0.0, -1.0, 30.0),  // 外耳道口
-    ];
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
-    const inner = new THREE.TubeGeometry(curve, 30, 3.6, 22, false);
-    const outer = new THREE.TubeGeometry(curve, 30, 4.0, 22, false);
-    return [inner, outer] as const;
-  }, []);
-
-  return (
-    <group>
-      {/* 外耳道内壁（BackSide = 管の内面を描画）*/}
-      <mesh geometry={geoInner}>
-        <meshStandardMaterial color={BONE_INNER} roughness={0.70} side={THREE.BackSide} />
-      </mesh>
-      {/* 外耳道外壁（半透明で外からも確認可能）*/}
-      <mesh geometry={geoOuter}>
-        <meshStandardMaterial color={BONE_WALL} roughness={0.65} transparent opacity={0.20} />
-      </mesh>
-    </group>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════
 // 側頭骨骨壁（鼓室を囲む壁）
@@ -171,31 +135,6 @@ function MedialWall() {
         <meshStandardMaterial color={BONE_INNER} roughness={0.50} side={THREE.DoubleSide} />
       </mesh>
     </group>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════
-// 鼓索神経（Chorda Tympani）
-//
-// 顔面神経の分枝。後壁から出て鼓室を斜走し、
-// ツチ骨柄と鼓膜の間（外層）を通って前壁（岩鼓裂）へ向かう。
-// ══════════════════════════════════════════════════════════════════
-function ChordaTympani() {
-  const geo = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(-0.5,  1.5, -3.5),  // 後壁骨小管出口（新内耳壁Z=1.0より後方）
-      new THREE.Vector3( 0.1,  1.8,  2.0),  // 後鼓室を斜走
-      new THREE.Vector3( 0.3,  2.0,  4.5),  // ツチ骨頸部付近（新座標 neckStart≈4.8）
-      new THREE.Vector3( 3.0,  1.5,  5.5),  // 前壁（岩鼓裂）へ
-    ];
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
-    return new THREE.TubeGeometry(curve, 24, 0.14, 8, false);
-  }, []);
-
-  return (
-    <mesh geometry={geo}>
-      <meshStandardMaterial color="#c8a830" roughness={0.55} transparent opacity={0.90} />
-    </mesh>
   );
 }
 
