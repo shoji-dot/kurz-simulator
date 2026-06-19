@@ -8,10 +8,11 @@
  *   ・この方向ベクトル = (UMBO_POS − base) を正規化したもの
  *   ・シャフト長 selectedLength [mm] は Y 軸成分が臨床サイズに一致する
  *
- * ▼ 参考: OssicleModels 定数（インポート利用）
- *   STAPES_HEAD      = [-0.4, -2.5, -3.5]  ← PORP シャフト下端
- *   STAPES_FOOTPLATE = [-0.4, -5.0, -5.0]  ← TORP シャフト下端
- *   UMBO_POS         = [ 0.0,  0.0,  5.0]  ← プロテーゼ上端基準
+ * ▼ 参考: OssicleModels 定数（インポート利用、OpenEar ALPHA 実測値）
+ *   STAPES_HEAD      = [0.84, -2.65, 4.86]  ← PORP シャフト下端（|臍部→頭部| = 2.78 mm）
+ *   STAPES_FOOTPLATE = [0.84, -2.65, 2.12]  ← TORP シャフト下端（|臍部→底板| = 4.00 mm）
+ *   UMBO_POS         = [ 0.0,  0.0,  5.0]   ← プロテーゼ上端基準
+ *   ※ 連鎖は主に Y 方向（下方 2.65 mm）に走行
  */
 
 import * as THREE from 'three';

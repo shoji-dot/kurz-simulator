@@ -13,7 +13,8 @@
  *   Z+ = 外耳道方向（カメラ側）
  *   Y+ = 上方
  *   鼓膜中心  : [0, 2.0, 5.0]
- *   内耳壁    : Z = -6.0
+ *   内耳壁    : Z = +1.0（OpenEar実測: TM-内耳壁間 ≈ 4 mm）
+ *   アブミ骨底板: [0.84, -2.65, 2.12] = STAPES_FOOTPLATE
  *   外耳道入口: Z ≈ +30
  */
 
@@ -108,8 +109,10 @@ function TemporalBoneWalls() {
 // 半透明にして背後の蝸牛・三半規管を透視可能にする。
 // ══════════════════════════════════════════════════════════════════
 function MedialWall() {
+  // グループ基準: Z=1.0（OpenEar実測に合わせた鼓室深度）
+  // 卵円窓はSTAPES_FOOTPLATE [0.84, -2.65, 2.12] ≈ group Z=1.0 + local Z=1.12
   return (
-    <group position={[0, 0, -6.0]}>
+    <group position={[0, 0, 1.0]}>
       {/* 壁面本体（半透明）*/}
       <mesh>
         <planeGeometry args={[14, 17]} />
@@ -121,51 +124,53 @@ function MedialWall() {
       </mesh>
 
       {/* 岬角（Promontory）— 蝸牛底回転が作る大きな隆起
-          位置: 内側壁の中央やや前下方 */}
-      <mesh position={[1.0, -2.0, 0.9]}>
+          位置: 卵円窓の前下方（解剖学的） */}
+      <mesh position={[2.84, -4.15, 0.9]}>
         <sphereGeometry args={[2.5, 22, 18]} />
         <meshStandardMaterial color={PROM_COLOR} roughness={0.48} />
       </mesh>
 
       {/* 卵円窓龕（Oval Window / Fenestra Vestibuli）
-          岬角の後上方。アブミ骨底板がはまる楕円形。
-          size: 3×1.5mm → scale で楕円化 */}
-      <mesh position={[-1.0, -0.5, 1.1]} rotation={[0, 0, 0.28]} scale={[1, 0.60, 1]}>
-        <circleGeometry args={[1.2, 28]} />
+          STAPES_FOOTPLATE [0.84, -2.65, 2.12] に対応: local [0.84, -2.65, 1.12]
+          size: 2.74×2.43mm（OpenEar実測）→ scale で楕円化 */}
+      <mesh position={[0.84, -2.65, 1.12]} rotation={[0, 0, 0.28]} scale={[1, 0.88, 1]}>
+        <circleGeometry args={[1.37, 28]} />
         <meshStandardMaterial color="#4a6880" roughness={0.22} />
       </mesh>
       {/* 卵円窓縁（骨性縁）*/}
-      <mesh position={[-1.0, -0.5, 1.05]} rotation={[0, 0, 0.28]} scale={[1, 0.60, 1]}>
-        <ringGeometry args={[1.1, 1.6, 28]} />
+      <mesh position={[0.84, -2.65, 1.05]} rotation={[0, 0, 0.28]} scale={[1, 0.88, 1]}>
+        <ringGeometry args={[1.27, 1.72, 28]} />
         <meshStandardMaterial color={PROM_COLOR} roughness={0.50} />
       </mesh>
 
       {/* 正円窓龕（Round Window / Fenestra Cochleae）
-          岬角の後下方 */}
-      <mesh position={[0.8, -3.8, 1.1]}>
+          岬角の後下方（卵円窓より 3.3 mm 下方） */}
+      <mesh position={[2.64, -5.95, 1.12]}>
         <circleGeometry args={[0.78, 20]} />
         <meshStandardMaterial color="#30485c" roughness={0.22} />
       </mesh>
-      <mesh position={[0.8, -3.8, 1.05]}>
+      <mesh position={[2.64, -5.95, 1.05]}>
         <ringGeometry args={[0.68, 1.08, 20]} />
         <meshStandardMaterial color={PROM_COLOR} roughness={0.50} />
       </mesh>
 
-      {/* アブミ骨筋腱錐隆起（Pyramidal Eminence）*/}
-      <mesh position={[-2.0, 0.0, 0.6]}>
+      {/* アブミ骨筋腱錐隆起（Pyramidal Eminence）
+          卵円窓の後方 */}
+      <mesh position={[-0.16, -2.15, 0.6]}>
         <cylinderGeometry args={[0.25, 0.38, 1.4, 8]} />
         <meshStandardMaterial color={BONE_INNER} roughness={0.50} />
       </mesh>
 
       {/* 顔面神経管（水平部 / Tympanic Segment of Facial Nerve）
-          卵円窓の直上を後方に走る */}
-      <mesh position={[-2.0, 1.5, 0.7]} rotation={[0, 0, Math.PI / 2]}>
+          卵円窓の直上 2 mm を後方に走る */}
+      <mesh position={[-0.16, -0.65, 0.7]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.55, 0.55, 8, 10]} />
         <meshStandardMaterial color={BONE_WALL} roughness={0.55} transparent opacity={0.75} />
       </mesh>
 
-      {/* 外耳道骨輪（Tympanic Annulus）*/}
-      <mesh position={[0, 2.0, 11.0]}>
+      {/* 外耳道骨輪（Tympanic Annulus）
+          group Z=1.0 + local Z=4.0 = world Z=5.0 （鼓膜面）*/}
+      <mesh position={[0, 2.0, 4.0]}>
         <ringGeometry args={[4.4, 5.0, 44]} />
         <meshStandardMaterial color={BONE_INNER} roughness={0.50} side={THREE.DoubleSide} />
       </mesh>
@@ -182,10 +187,10 @@ function MedialWall() {
 function ChordaTympani() {
   const geo = useMemo(() => {
     const pts = [
-      new THREE.Vector3(-1.8,  1.5, -4.8),  // 後壁骨小管出口
-      new THREE.Vector3( 0.1,  1.8,  0.2),  // ツチ骨柄後面通過
-      new THREE.Vector3( 0.8,  2.0,  2.8),  // ツチ骨頸部付近
-      new THREE.Vector3( 3.0,  1.5,  4.2),  // 前壁（岩鼓裂）へ
+      new THREE.Vector3(-0.5,  1.5, -3.5),  // 後壁骨小管出口（新内耳壁Z=1.0より後方）
+      new THREE.Vector3( 0.1,  1.8,  2.0),  // 後鼓室を斜走
+      new THREE.Vector3( 0.3,  2.0,  4.5),  // ツチ骨頸部付近（新座標 neckStart≈4.8）
+      new THREE.Vector3( 3.0,  1.5,  5.5),  // 前壁（岩鼓裂）へ
     ];
     const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
     return new THREE.TubeGeometry(curve, 24, 0.14, 8, false);
@@ -217,11 +222,11 @@ export function AnatomyScene() {
       {/* 外耳道方向からのメイン光 */}
       <directionalLight position={[ 4,  8, 22]} intensity={1.20} color="#fffaf0" />
       {/* 内耳壁側からの補助光（内部構造を照らす）*/}
-      <directionalLight position={[-6,  2,-12]} intensity={0.55} color="#b8d4ff" />
+      <directionalLight position={[-6,  2, -4]} intensity={0.55} color="#b8d4ff" />
       {/* 上方からの柔らかい補助光 */}
       <directionalLight position={[ 0, 12,  5]} intensity={0.28} color="#fff8e8" />
-      {/* 内耳を照らすポイントライト */}
-      <pointLight position={[ 2, -4,-12]} intensity={2.0} color="#c0e0ff" distance={22} />
+      {/* 内耳を照らすポイントライト（内耳壁後方）*/}
+      <pointLight position={[ 2, -4, -5]} intensity={2.0} color="#c0e0ff" distance={18} />
 
       <Suspense fallback={null}>
         {/* 外耳道 */}
@@ -286,12 +291,12 @@ export function CasePreviewScene({ malleus, incus, stapes }: CaseSceneProps) {
           showLabels={false}
         />
         {/* 簡易内側壁（プレビュー用）*/}
-        <mesh position={[0, 0.5, -6.0]}>
+        <mesh position={[0, 0.5, 1.0]}>
           <planeGeometry args={[14, 17]} />
           <meshStandardMaterial color="#d0c4aa" roughness={0.55} />
         </mesh>
         {/* 岬角（プレビュー用）*/}
-        <mesh position={[1.0, -2.0, -5.1]}>
+        <mesh position={[2.84, -4.15, 1.9]}>
           <sphereGeometry args={[2.2, 16, 12]} />
           <meshStandardMaterial color="#c4b890" roughness={0.48} />
         </mesh>

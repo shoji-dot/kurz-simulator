@@ -434,7 +434,7 @@ export function SurgicalSceneContent({ step, product }: SurgicalSceneContentProp
       )}
 
       {/* ── 内耳壁・岬角（深部構造） ── */}
-      <group position={[0, 1, -6.0]}>
+      <group position={[0.84, -1.65, 1.0]}>
         <mesh>
           <planeGeometry args={[14, 17]} />
           <meshStandardMaterial

@@ -7,16 +7,17 @@
  *   Y+  : 上方
  *   X+  : 前方
  *
- * ▼ 重要ランドマーク
+ * ▼ 重要ランドマーク（OpenEar ALPHA 実測値 2026-06-20）
  *   鼓膜中心   : [0, 2.0,  5.0]  → 臍部 [0, 0.0, 5.0]
- *   ツチ骨頭   : [0.1, 5.0, 1.5]
- *   キヌタ骨体 : [-0.8, 5.0, 0.5]
- *   アブミ骨頭 : [-0.4, -2.5, -3.5]  ← PORP シャフト下端
- *   アブミ骨底板: [-0.4, -5.0, -5.0] ← TORP シャフト下端
+ *   ツチ骨頭   : [0.0, 3.6, 4.2]  （臍部から 3.62mm 上方）
+ *   キヌタ骨体 : [-0.8, 2.2, 3.8] （ツチ骨頭の後内方）
+ *   アブミ骨頭 : [0.84, -2.65, 4.86]  ← PORP シャフト下端
+ *   アブミ骨底板: [0.84, -2.65, 2.12] ← TORP シャフト下端
  *
- * ▼ プロテーゼ長の意味
- *   PORP シャフト長 = 臍部 Y(0.0) − アブミ骨頭 Y(-2.5) → 約 2.5 mm
- *   TORP シャフト長 = 臍部 Y(0.0) − 底板 Y(-5.0)  → 約 5.0 mm
+ * ▼ プロテーゼ長の意味（3D 実測値）
+ *   PORP シャフト長 = |臍部 − アブミ骨頭| → 2.78 mm
+ *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm
+ *   ※ 耳小骨連鎖は主に Y 方向（下方）に走行、Z 差は最小
  */
 
 import { useMemo } from 'react';
@@ -151,12 +152,12 @@ export function Malleus({
   if (status === 'absent') return null;
   const col = highlight === 'malleus' ? '#00b4d8' : BONE;
 
-  // 世界座標系ランドマーク
-  const umbo       = new THREE.Vector3(0.3,  0.0, 5.0);   // 臍部
-  const latProc    = new THREE.Vector3(0.9,  1.5, 5.0);   // 短突起（ツチ骨短突起）
-  const neckStart  = new THREE.Vector3(0.5,  2.5, 4.2);   // 頸部開始
-  const neckEnd    = new THREE.Vector3(0.2,  3.8, 2.5);   // 頸部終端
-  const headCenter = new THREE.Vector3(0.1,  5.0, 1.5);   // 頭部（attic 内）
+  // 世界座標系ランドマーク（OpenEar ALPHA 実測値）
+  const umbo       = new THREE.Vector3(0.0,  0.0, 5.0);   // 臍部
+  const latProc    = new THREE.Vector3(0.5,  1.2, 5.0);   // 短突起（鼓膜面上）
+  const neckStart  = new THREE.Vector3(0.3,  2.0, 4.8);   // 頸部開始
+  const neckEnd    = new THREE.Vector3(0.1,  2.8, 4.4);   // 頸部終端
+  const headCenter = new THREE.Vector3(0.0,  3.6, 4.2);   // 頭部（attic 内）臍部から 3.62 mm 上方
 
   return (
     <group>
@@ -181,7 +182,7 @@ export function Malleus({
             <meshStandardMaterial color={col} roughness={0.35} metalness={0.05} />
           </mesh>
           {showLabels && (
-            <Label position={[2.0, 6.2, 1.5]} text="ツチ骨頭 (Malleus Head)" />
+            <Label position={[2.0, 4.5, 4.2]} text="ツチ骨頭 (Malleus Head)" />
           )}
         </>
       )}
@@ -206,10 +207,10 @@ export function Incus({
   if (status === 'absent') return null;
   const col = highlight === 'incus' ? '#00b4d8' : BONE_DARK;
 
-  const body       = new THREE.Vector3(-0.8,  5.0,  0.5);   // 体部
-  const shortProc  = new THREE.Vector3(-1.5,  4.5, -2.0);   // 短脚先端（後方）
-  const lpStart    = new THREE.Vector3(-0.7,  5.0,  0.0);   // 長脚起点（体部）
-  const lpEnd      = new THREE.Vector3(-0.4, -2.5, -3.5);   // 豆状突起（アブミ骨頭と関節）
+  const body       = new THREE.Vector3(-0.8,  2.2,  3.8);   // 体部（OpenEar実測）
+  const shortProc  = new THREE.Vector3(-1.5,  1.8,  1.5);   // 短脚先端（後内方）
+  const lpStart    = new THREE.Vector3(-0.7,  1.5,  4.0);   // 長脚起点（体部下端）
+  const lpEnd      = new THREE.Vector3( 0.84,-2.65, 4.86);  // 豆状突起（= STAPES_HEAD）
 
   return (
     <group>
@@ -219,16 +220,16 @@ export function Incus({
         <meshStandardMaterial color={col} roughness={0.42} />
       </mesh>
       {showLabels && (
-        <Label position={[-2.5, 6.0, 0.5]} text="キヌタ骨体部 (Incus Body)" />
+        <Label position={[-2.5, 3.2, 3.8]} text="キヌタ骨体部 (Incus Body)" />
       )}
 
       {/* 短脚 */}
       <Tube from={body} to={shortProc} r={0.13} color={col} />
 
-      {/* 長脚（下方走行） */}
+      {/* 長脚（下方走行）: 体部下端 → 豆状突起 */}
       <Tube from={lpStart} to={lpEnd} r={0.12} color={col} />
       {showLabels && (
-        <Label position={[-2.2, 0.5, -3.0]} text="キヌタ骨長脚 (Long Process)" />
+        <Label position={[-2.2, -0.5, 4.5]} text="キヌタ骨長脚 (Long Process)" />
       )}
 
       {/* 豆状突起（incudostapedial joint 側） */}
@@ -243,18 +244,19 @@ export function Incus({
 // ══════════════════════════════════════════════════════════════════
 // アブミ骨 (Stapes)
 //
-// 底板中心  : STAPES_FOOTPLATE = [-0.4, -5.0, -5.0]  ← TORP 下端
-// 頭部      : STAPES_HEAD      = [-0.4, -2.5, -3.5]  ← PORP 下端
-//   (頭部 = 底板 + [0, +2.5, +1.5])
+// 底板中心  : STAPES_FOOTPLATE = [0.84, -2.65, 2.12]  ← TORP 下端
+// 頭部      : STAPES_HEAD      = [0.84, -2.65, 4.86]  ← PORP 下端
+//   (頭部 → 底板 = Z 方向に 2.74 mm 内側)
 //
-// PORP シャフト長の基準:  臍部 Y(0.0) − 頭部 Y(-2.5)  = 2.5 mm
-// TORP シャフト長の基準:  臍部 Y(0.0) − 底板 Y(-5.0)  = 5.0 mm
+// PORP シャフト長: |臍部 − 頭部| = 2.78 mm（OpenEar 実測）
+// TORP シャフト長: |臍部 − 底板| = 4.00 mm（OpenEar 実測）
+// 耳小骨連鎖は主に Y（下方）に走行、Z 差は最小（実測 0.14 mm）
 // ══════════════════════════════════════════════════════════════════
 
-/** アブミ骨底板の世界座標 */
-export const STAPES_FOOTPLATE = new THREE.Vector3(-0.4, -5.0, -5.0);
-/** アブミ骨頭（capitulum）の世界座標 */
-export const STAPES_HEAD      = new THREE.Vector3(-0.4, -2.5, -3.5);
+/** アブミ骨底板の世界座標（OpenEar ALPHA 実測: |臍部→底板| = 4.00 mm） */
+export const STAPES_FOOTPLATE = new THREE.Vector3(0.84, -2.65, 2.12);
+/** アブミ骨頭（capitulum）の世界座標（OpenEar ALPHA 実測: |臍部→頭部| = 2.78 mm） */
+export const STAPES_HEAD      = new THREE.Vector3(0.84, -2.65, 4.86);
 /** 臍部（umbo）の世界座標 ── プロテーゼ上端の基準 */
 export const UMBO_POS         = new THREE.Vector3(0.0,   0.0,  5.0);
 
@@ -267,10 +269,11 @@ function StapesCrus({
 }) {
   const geo = useMemo(() => {
     // X 方向のオフセット（前弓=+, 後弓=-）で左右に広がる
+    // 底板幅 2.74 mm に合わせて半幅 ±1.3 mm に拡大（実測値）
     const sign = side === 'anterior' ? 1 : -1;
-    const fpEdge = new THREE.Vector3(fp.x + sign * 0.65, fp.y + 0.15, fp.z);
+    const fpEdge = new THREE.Vector3(fp.x + sign * 1.3, fp.y + 0.15, fp.z);
     const mid    = new THREE.Vector3(
-      hd.x + sign * 0.5,
+      hd.x + sign * 0.7,
       fp.y + (hd.y - fp.y) * 0.5,
       fp.z + (hd.z - fp.z) * 0.45,
     );
@@ -300,13 +303,13 @@ export function Stapes({
   return (
     <group>
       {/* 底板（卵円窓を塞ぐ楕円プレート）
-          X 方向に 3mm, Y 方向に 1.4mm の楕円形 */}
-      <mesh position={[fp.x, fp.y, fp.z]} scale={[1.55, 0.72, 0.14]}>
+          OpenEar 実測: 2.74 mm × 2.43 mm → scale = [1.37, 1.215, 0.14] */}
+      <mesh position={[fp.x, fp.y, fp.z]} scale={[1.37, 1.215, 0.14]}>
         <sphereGeometry args={[1.0, 18, 12]} />
         <meshStandardMaterial color={col} roughness={0.25} metalness={0.05} />
       </mesh>
       {showLabels && (
-        <Label position={[fp.x + 2.8, fp.y, fp.z]} text="底板 (Footplate) → 卵円窓" />
+        <Label position={[fp.x + 2.5, fp.y, fp.z]} text="底板 (Footplate) → 卵円窓" />
       )}
 
       {hasSuprastructure && (
@@ -322,7 +325,7 @@ export function Stapes({
             <meshStandardMaterial color={col} roughness={0.28} metalness={0.05} />
           </mesh>
           {showLabels && (
-            <Label position={[hd.x + 2.0, hd.y, hd.z]} text="アブミ骨頭 (Capitulum)" />
+            <Label position={[hd.x + 2.0, hd.y + 0.5, hd.z]} text="アブミ骨頭 (Capitulum)" />
           )}
         </>
       )}
