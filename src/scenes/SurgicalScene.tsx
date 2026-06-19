@@ -19,7 +19,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import { DrillModel } from './models/DrillModel';
-import { OssicleChain, TympanicMembrane, STAPES_HEAD, STAPES_FOOTPLATE } from './models/OssicleModels';
+import { OssicleChain, TympanicMembrane, STAPES_HEAD } from './models/OssicleModels';
 import { ProsthesisModel } from './models/ProsthesisModels';
 import type { KurzProduct } from '../data/products';
 
