@@ -17,19 +17,28 @@ import { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
-// ── 解剖構造ごとの色 ──────────────────────────────────────────────
+// ── 解剖構造ごとのマテリアル設定 ─────────────────────────────────
+// 解剖標本（ホルマリン固定）のような質感を目標とする
 const MAT: Record<string, { color: string; roughness: number; metalness?: number; opacity?: number }> = {
-  malleus:   { color: '#e8d4a0', roughness: 0.55 },
-  incus:     { color: '#dfc890', roughness: 0.55 },
-  stapes:    { color: '#d8bc7c', roughness: 0.50 },
-  tympanic:  { color: '#f4a898', roughness: 0.72, opacity: 0.85 },
-  scalaTym:  { color: '#7ec4e0', roughness: 0.60, opacity: 0.80 },
-  scalaVest: { color: '#9ad4f0', roughness: 0.60, opacity: 0.80 },
-  facial:    { color: '#f0e060', roughness: 0.65, opacity: 0.90 },
-  chorda:    { color: '#f0c840', roughness: 0.65, opacity: 0.88 },
-  eac:       { color: '#e0c8a8', roughness: 0.68, opacity: 0.30 },
-  roundWin:  { color: '#4a88a8', roughness: 0.28 },
-  nerve:     { color: '#f8f060', roughness: 0.60, opacity: 0.80 },
+  // 耳小骨: 象牙質・骨の質感（乳白色〜黄白色、やや光沢あり）
+  malleus:   { color: '#f0e6c8', roughness: 0.38, metalness: 0.04 },
+  incus:     { color: '#eee0be', roughness: 0.38, metalness: 0.04 },
+  stapes:    { color: '#e8d8a8', roughness: 0.35, metalness: 0.06 },
+  // 鼓膜: 半透明の薄い膜（真珠光沢）
+  tympanic:  { color: '#f8d8c0', roughness: 0.55, metalness: 0.02, opacity: 0.75 },
+  // 蝸牛（膜迷路）: 水色系、半透明
+  scalaTym:  { color: '#60b8e0', roughness: 0.45, metalness: 0.0, opacity: 0.82 },
+  scalaVest: { color: '#80cce8', roughness: 0.45, metalness: 0.0, opacity: 0.78 },
+  // 顔面神経: 解剖学的標準色（黄色）
+  facial:    { color: '#f5d820', roughness: 0.60, metalness: 0.0, opacity: 0.92 },
+  // 鼓索神経: 顔面神経より細い・やや橙味
+  chorda:    { color: '#f0b830', roughness: 0.62, metalness: 0.0, opacity: 0.90 },
+  // 外耳道: ほぼ透明な骨質（輪郭把握用）
+  eac:       { color: '#d8c8a0', roughness: 0.70, metalness: 0.0, opacity: 0.18 },
+  // 正円窓: 濃青灰（膜性）
+  roundWin:  { color: '#5888a8', roughness: 0.30, metalness: 0.05 },
+  // 蝸牛前庭神経: 明黄色
+  nerve:     { color: '#f8e840', roughness: 0.58, metalness: 0.0, opacity: 0.85 },
 };
 
 // ── 単一GLBローダー ──────────────────────────────────────────────
