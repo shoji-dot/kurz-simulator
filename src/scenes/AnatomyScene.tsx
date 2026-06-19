@@ -1,31 +1,27 @@
 /**
- * AnatomyScene.tsx  ── 解剖学的中耳シーン（大幅改訂版）
+ * AnatomyScene.tsx  ── 解剖学的中耳シーン（実モデル版）
  *
- * 改善点:
- *   1. 外耳道（EAC）チューブ追加 — 術者視点のトンネル表現
- *   2. 内耳迷路（蝸牛・前庭・三半規管）追加
- *   3. 側頭骨内耳壁を半透明化し内耳を透視
- *   4. 岬角・卵円窓・正円窓の解剖学的位置を修正
- *   5. 顔面神経管（水平部）を追加
- *   6. 鼓索神経の走行を改善
+ * ALPHA データセット（側頭骨CBCT）由来のGLBモデルを使用。
+ * 手続き的ジオメトリから実解剖学的3Dモデルに移行。
  *
- * ▼ 座標系（OssicleModels と共通）
+ * ▼ 座標系
  *   Z+ = 外耳道方向（カメラ側）
  *   Y+ = 上方
- *   鼓膜中心  : [0, 2.0, 5.0]
- *   内耳壁    : Z = +1.0（OpenEar実測: TM-内耳壁間 ≈ 4 mm）
- *   アブミ骨底板: [0.84, -2.65, 2.12] = STAPES_FOOTPLATE
- *   外耳道入口: Z ≈ +30
+ *   アブミ骨底板(卵円窓基準): STAPES_FOOTPLATE = [0.84, -2.65, 2.12]
+ *   GLBモデルはアブミ骨を原点として配置済み → groupでオフセット適用
  */
 
 import { Suspense, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { OssicleChain } from './models/OssicleModels';
-import { InnerEar } from './models/InnerEarModels';
+import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
+import { RealAnatomy } from './models/RealAnatomyModels';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
-import { useSimStore } from '../store/useSimStore';
+// GLBモデル群をシーン座標系に配置するオフセット
+// 全GLBはアブミ骨底板を(0,0,0)として生成されているため、
+// このオフセットでシーン内の卵円窓位置に一致させる
+const STAPES_FOOTPLATE: [number, number, number] = [0.84, -2.65, 2.12];
 
 // ── 骨色定数 ─────────────────────────────────────────────────────────
 const BONE_WALL  = '#e4d8c0';
@@ -207,8 +203,6 @@ function ChordaTympani() {
 // メイン解剖シーン（AnatomyScene）
 // ══════════════════════════════════════════════════════════════════
 export function AnatomyScene() {
-  const highlight = useSimStore((s) => s.highlightedStructure);
-
   return (
     <Canvas
       camera={{ position: [8, 10, 28], fov: 44 }}
@@ -229,27 +223,21 @@ export function AnatomyScene() {
       <pointLight position={[ 2, -4, -5]} intensity={2.0} color="#c0e0ff" distance={18} />
 
       <Suspense fallback={null}>
-        {/* 外耳道 */}
-        <ExternalEarCanal />
+        {/* ── 実解剖学的GLBモデル（ALPHA CBCTデータ由来）
+            アブミ骨底板を原点として変換済み → STAPES_FOOTPLATEでオフセット */}
+        <group position={STAPES_FOOTPLATE}>
+          <RealAnatomy
+            showNerves={true}
+            showInnerEar={true}
+            showEAC={true}
+          />
+        </group>
 
-        {/* 鼓室骨壁 */}
+        {/* 鼓室骨壁（外部コンテキスト用・手続き的）*/}
         <TemporalBoneWalls />
+
+        {/* 内側壁（卵円窓・正円窓マーカー）*/}
         <MedialWall />
-
-        {/* 鼓索神経 */}
-        <ChordaTympani />
-
-        {/* 耳小骨連鎖（鼓膜含む）*/}
-        <OssicleChain
-          malleus="intact"
-          incus="intact"
-          stapes="intact"
-          highlight={highlight}
-          showLabels={true}
-        />
-
-        {/* 内耳迷路（蝸牛・前庭・三半規管）*/}
-        <InnerEar />
       </Suspense>
 
       <OrbitControls
