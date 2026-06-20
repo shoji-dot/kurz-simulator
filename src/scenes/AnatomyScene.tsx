@@ -15,52 +15,32 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
-import { RealAnatomy } from './models/RealAnatomyModels';
+import { RealAnatomy, type RealAnatomyProps } from './models/RealAnatomyModels';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 // ══════════════════════════════════════════════════════════════════
 // メイン解剖シーン（AnatomyScene）
 // ══════════════════════════════════════════════════════════════════
-export function AnatomyScene() {
+export function AnatomyScene({ visibility }: { visibility?: RealAnatomyProps }) {
   return (
     <Canvas
-      camera={{ position: [18, 10, 32], fov: 50 }}
+      camera={{ position: [8, 5, 22], fov: 46 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
     >
       <color attach="background" args={['#0a0f1a']} />
 
-      {/* ── ライティング（解剖標本ライク）── */}
-      {/* 上方メインライト */}
-      <directionalLight
-        position={[5, 15, 10]}
-        intensity={1.8}
-        color="#fff8f0"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
-      {/* 外耳道側（前面）充填光 */}
-      <directionalLight position={[2, 3, 18]} intensity={0.9} color="#ffe8d0" />
-      {/* 蝸牛側（後面）リムライト */}
+      {/* ── ライティング ── */}
+      <directionalLight position={[5, 15, 10]} intensity={1.8} color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[2, 3, 18]}  intensity={0.9} color="#ffe8d0" />
       <directionalLight position={[-4, 2, -12]} intensity={0.6} color="#c0d8ff" />
-      {/* 下からの反射光 */}
       <directionalLight position={[0, -8, 5]}  intensity={0.25} color="#d0e4ff" />
-      {/* 蝸牛ポイントライト */}
       <pointLight position={[0, -2, -8]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
-      {/* 耳小骨ポイントライト */}
       <pointLight position={[1,  3,  4]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {/* ── 実解剖学的GLBモデル群
-            全モデルはアブミ骨底板を原点(0,0,0)として配置済み */}
-        <RealAnatomy
-          showNerves={true}
-          showInnerEar={true}
-          showEAC={true}
-        />
-
-        {/* 床面（影受け用・ほぼ不可視）*/}
+        <RealAnatomy {...visibility} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
           <shadowMaterial transparent opacity={0.15} />
@@ -68,10 +48,10 @@ export function AnatomyScene() {
       </Suspense>
 
       <OrbitControls
-        target={[0, 1, 0]}
+        target={[0, 0, 0]}
         enablePan={true}
-        minDistance={6}
-        maxDistance={45}
+        minDistance={4}
+        maxDistance={55}
         autoRotate={false}
       />
     </Canvas>

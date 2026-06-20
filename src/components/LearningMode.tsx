@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
+import type { RealAnatomyProps } from '../scenes/models/RealAnatomyModels';
 
 const anatomyStructures = [
   { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e8d5b0' },
@@ -37,9 +38,36 @@ const procedures = [
   },
 ];
 
+// 表示切替の定義
+const VISIBILITY_ITEMS: { key: keyof RealAnatomyProps; label: string; color: string }[] = [
+  { key: 'showBone',        label: '側頭骨',  color: '#f2ead8' },
+  { key: 'showAuricle',     label: '耳介',    color: '#e8c8a8' },
+  { key: 'showOssicles',    label: '耳小骨',  color: '#e8d8a8' },
+  { key: 'showTympanic',    label: '鼓膜',    color: '#f8d8c0' },
+  { key: 'showInnerEar',    label: '内耳',    color: '#60b8e0' },
+  { key: 'showNerves',      label: '神経',    color: '#f5d820' },
+  { key: 'showEAC',         label: '外耳道',  color: '#d8c8a0' },
+  { key: 'showRoundWindow', label: '正円窓',  color: '#5888a8' },
+];
+
+const DEFAULT_VISIBILITY: RealAnatomyProps = {
+  showBone: true,
+  showAuricle: false,
+  showOssicles: true,
+  showTympanic: true,
+  showInnerEar: true,
+  showNerves: true,
+  showEAC: true,
+  showRoundWindow: true,
+};
+
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<RealAnatomyProps>(DEFAULT_VISIBILITY);
+
+  const toggleVisibility = (key: keyof RealAnatomyProps) =>
+    setVisibility(v => ({ ...v, [key]: !v[key] }));
 
   const selProd = kurzProducts.find((p) => p.id === selectedProduct);
 
@@ -59,7 +87,7 @@ export function LearningMode() {
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
         <div className="canvas-wrapper">
-          <AnatomyScene />
+          <AnatomyScene visibility={visibility} />
           <div className="canvas-overlay top-left">
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>
               ドラッグ: 回転 ｜ ホイール: ズーム
@@ -104,6 +132,56 @@ export function LearningMode() {
                   </div>
                 ))}
               </div>
+              <div className="card">
+                <div className="section-title">3D表示切替</div>
+                {VISIBILITY_ITEMS.map(({ key, label, color }) => {
+                  const isOn = !!visibility[key];
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '7px 4px',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0, opacity: isOn ? 1 : 0.3 }} />
+                        <span style={{ fontSize: 13, color: isOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</span>
+                      </div>
+                      {/* トグルスイッチ */}
+                      <div
+                        onClick={() => toggleVisibility(key)}
+                        style={{
+                          width: 38,
+                          height: 20,
+                          borderRadius: 10,
+                          background: isOn ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
+                          cursor: 'pointer',
+                          position: 'relative',
+                          transition: 'background .2s',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute',
+                          top: 2,
+                          left: isOn ? 20 : 2,
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: '#fff',
+                          transition: 'left .2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div className="card">
                 <div className="section-title">耳小骨連鎖の音響伝達</div>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>

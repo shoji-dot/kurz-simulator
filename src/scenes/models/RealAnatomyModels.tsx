@@ -39,8 +39,8 @@ const MAT: Record<string, { color: string; roughness: number; metalness?: number
   roundWin:  { color: '#5888a8', roughness: 0.30, metalness: 0.05 },
   // 蝸牛前庭神経: 明黄色
   nerve:     { color: '#f8e840', roughness: 0.58, metalness: 0.0, opacity: 0.85 },
-  // 側頭骨: 皮質骨（白〜淡黄色、やや光沢）
-  bone:      { color: '#f2ead8', roughness: 0.42, metalness: 0.05, opacity: 0.88 },
+  // 側頭骨: 皮質骨（白〜淡黄色、半透明にして内部構造を透視可能に）
+  bone:      { color: '#f2ead8', roughness: 0.42, metalness: 0.05, opacity: 0.35 },
   // 耳介: 皮膚質感（やや暖色、マット）
   auricle:   { color: '#e8c8a8', roughness: 0.72, metalness: 0.0 },
 };
@@ -147,31 +147,37 @@ export function RealAuricle() {
 }
 
 // ── 全解剖構造セット（学習モード用）─────────────────────────────
-interface RealAnatomyProps {
-  showNerves?:  boolean;
-  showInnerEar?: boolean;
-  showEAC?:     boolean;
-  showBone?:    boolean;
-  showAuricle?: boolean;
+export interface RealAnatomyProps {
+  showBone?:        boolean;
+  showAuricle?:     boolean;
+  showOssicles?:    boolean;
+  showTympanic?:    boolean;
+  showInnerEar?:    boolean;
+  showNerves?:      boolean;
+  showEAC?:         boolean;
+  showRoundWindow?: boolean;
 }
 
 export function RealAnatomy({
-  showNerves   = true,
-  showInnerEar = true,
-  showEAC      = true,
-  showBone     = true,
-  showAuricle  = true,
+  showBone        = true,
+  showAuricle     = false,
+  showOssicles    = true,
+  showTympanic    = true,
+  showInnerEar    = true,
+  showNerves      = true,
+  showEAC         = true,
+  showRoundWindow = true,
 }: RealAnatomyProps) {
   return (
     <group>
-      {showBone     && <RealTemporalBone />}
-      {showAuricle  && <RealAuricle />}
-      <RealTympanicMembrane />
-      <RealOssicles />
-      <RealRoundWindow />
-      {showInnerEar && <RealInnerEar />}
-      {showNerves   && <RealNerves />}
-      {showEAC      && <RealEAC />}
+      {showBone        && <RealTemporalBone />}
+      {showAuricle     && <RealAuricle />}
+      {showTympanic    && <RealTympanicMembrane />}
+      {showOssicles    && <RealOssicles />}
+      {showRoundWindow && <RealRoundWindow />}
+      {showInnerEar    && <RealInnerEar />}
+      {showNerves      && <RealNerves />}
+      {showEAC         && <RealEAC />}
     </group>
   );
 }
