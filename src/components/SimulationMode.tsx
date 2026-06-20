@@ -2,7 +2,35 @@ import { useState } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
-import { SimScene } from '../scenes/SimScene';
+import { SimScene, SIM_DEFAULT_VIS } from '../scenes/SimScene';
+import {
+  type OpacityMode,
+  type StructureKey,
+  type VisibilityMap,
+} from '../scenes/models/RealAnatomyModels';
+
+// ── シミュレーション用表示切替アイテム ─────────────────────────────
+const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
+  { key: 'bone',        label: '側頭骨',    color: '#f2ead8' },
+  { key: 'tympanic',   label: '鼓膜',      color: '#f8d8c0' },
+  { key: 'innerEar',   label: '内耳',      color: '#60b8e0' },
+  { key: 'nerves',     label: '神経・鼓索', color: '#f5d820' },
+  { key: 'eac',        label: '外耳道',    color: '#d8c8a0' },
+  { key: 'roundWindow', label: '正円窓',   color: '#5888a8' },
+];
+
+const CYCLE: OpacityMode[] = ['solid', 'ghost', 'hidden'];
+const MODE_LABEL: Record<OpacityMode, string> = { solid: '実体', ghost: '半透明', hidden: '非表示' };
+const MODE_BG: Record<OpacityMode, string> = {
+  solid:  'var(--accent)',
+  ghost:  'rgba(0,180,216,0.30)',
+  hidden: 'rgba(255,255,255,0.07)',
+};
+const MODE_FG: Record<OpacityMode, string> = {
+  solid:  '#001a20',
+  ghost:  '#7dd8e8',
+  hidden: '#555',
+};
 
 
 const diffLabel: Record<string, string> = {
@@ -152,12 +180,19 @@ function ProductSelect() {
 function PlacementStep() {
   const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore } = useSimStore();
   const [showIdeal, setShowIdeal] = useState(false);
+  const [simVis, setSimVis] = useState<VisibilityMap>({});
 
   if (!selectedCase || !selectedProduct) return null;
 
   const handleConfirm = () => {
     computeScore();
     setSimStep('score');
+  };
+
+  const cycleVis = (key: StructureKey) => {
+    const current: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
+    const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
+    setSimVis((prev) => ({ ...prev, [key]: next }));
   };
 
   return (
@@ -169,6 +204,7 @@ function PlacementStep() {
           product={selectedProduct}
           placement={placement}
           showIdeal={showIdeal}
+          vis={simVis}
         />
         <div className="canvas-overlay top-left">
           <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -272,6 +308,42 @@ function PlacementStep() {
               {tp}
             </div>
           ))}
+        </div>
+
+        {/* 3D 表示切替 */}
+        <div className="card">
+          <div className="section-title" style={{ marginBottom: 8 }}>3D 表示切替</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {SIM_VIS_ITEMS.map(({ key, label, color }) => {
+              const current: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
+                    {label}
+                  </div>
+                  <button
+                    onClick={() => cycleVis(key)}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: 5,
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fontFamily: 'inherit',
+                      background: MODE_BG[current],
+                      color: MODE_FG[current],
+                      minWidth: 52,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {MODE_LABEL[current]}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>

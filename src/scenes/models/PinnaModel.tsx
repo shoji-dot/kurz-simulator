@@ -19,8 +19,8 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
 import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 
-// シミュレーター上の EAC 入口 Z 座標（外耳道長 25mm + 鼓膜 Z=5）
-const EAC_SIM_Z = 30;
+// シミュレーター上の EAC 入口 Z 座標（RealAuricle.glb オフセット = 42mm に合わせる）
+const EAC_SIM_Z = 42;
 
 interface PinnaModelProps {
   /** 患者ID (J / T / A / H / E) */
@@ -76,9 +76,12 @@ export function PinnaModel({
   const url = getPinnaUrl(patientId);
 
   // EAC入口 (eacInStl) をシミュレーター上の (0, 0, EAC_SIM_Z) に合わせる補正
-  const posX = -eacInStl.x;
-  const posY = -eacInStl.y;
-  const posZ = EAC_SIM_Z - eacInStl.z;
+  // rotation [-π/2, 0, π] の変換行列: (x,y,z) → (-x, -z, -y)
+  // world_eac = (posX - eacX, posY - eacZ, posZ - eacY) = (0, 0, EAC_SIM_Z)
+  // よって: posX = eacInStl.x, posY = eacInStl.z, posZ = EAC_SIM_Z + eacInStl.y
+  const posX = eacInStl.x;
+  const posY = eacInStl.z;
+  const posZ = EAC_SIM_Z + eacInStl.y;
 
   return (
     <PinnaSTL

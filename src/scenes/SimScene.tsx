@@ -23,30 +23,39 @@ import {
 } from './models/OssicleModels';
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
 import {
-  RealTemporalBone,
-  RealTympanicMembrane,
-  RealInnerEar,
-  RealEAC,
-  RealRoundWindow,
+  RealAnatomy,
+  type VisibilityMap,
 } from './models/RealAnatomyModels';
-import { TympanoCavity } from './models/TympanoCavityModel';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
 import type { PlacementState } from '../store/useSimStore';
 
 // GLBモデル群をアブミ骨底板（STAPES_FOOTPLATE）位置にオフセットするためのベクトル
-// GLB origin (0,0,0) → procedural STAPES_FOOTPLATE [0.84, -2.65, 2.12]
 const GLB_OFFSET: [number, number, number] = [
   STAPES_FOOTPLATE.x,
   STAPES_FOOTPLATE.y,
   STAPES_FOOTPLATE.z,
 ];
 
+// SimScene デフォルト表示設定（学習モードと同等）
+export const SIM_DEFAULT_VIS: VisibilityMap = {
+  bone:        'ghost',
+  auricle:     'hidden',
+  ossicles:    'hidden',   // OssicleChain で症例別に制御
+  tympanic:    'solid',
+  innerEar:    'ghost',
+  nerves:      'solid',    // 顔面神経・鼓索神経・蝸牛前庭神経
+  eac:         'ghost',
+  roundWindow: 'solid',
+};
+
 interface SimSceneProps {
   surgicalCase:  SurgicalCase;
   product:       KurzProduct;
   placement:     PlacementState;
   showIdeal?:    boolean;
+  /** 表示切替（学習モードと同一形式） */
+  vis?:          VisibilityMap;
 }
 
 // ── 配置ターゲットマーカー ───────────────────────────────────────────
@@ -82,13 +91,20 @@ function PlacementMarker({
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
-  surgicalCase, product, placement, showIdeal = false,
+  surgicalCase, product, placement, showIdeal = false, vis = {},
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, angleTilt } = placement;
 
-  // PORP / TORP でシャフト下端を切り替え
   const isTotal = product.footType === 'FLAT';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
+
+  // vis をマージ（ossicles / auricle は固定）
+  const mergedVis: VisibilityMap = {
+    ...SIM_DEFAULT_VIS,
+    ...vis,
+    ossicles: 'hidden',
+    auricle:  'hidden',
+  };
 
   return (
     <Canvas
@@ -117,28 +133,11 @@ export function SimScene({
       <pointLight position={[3,  5, -5]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
 
       <Suspense fallback={null}>
-        {/* ── GLBリアルモデル（骨・鼓膜・内耳）── */}
+        {/* ── GLBリアルモデル（学習モードと同一）── */}
         {/* GLBはアブミ骨底板を原点としているのでSTAPES_FOOTPLATEにオフセット */}
         <group position={GLB_OFFSET}>
-          {/* 側頭骨（半透明: 内部が見えるように） */}
-          <RealTemporalBone opacityOverride={0.18} />
-          {/* 外耳道（半透明） */}
-          <RealEAC opacityOverride={0.12} />
-          {/* 鼓膜 */}
-          <RealTympanicMembrane opacityOverride={0.70} />
-          {/* 内耳（半透明） */}
-          <RealInnerEar opacityOverride={0.55} />
-          {/* 正円窓 */}
-          <RealRoundWindow opacityOverride={0.90} />
+          <RealAnatomy vis={mergedVis} />
         </group>
-
-        {/* ── 鼓室壁ランドマーク（TympanoCavity: 手続き座標系で定義済み）── */}
-        <TympanoCavity
-          showLabels={false}
-          wallOpacity={0.12}
-          showNerves={true}
-          showEAC={false}
-        />
 
         {/* ── 耳小骨連鎖（症例に応じた状態・手続き座標系）── */}
         <OssicleChain

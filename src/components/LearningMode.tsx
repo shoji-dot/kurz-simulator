@@ -25,7 +25,7 @@ const VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
   { key: 'ossicles',    label: '耳小骨',  color: '#e8d8a8' },
   { key: 'tympanic',    label: '鼓膜',    color: '#f8d8c0' },
   { key: 'innerEar',    label: '内耳',    color: '#60b8e0' },
-  { key: 'nerves',      label: '神経',    color: '#f5d820' },
+  { key: 'nerves',      label: '神経・鼓索', color: '#f5d820' },
   { key: 'eac',         label: '外耳道',  color: '#d8c8a0' },
   { key: 'roundWindow', label: '正円窓',  color: '#5888a8' },
 ];
