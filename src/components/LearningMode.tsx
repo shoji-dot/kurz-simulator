@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
+import { DrillTrainingScene } from '../scenes/DrillTrainingScene';
+import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
   DEFAULT_MODES,
   type OpacityMode,
@@ -72,12 +74,22 @@ const procedures = [
   },
 ];
 
+// ── 危険部位カテゴリラベル ─────────────────────────────────────────
+const CAT_LABEL: Record<string, string> = {
+  facial:   '顔面神経系',
+  vascular: '血管系',
+};
+const CAT_COLOR: Record<string, string> = {
+  facial:   '#f5d820',
+  vascular: '#4477ff',
+};
+
 // ════════════════════════════════════════════════════════
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
-  // 3D表示モード状態（デフォルトはRealAnatomyModelsのDEFAULT_MODESに委譲）
+  // 3D表示モード状態
   const [vis, setVis] = useState<VisibilityMap>({});
   const cycleMode = (key: StructureKey) => {
     const curr = vis[key] ?? DEFAULT_MODES[key];
@@ -86,28 +98,45 @@ export function LearningMode() {
   };
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
 
-  // ズームレベル（0 = 初期FOV）
+  // ズームレベル
   const [zoomLevel, setZoomLevel] = useState(0);
 
-  const selProd = kurzProducts.find((p) => p.id === selectedProduct);
+  // 削開タブ状態
+  const [drillScenario, setDrillScenario] = useState<'s1' | 's2'>('s1');
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
-  // 鼓室の表示制御（構造ハイライトで ON）
+  const selProd = kurzProducts.find((p) => p.id === selectedProduct);
+  const selectedZone = DANGER_ZONES.find((z) => z.id === selectedZoneId) ?? null;
+
+  // 鼓室の表示制御
   const showTympanoCavity = highlightedStructure === 'tympanoCavity';
-  // 耳介 STL PinnaModel: 3D表示切替の「耳介」が solid/ghost のときに表示
-  // RealAuricle.glb の代わりに STL を使うため、vis.auricle を 'hidden' に強制する
   const auricleMode = vis.auricle ?? DEFAULT_MODES.auricle;
   const showPinna = auricleMode !== 'hidden';
-  // AnatomyScene に渡す vis: 耳介を常に hidden にして GLB auricle を非表示にする
   const visForScene: VisibilityMap = { ...vis, auricle: 'hidden' };
+
+  // タブ定義
+  const TAB_LIST = [
+    { key: 'anatomy',   label: '🦴 解剖' },
+    { key: 'products',  label: '🔩 製品' },
+    { key: 'procedure', label: '📋 術式' },
+    { key: 'drilling',  label: '🔴 削開' },
+  ] as const;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
       {/* Tabs */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center' }}>
         <div className="tabs">
-          {(['anatomy', 'products', 'procedure'] as const).map((t) => (
-            <button key={t} className={`tab ${learningTab === t ? 'active' : ''}`} onClick={() => setLearningTab(t)}>
-              {t === 'anatomy' ? '🦴 解剖' : t === 'products' ? '🔩 製品' : '📋 術式'}
+          {TAB_LIST.map(({ key, label }) => (
+            <button
+              key={key}
+              className={`tab ${learningTab === key ? 'active' : ''}`}
+              onClick={() => {
+                setLearningTab(key);
+                if (key !== 'drilling') setSelectedZoneId(null);
+              }}
+            >
+              {label}
             </button>
           ))}
         </div>
@@ -116,24 +145,50 @@ export function LearningMode() {
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
         <div className="canvas-wrapper" style={{ position: 'relative' }}>
-          <AnatomyScene
-            vis={visForScene}
-            zoomLevel={zoomLevel}
-            showTympanoCavity={showTympanoCavity}
-            showPinna={showPinna}
-            pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
-            patientId={selectedPatientId}
-          />
+          {learningTab === 'drilling' ? (
+            <DrillTrainingScene
+              scenario={drillScenario}
+              selectedZoneId={selectedZoneId}
+              onZoneSelect={setSelectedZoneId}
+            />
+          ) : (
+            <AnatomyScene
+              vis={visForScene}
+              zoomLevel={zoomLevel}
+              showTympanoCavity={showTympanoCavity}
+              showPinna={showPinna}
+              pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
+              patientId={selectedPatientId}
+            />
+          )}
 
           {/* 操作ヒント */}
           <div className="canvas-overlay top-left">
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>
-              ドラッグ: 回転 ｜ ホイール: ズーム
+              {learningTab === 'drilling' && drillScenario === 's2'
+                ? '球をクリック: 危険部位を選択 ｜ ドラッグ: 回転'
+                : 'ドラッグ: 回転 ｜ ホイール: ズーム'}
             </div>
           </div>
 
-          {/* 強調表示中の構造名 */}
-          {highlightedStructure && (
+          {/* 危険部位選択インジケーター（S2） */}
+          {learningTab === 'drilling' && drillScenario === 's2' && selectedZone && (
+            <div className="canvas-overlay bottom-left">
+              <div style={{
+                background: 'rgba(10,10,20,.82)',
+                border: `1px solid ${selectedZone.color}`,
+                padding: '8px 12px', borderRadius: 8,
+                backdropFilter: 'blur(4px)',
+              }}>
+                <span style={{ color: selectedZone.color, fontWeight: 700, fontSize: 13 }}>
+                  ⚠ {selectedZone.nameJa}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 強調表示中の構造名（解剖タブ） */}
+          {learningTab === 'anatomy' && highlightedStructure && (
             <div className="canvas-overlay bottom-left">
               <div style={{ background: 'rgba(0,180,216,.15)', border: '1px solid var(--accent)', padding: '6px 10px', borderRadius: 6, color: 'var(--accent)', backdropFilter: 'blur(4px)' }}>
                 {anatomyStructures.find((s) => s.id === highlightedStructure)?.label}
@@ -141,47 +196,49 @@ export function LearningMode() {
             </div>
           )}
 
-          {/* ズームボタン */}
-          <div style={{
-            position: 'absolute', bottom: 16, right: 16,
-            display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10,
-          }}>
-            {[
-              { label: '＋', delta: 1, title: 'ズームイン' },
-              { label: '－', delta: -1, title: 'ズームアウト' },
-            ].map(({ label, delta, title }) => (
-              <button
-                key={label}
-                title={title}
-                onClick={() => setZoomLevel(z => z + delta)}
-                style={{
-                  width: 34, height: 34,
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  background: 'rgba(10,15,26,0.80)',
-                  color: '#c0d8e8',
-                  fontSize: 18,
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(6px)',
-                  lineHeight: 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700,
-                  transition: 'background .15s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,180,216,0.22)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,15,26,0.80)')}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* ズームボタン（削開タブ以外） */}
+          {learningTab !== 'drilling' && (
+            <div style={{
+              position: 'absolute', bottom: 16, right: 16,
+              display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10,
+            }}>
+              {[
+                { label: '＋', delta: 1, title: 'ズームイン' },
+                { label: '－', delta: -1, title: 'ズームアウト' },
+              ].map(({ label, delta, title }) => (
+                <button
+                  key={label}
+                  title={title}
+                  onClick={() => setZoomLevel(z => z + delta)}
+                  style={{
+                    width: 34, height: 34,
+                    borderRadius: 8,
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    background: 'rgba(10,15,26,0.80)',
+                    color: '#c0d8e8',
+                    fontSize: 18,
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(6px)',
+                    lineHeight: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700,
+                    transition: 'background .15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,180,216,0.22)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,15,26,0.80)')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
         <div className="sidebar">
+          {/* ══ 解剖タブ ══ */}
           {learningTab === 'anatomy' && (
             <>
-              {/* 構造ハイライト */}
               <div className="card">
                 <div className="section-title">構造を選択してハイライト</div>
                 {anatomyStructures.map((s) => (
@@ -206,7 +263,6 @@ export function LearningMode() {
                 ))}
               </div>
 
-              {/* 3D表示切替 */}
               <div className="card">
                 <div className="section-title">3D 表示切替</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
@@ -215,33 +271,14 @@ export function LearningMode() {
                 {VIS_ITEMS.map(({ key, label, color }) => {
                   const mode = getMode(key);
                   return (
-                    <div
-                      key={key}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '6px 2px',
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                      }}
-                    >
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{
-                          width: 9, height: 9, borderRadius: '50%',
-                          background: color,
-                          opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1,
-                          flexShrink: 0,
-                        }} />
-                        <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                          {label}
-                        </span>
+                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
                       </div>
                       <button
                         onClick={() => cycleMode(key)}
-                        style={{
-                          padding: '3px 10px', borderRadius: 4, border: 'none',
-                          cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                          background: MODE_BG[mode], color: MODE_FG[mode],
-                          minWidth: 52, transition: 'background .15s',
-                        }}
+                        style={{ padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52, transition: 'background .15s' }}
                       >
                         {MODE_LABEL[mode]}
                       </button>
@@ -250,7 +287,6 @@ export function LearningMode() {
                 })}
               </div>
 
-              {/* 音響伝達 */}
               <div className="card">
                 <div className="section-title">耳小骨連鎖の音響伝達</div>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
@@ -261,6 +297,7 @@ export function LearningMode() {
             </>
           )}
 
+          {/* ══ 製品タブ ══ */}
           {learningTab === 'products' && (
             <>
               <div className="card" style={{ padding: '12px' }}>
@@ -310,6 +347,7 @@ export function LearningMode() {
             </>
           )}
 
+          {/* ══ 術式タブ ══ */}
           {learningTab === 'procedure' && (
             <>
               {procedures.map((proc) => (
@@ -331,6 +369,167 @@ export function LearningMode() {
                   <li>MRI対応だが術前に金属確認票を記載</li>
                 </ul>
               </div>
+            </>
+          )}
+
+          {/* ══ 削開タブ ══ */}
+          {learningTab === 'drilling' && (
+            <>
+              {/* シナリオセレクター */}
+              <div className="card">
+                <div className="section-title">シナリオ選択</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                  {([
+                    { key: 's1', label: 'S1: 解剖探索', desc: '自由に回転・拡大して構造を確認' },
+                    { key: 's2', label: 'S2: 危険部位特定', desc: '危険部位をクリックして確認' },
+                  ] as const).map(({ key, label, desc }) => (
+                    <button
+                      key={key}
+                      onClick={() => { setDrillScenario(key); setSelectedZoneId(null); }}
+                      style={{
+                        flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
+                        border: `1px solid ${drillScenario === key ? 'var(--accent)' : 'var(--border)'}`,
+                        background: drillScenario === key ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
+                        color: drillScenario === key ? 'var(--accent)' : 'var(--text-secondary)',
+                        fontSize: 12, fontWeight: drillScenario === key ? 700 : 400,
+                        textAlign: 'center', transition: 'all .15s',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 10, opacity: 0.75 }}>{desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* S1: 解剖探索 */}
+              {drillScenario === 's1' && (
+                <div className="card">
+                  <div className="section-title">S1 — 解剖探索</div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                    側頭骨と中耳構造を自由に観察してください。
+                    ドラッグで回転、ホイールでズームができます。
+                  </p>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>
+                      学習チェックポイント
+                    </div>
+                    {[
+                      '顔面神経の走行（水平部・膝部・乳突部）',
+                      '卵円窓と正円窓の位置関係',
+                      'S状静脈洞の後乳突部での走行',
+                      '蝸牛と半規管の3D的位置関係',
+                    ].map((item, i) => (
+                      <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', lineHeight: 1.5 }}>
+                        ✓ {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* S2: 危険部位特定 */}
+              {drillScenario === 's2' && (
+                <>
+                  {/* 凡例 */}
+                  <div className="card" style={{ padding: '10px 14px' }}>
+                    <div className="section-title">危険部位警告システム</div>
+                    <div style={{ display: 'flex', gap: 16, marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#f5d820' }} />
+                        顔面神経系
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#4477ff' }} />
+                        血管系
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      ● 核（小）: 危険域 2mm以内　◯ 外周（大）: 警告域 5mm以内
+                    </div>
+                  </div>
+
+                  {/* 顔面神経系 */}
+                  <div className="card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f5d820' }} />
+                      <div className="section-title" style={{ margin: 0 }}>顔面神経系</div>
+                    </div>
+                    {FACIAL_ZONES.map((zone) => (
+                      <div
+                        key={zone.id}
+                        onClick={() => setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
+                          background: selectedZoneId === zone.id ? 'rgba(245,216,32,.10)' : 'rgba(255,255,255,.03)',
+                          border: `1px solid ${selectedZoneId === zone.id ? '#f5d820' : 'var(--border)'}`,
+                          transition: 'all .15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: selectedZoneId === zone.id ? 6 : 0 }}>
+                          <span style={{ fontSize: 14 }}>⚡</span>
+                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#f5d820' : 'var(--text-primary)' }}>
+                            {zone.nameJa}
+                          </span>
+                        </div>
+                        {selectedZoneId === zone.id && (
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                            <p style={{ marginBottom: 6 }}>{zone.shortDescJa}</p>
+                            <div style={{ background: 'rgba(245,216,32,.06)', border: '1px solid rgba(245,216,32,.20)', borderRadius: 6, padding: '6px 8px', marginBottom: 5 }}>
+                              <div style={{ fontSize: 11, color: '#c8b010', fontWeight: 600, marginBottom: 3 }}>臨床メモ</div>
+                              <div style={{ fontSize: 11 }}>{zone.clinicalNoteJa}</div>
+                            </div>
+                            <div style={{ background: 'rgba(220,50,50,.08)', border: '1px solid rgba(220,50,50,.25)', borderRadius: 6, padding: '5px 8px' }}>
+                              <div style={{ fontSize: 11, color: '#dd6060', fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
+                              <div style={{ fontSize: 11, color: '#dd8080' }}>{zone.complicationJa}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 血管系 */}
+                  <div className="card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4477ff' }} />
+                      <div className="section-title" style={{ margin: 0 }}>血管系</div>
+                    </div>
+                    {VASCULAR_ZONES.map((zone) => (
+                      <div
+                        key={zone.id}
+                        onClick={() => setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id)}
+                        style={{
+                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
+                          background: selectedZoneId === zone.id ? 'rgba(68,119,255,.10)' : 'rgba(255,255,255,.03)',
+                          border: `1px solid ${selectedZoneId === zone.id ? '#4477ff' : 'var(--border)'}`,
+                          transition: 'all .15s',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: selectedZoneId === zone.id ? 6 : 0 }}>
+                          <span style={{ fontSize: 14 }}>💧</span>
+                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#6699ff' : 'var(--text-primary)' }}>
+                            {zone.nameJa}
+                          </span>
+                        </div>
+                        {selectedZoneId === zone.id && (
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                            <p style={{ marginBottom: 6 }}>{zone.shortDescJa}</p>
+                            <div style={{ background: 'rgba(68,119,255,.06)', border: '1px solid rgba(68,119,255,.20)', borderRadius: 6, padding: '6px 8px', marginBottom: 5 }}>
+                              <div style={{ fontSize: 11, color: '#7799dd', fontWeight: 600, marginBottom: 3 }}>臨床メモ</div>
+                              <div style={{ fontSize: 11 }}>{zone.clinicalNoteJa}</div>
+                            </div>
+                            <div style={{ background: 'rgba(220,50,50,.08)', border: '1px solid rgba(220,50,50,.25)', borderRadius: 6, padding: '5px 8px' }}>
+                              <div style={{ fontSize: 11, color: '#dd6060', fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
+                              <div style={{ fontSize: 11, color: '#dd8080' }}>{zone.complicationJa}</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

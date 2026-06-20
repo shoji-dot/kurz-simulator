@@ -4,7 +4,7 @@ import type { SurgicalCase } from '../data/cases';
 
 export type Screen = 'home' | 'learning' | 'simulation' | 'surgical';
 export type SimStep = 'case-select' | 'product-select' | 'placement' | 'score';
-export type LearningTab = 'anatomy' | 'products' | 'procedure';
+export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
 export type PatientId = 'J' | 'T' | 'A' | 'H' | 'E';
 
 export interface PlacementState {
