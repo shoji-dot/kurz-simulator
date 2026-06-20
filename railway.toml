@@ -5,4 +5,4 @@ builder = "nixpacks"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
-startCommand = "npx vite preview --port $PORT --host 0.0.0.0"
+startCommand = "npx vite preview"
