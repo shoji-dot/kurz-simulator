@@ -120,8 +120,8 @@ export function AnatomyScene({
       <pointLight position={[1,  3,  4]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {/* 耳介は mergedVis.auricle で制御（Auricle.glb: Bone.glbと同一CT、位置合わせ済み） */}
-        <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} />
+        {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
+        <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} />
         {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
         {showTympanoCavity && <TympanoCavityEdu />}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>

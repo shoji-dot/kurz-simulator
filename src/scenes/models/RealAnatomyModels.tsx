@@ -25,7 +25,10 @@ export interface AuricleTransform {
 }
 
 export const DEFAULT_AURICLE_TRANSFORM: AuricleTransform = {
-  position: [0, 0, 42],   // Auricle.glb: Z+42mm = 外耳道開口部相当（セッション12暫定値）
+  // 実スキャンGLB正規化後: カット面(耳穴底面)=Z0 基準
+  // EAC外耳道口(X=-1.82, Y=6.47, Z=14.4)に耳穴面が来るよう配置
+  // concha深さ≈8mm → base position Z = 14.4 - 8 = ~6
+  position: [-2, 6, 6],
   rotation: [0, 0, 0],
   flip: false,
 };
@@ -236,24 +239,44 @@ export function RealTemporalBone({ opacityOverride, highlighted }: StructureProp
 }
 
 /**
- * Auricle (Pinna)
+ * Auricle (Pinna) — 実3Dスキャン版
  *
- * Auricle.glb is from the same OpenEar ALPHA CT scan as Bone.glb.
- * Already aligned in the same GLB coordinate space (measured Z: 6.65-24.85).
+ * subj_A〜T の実スキャン STL を正規化変換して GLB 化。
+ * カット面(耳穴底面) = GLB 原点 (Z=0)。
  * transform プロパティで位置・回転・表裏反転をデバッグ調整できる。
+ *
+ * PatientId → GLB ファイルマッピング:
+ *   T → /models/ears/Auricle_T.glb (デフォルト)
+ *   J → /models/ears/Auricle_J.glb
+ *   A → /models/ears/Auricle_A.glb
+ *   H → /models/ears/Auricle_H.glb
+ *   E → /models/ears/Auricle_E.glb
  */
+const AURICLE_SCAN_IDS = ['A', 'E', 'H', 'J', 'T'] as const;
+type AuricleScanId = typeof AURICLE_SCAN_IDS[number];
+
+function scanGlbUrl(patientId?: string): string {
+  const pid = (patientId?.toUpperCase() ?? 'T') as AuricleScanId;
+  if ((AURICLE_SCAN_IDS as readonly string[]).includes(pid)) {
+    return `/models/ears/Auricle_${pid}.glb`;
+  }
+  return '/models/ears/Auricle_T.glb';  // fallback
+}
+
 interface AuricleProps extends StructureProps {
   transform?: AuricleTransform;
+  patientId?: string;
 }
-export function RealAuricle({ opacityOverride, transform }: AuricleProps) {
-  const t = transform ?? DEFAULT_AURICLE_TRANSFORM;
+export function RealAuricle({ opacityOverride, transform, patientId }: AuricleProps) {
+  const t   = transform ?? DEFAULT_AURICLE_TRANSFORM;
+  const url = scanGlbUrl(patientId);
   return (
     <group
       position={t.position}
       rotation={t.rotation}
       scale={t.flip ? [-1, 1, 1] : [1, 1, 1]}
     >
-      <GLBMesh url="/models/Auricle.glb" matKey="auricle" opacityOverride={opacityOverride} />
+      <GLBMesh url={url} matKey="auricle" opacityOverride={opacityOverride} />
     </group>
   );
 }
@@ -264,8 +287,10 @@ interface RealAnatomyProps {
   auricleTransform?: AuricleTransform;
   /** ハイライトする構造キー（StructureKey または 'tympanic'/'membrane'） */
   highlightedKey?: string | null;
+  /** 耳介スキャンID (T/J/A/H/E) */
+  patientId?: string;
 }
-export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey }: RealAnatomyProps) {
+export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patientId }: RealAnatomyProps) {
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
   const show    = (key: StructureKey) => getMode(key) !== 'hidden';
   const opacity = (key: StructureKey): number | undefined =>
@@ -282,7 +307,7 @@ export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey }: Real
   return (
     <group>
       {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} />}
-      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       transform={auricleTransform} />}
+      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       transform={auricleTransform} patientId={patientId} />}
       {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      highlighted={hl('tympanic') || hl('membrane')} />}
       {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} highlighted={hl('malleus')} />}
       {ossicleShow('incus')   && <RealIncus   opacityOverride={ossicleOpacity('incus')}   highlighted={hl('incus')} />}
@@ -309,4 +334,9 @@ useGLTF.preload('/models/Cochleo_Vestibular_Nerve.glb');
 useGLTF.preload('/models/External_Auditory_Canal.glb');
 useGLTF.preload('/models/Round_Window.glb');
 useGLTF.preload('/models/Bone.glb');
-useGLTF.preload('/models/Auricle.glb');
+// 実スキャン耳介（PatientId 対応 5件）
+useGLTF.preload('/models/ears/Auricle_T.glb');
+useGLTF.preload('/models/ears/Auricle_J.glb');
+useGLTF.preload('/models/ears/Auricle_A.glb');
+useGLTF.preload('/models/ears/Auricle_H.glb');
+useGLTF.preload('/models/ears/Auricle_E.glb');
