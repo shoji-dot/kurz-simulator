@@ -19,8 +19,10 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
 import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 
-// シミュレーター上の EAC 入口 Z 座標（RealAuricle.glb オフセット = 42mm に合わせる）
-const EAC_SIM_Z = 42;
+// GLB解析結果: External_Auditory_Canal.glb の外側開口部
+//   maxZ ≈ 14.44mm, Y 中央 ≈ 5.8mm (アブミ骨底板を原点としたGLB座標系)
+const EAC_SIM_Z    = 14.5;  // EAC 外側開口部の Z 座標（GLB空間）
+const EAC_Y_CENTER =  5.8;  // EAC 外側開口部の Y 座標（アブミ骨より上方）
 
 interface PinnaModelProps {
   /** 患者ID (J / T / A / H / E) */
@@ -75,13 +77,12 @@ export function PinnaModel({
   const { eacInStl } = patient;
   const url = getPinnaUrl(patientId);
 
-  // EAC入口 (eacInStl) をシミュレーター上の (0, 0, EAC_SIM_Z) に合わせる補正
-  // rotation [-π/2, 0, π] の変換行列: (x,y,z) → (-x, -z, -y)
-  // world_eac = (posX - eacX, posY - eacZ, posZ - eacY) = (0, 0, EAC_SIM_Z)
-  // よって: posX = eacInStl.x, posY = eacInStl.z, posZ = EAC_SIM_Z + eacInStl.y
+  // EAC入口 (eacInStl) を GLB EAC 外側開口部 (0, EAC_Y_CENTER, EAC_SIM_Z) に合わせる補正
+  // rotation [-π/2, 0, π]: (x,y,z) → (-x, -z, -y)
+  // world_eac = (posX - eacX, posY - eacZ, posZ - eacY) = (0, EAC_Y_CENTER, EAC_SIM_Z)
   const posX = eacInStl.x;
-  const posY = eacInStl.z;
-  const posZ = EAC_SIM_Z + eacInStl.y;
+  const posY = eacInStl.z + EAC_Y_CENTER;
+  const posZ = EAC_SIM_Z  + eacInStl.y;
 
   return (
     <PinnaSTL

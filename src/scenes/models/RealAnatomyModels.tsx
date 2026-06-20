@@ -15,19 +15,20 @@ import * as THREE from 'three';
 export type OpacityMode  = 'solid' | 'ghost' | 'hidden';
 export type StructureKey =
   | 'bone' | 'auricle' | 'ossicles' | 'tympanic'
-  | 'innerEar' | 'nerves' | 'eac' | 'roundWindow';
+  | 'innerEar' | 'facialNerve' | 'chordaTympani' | 'eac' | 'roundWindow';
 export type VisibilityMap = Partial<Record<StructureKey, OpacityMode>>;
 
 /** 各構造のデフォルト表示モード */
 export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
-  bone:        'ghost',   // 骨は初期半透明（内部が見えるように）
-  auricle:     'hidden',  // 耳介は初期非表示
-  ossicles:    'solid',
-  tympanic:    'solid',
-  innerEar:    'solid',
-  nerves:      'solid',
-  eac:         'solid',
-  roundWindow: 'solid',
+  bone:          'ghost',   // 骨は初期半透明（内部が見えるように）
+  auricle:       'hidden',  // 耳介は初期非表示
+  ossicles:      'solid',
+  tympanic:      'solid',
+  innerEar:      'solid',
+  facialNerve:   'solid',   // 顔面神経（水平部・垂直部）
+  chordaTympani: 'solid',   // 鼓索神経（顔面神経の分枝）
+  eac:           'solid',
+  roundWindow:   'solid',
 };
 
 const GHOST_OPACITY = 0.12;
@@ -115,12 +116,23 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshPro
 // ── 各構造コンポーネント ──────────────────────────────────────────
 interface StructureProps { opacityOverride?: number }
 
+// 耳小骨 個別コンポーネント（SimScene での症例別表示に使用）
+export function RealMalleus({ opacityOverride }: StructureProps) {
+  return <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} />;
+}
+export function RealIncus({ opacityOverride }: StructureProps) {
+  return <GLBMesh url="/models/Incus.glb"   matKey="incus"   opacityOverride={opacityOverride} />;
+}
+export function RealStapes({ opacityOverride }: StructureProps) {
+  return <GLBMesh url="/models/Stapes.glb"  matKey="stapes"  opacityOverride={opacityOverride} />;
+}
+
 export function RealOssicles({ opacityOverride }: StructureProps) {
   return (
     <group>
-      <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Incus.glb"   matKey="incus"   opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Stapes.glb"  matKey="stapes"  opacityOverride={opacityOverride} />
+      <RealMalleus opacityOverride={opacityOverride} />
+      <RealIncus   opacityOverride={opacityOverride} />
+      <RealStapes  opacityOverride={opacityOverride} />
     </group>
   );
 }
@@ -139,19 +151,22 @@ export function RealTympanicMembrane({ opacityOverride }: StructureProps) {
 export function RealInnerEar({ opacityOverride }: StructureProps) {
   return (
     <group>
-      <GLBMesh url="/models/Scala_Tympani.glb"   matKey="scalaTym"  castShadow={false} opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Scala_Vestibuli.glb"  matKey="scalaVest" castShadow={false} opacityOverride={opacityOverride} />
+      <GLBMesh url="/models/Scala_Tympani.glb"           matKey="scalaTym"  castShadow={false} opacityOverride={opacityOverride} />
+      <GLBMesh url="/models/Scala_Vestibuli.glb"          matKey="scalaVest" castShadow={false} opacityOverride={opacityOverride} />
+      <GLBMesh url="/models/Cochleo_Vestibular_Nerve.glb" matKey="nerve"     castShadow={false} opacityOverride={opacityOverride} />
     </group>
   );
 }
 
-export function RealNerves({ opacityOverride }: StructureProps) {
+// 神経 個別コンポーネント（顔面神経と鼓索神経を個別に表示制御可能）
+export function RealFacialNerve({ opacityOverride }: StructureProps) {
   return (
-    <group>
-      <GLBMesh url="/models/Facial_Nerve.glb"             matKey="facial" castShadow={false} opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Chorda_Tympani.glb"           matKey="chorda" castShadow={false} opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Cochleo_Vestibular_Nerve.glb" matKey="nerve"  castShadow={false} opacityOverride={opacityOverride} />
-    </group>
+    <GLBMesh url="/models/Facial_Nerve.glb" matKey="facial" castShadow={false} opacityOverride={opacityOverride} />
+  );
+}
+export function RealChordaTympani({ opacityOverride }: StructureProps) {
+  return (
+    <GLBMesh url="/models/Chorda_Tympani.glb" matKey="chorda" castShadow={false} opacityOverride={opacityOverride} />
   );
 }
 
@@ -206,14 +221,15 @@ export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
 
   return (
     <group>
-      {show('bone')        && <RealTemporalBone    opacityOverride={opacity('bone')}        />}
-      {show('auricle')     && <RealAuricle          opacityOverride={opacity('auricle')}     />}
-      {show('tympanic')    && <RealTympanicMembrane opacityOverride={opacity('tympanic')}    />}
-      {show('ossicles')    && <RealOssicles          opacityOverride={opacity('ossicles')}    />}
-      {show('roundWindow') && <RealRoundWindow       opacityOverride={opacity('roundWindow')} />}
-      {show('innerEar')    && <RealInnerEar          opacityOverride={opacity('innerEar')}    />}
-      {show('nerves')      && <RealNerves            opacityOverride={opacity('nerves')}      />}
-      {show('eac')         && <RealEAC              opacityOverride={opacity('eac')}         />}
+      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          />}
+      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       />}
+      {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      />}
+      {show('ossicles')      && <RealOssicles          opacityOverride={opacity('ossicles')}      />}
+      {show('roundWindow')   && <RealRoundWindow       opacityOverride={opacity('roundWindow')}   />}
+      {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      />}
+      {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   />}
+      {show('chordaTympani') && <RealChordaTympani     opacityOverride={opacity('chordaTympani')} />}
+      {show('eac')           && <RealEAC              opacityOverride={opacity('eac')}           />}
     </group>
   );
 }

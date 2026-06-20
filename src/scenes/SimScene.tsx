@@ -17,13 +17,15 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  OssicleChain,
   STAPES_HEAD,
   STAPES_FOOTPLATE,
 } from './models/OssicleModels';
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
 import {
   RealAnatomy,
+  RealMalleus,
+  RealIncus,
+  RealStapes,
   type VisibilityMap,
 } from './models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
@@ -37,16 +39,17 @@ const GLB_OFFSET: [number, number, number] = [
   STAPES_FOOTPLATE.z,
 ];
 
-// SimScene デフォルト表示設定（学習モードと同等）
+// SimScene デフォルト表示設定
 export const SIM_DEFAULT_VIS: VisibilityMap = {
-  bone:        'ghost',
-  auricle:     'hidden',
-  ossicles:    'hidden',   // OssicleChain で症例別に制御
-  tympanic:    'solid',
-  innerEar:    'ghost',
-  nerves:      'solid',    // 顔面神経・鼓索神経・蝸牛前庭神経
-  eac:         'ghost',
-  roundWindow: 'solid',
+  bone:          'ghost',
+  auricle:       'hidden',
+  ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング
+  tympanic:      'solid',
+  innerEar:      'ghost',
+  facialNerve:   'ghost',    // 顔面神経：ghost で存在感を示す
+  chordaTympani: 'solid',    // 鼓索神経：手術視野に近いため solid
+  eac:           'ghost',
+  roundWindow:   'solid',
 };
 
 interface SimSceneProps {
@@ -98,13 +101,22 @@ export function SimScene({
   const isTotal = product.footType === 'FLAT';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
 
-  // vis をマージ（ossicles / auricle は固定）
+  // vis をマージ（ossicles / auricle は常に hidden: 下で症例別にレンダリング）
   const mergedVis: VisibilityMap = {
     ...SIM_DEFAULT_VIS,
     ...vis,
     ossicles: 'hidden',
     auricle:  'hidden',
   };
+
+  // 症例別 耳小骨 表示設定
+  const { malleus: malStatus, incus: incStatus, stapes: stapStatus } = surgicalCase.ossicularStatus;
+  const showMalleus = malStatus  !== 'absent';
+  const showIncus   = incStatus  !== 'absent';
+  const showStapes  = stapStatus !== 'absent';
+  const malOpacity  = malStatus  === 'partial'       ? 0.45 : undefined;
+  const incOpacity  = incStatus  === 'partial'       ? 0.45 : undefined;
+  const stapOpacity = stapStatus === 'footplate-only' ? 0.35 : undefined;
 
   return (
     <Canvas
@@ -133,19 +145,15 @@ export function SimScene({
       <pointLight position={[3,  5, -5]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
 
       <Suspense fallback={null}>
-        {/* ── GLBリアルモデル（学習モードと同一）── */}
+        {/* ── GLBリアルモデル（学習モードと同一 + 症例別耳小骨）── */}
         {/* GLBはアブミ骨底板を原点としているのでSTAPES_FOOTPLATEにオフセット */}
         <group position={GLB_OFFSET}>
           <RealAnatomy vis={mergedVis} />
+          {/* 症例別 GLB 耳小骨（absent/partial/intact に対応） */}
+          {showMalleus && <RealMalleus opacityOverride={malOpacity}  />}
+          {showIncus   && <RealIncus   opacityOverride={incOpacity}  />}
+          {showStapes  && <RealStapes  opacityOverride={stapOpacity} />}
         </group>
-
-        {/* ── 耳小骨連鎖（症例に応じた状態・手続き座標系）── */}
-        <OssicleChain
-          malleus={surgicalCase.ossicularStatus.malleus}
-          incus={surgicalCase.ossicularStatus.incus}
-          stapes={surgicalCase.ossicularStatus.stapes}
-          showLabels={false}
-        />
 
         {/* ── 理想配置ゴースト ── */}
         {showIdeal && (

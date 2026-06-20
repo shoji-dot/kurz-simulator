@@ -20,14 +20,15 @@ const anatomyStructures = [
 
 // ── 3D表示切替アイテム定義 ───────────────────────────────────────
 const VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
-  { key: 'bone',        label: '側頭骨',  color: '#f2ead8' },
-  { key: 'auricle',     label: '耳介',    color: '#e8c8a8' },
-  { key: 'ossicles',    label: '耳小骨',  color: '#e8d8a8' },
-  { key: 'tympanic',    label: '鼓膜',    color: '#f8d8c0' },
-  { key: 'innerEar',    label: '内耳',    color: '#60b8e0' },
-  { key: 'nerves',      label: '神経・鼓索', color: '#f5d820' },
-  { key: 'eac',         label: '外耳道',  color: '#d8c8a0' },
-  { key: 'roundWindow', label: '正円窓',  color: '#5888a8' },
+  { key: 'bone',          label: '側頭骨',  color: '#f2ead8' },
+  { key: 'auricle',       label: '耳介',    color: '#e8c8a8' },
+  { key: 'ossicles',      label: '耳小骨',  color: '#e8d8a8' },
+  { key: 'tympanic',      label: '鼓膜',    color: '#f8d8c0' },
+  { key: 'innerEar',      label: '内耳',    color: '#60b8e0' },
+  { key: 'facialNerve',   label: '顔面神経', color: '#f5d820' },
+  { key: 'chordaTympani', label: '鼓索神経', color: '#f0b830' },
+  { key: 'eac',           label: '外耳道',  color: '#d8c8a0' },
+  { key: 'roundWindow',   label: '正円窓',  color: '#5888a8' },
 ];
 
 const CYCLE: OpacityMode[] = ['solid', 'ghost', 'hidden'];
