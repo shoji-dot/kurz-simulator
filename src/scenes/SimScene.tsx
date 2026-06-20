@@ -30,6 +30,8 @@ import {
   RealMalleus,
   RealIncus,
   RealStapes,
+  GHOST_OPACITY,
+  type OpacityMode,
   type VisibilityMap,
 } from './models/RealAnatomyModels';
 import { useSimStore } from '../store/useSimStore';
@@ -48,7 +50,10 @@ const GLB_OFFSET: [number, number, number] = [
 export const SIM_DEFAULT_VIS: VisibilityMap = {
   bone:          'ghost',
   auricle:       'hidden',
-  ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング
+  ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング（旧キー）
+  malleus:       'solid',    // 個別制御：サイドバー既定は実体
+  incus:         'solid',
+  stapes:        'solid',
   tympanic:      'solid',
   innerEar:      'ghost',
   facialNerve:   'ghost',    // 顔面神経：ghost で存在感を示す
@@ -177,22 +182,38 @@ export function SimScene({
   const isTotal = product.footType === 'FLAT';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
 
-  // vis をマージ（ossicles / auricle は常に hidden: 下で症例別にレンダリング）
+  // vis をマージ。耳小骨（ossicles/malleus/incus/stapes）と auricle は
+  // RealAnatomy 側では描画しない（hidden）。耳小骨は下で症例別に直接レンダリングし、
+  // ユーザーの表示切替（vis）をそこへ反映する。
   const mergedVis: VisibilityMap = {
     ...SIM_DEFAULT_VIS,
     ...vis,
     ossicles: 'hidden',
+    malleus:  'hidden',
+    incus:    'hidden',
+    stapes:   'hidden',
     auricle:  'hidden',
   };
 
-  // 症例別 耳小骨 表示設定
+  // 症例別 耳小骨 ステータス
   const { malleus: malStatus, incus: incStatus, stapes: stapStatus } = surgicalCase.ossicularStatus;
-  const showMalleus = malStatus  !== 'absent';
-  const showIncus   = incStatus  !== 'absent';
-  const showStapes  = stapStatus !== 'absent';
-  const malOpacity  = malStatus  === 'partial'       ? 0.45 : undefined;
-  const incOpacity  = incStatus  === 'partial'       ? 0.45 : undefined;
-  const stapOpacity = stapStatus === 'footplate-only' ? 0.35 : undefined;
+
+  // サイドバーの表示モード（個別キー → 旧 ossicles キー → 既定 solid）
+  const ossMode = (key: 'malleus' | 'incus' | 'stapes'): OpacityMode =>
+    vis[key] ?? vis.ossicles ?? 'solid';
+
+  // 症例ステータスによる基本不透明度（partial=菲薄化, footplate-only=底板のみ）
+  const caseOpacity = (status: string): number | undefined =>
+    status === 'partial' ? 0.45 : status === 'footplate-only' ? 0.35 : undefined;
+
+  // 表示判定：症例で absent でなく、かつユーザーが hidden にしていない場合のみ表示
+  // 不透明度：ghost モードなら GHOST_OPACITY、それ以外は症例ステータス由来の値
+  const showMalleus = malStatus  !== 'absent' && ossMode('malleus') !== 'hidden';
+  const showIncus   = incStatus  !== 'absent' && ossMode('incus')   !== 'hidden';
+  const showStapes  = stapStatus !== 'absent' && ossMode('stapes')  !== 'hidden';
+  const malOpacity  = ossMode('malleus') === 'ghost' ? GHOST_OPACITY : caseOpacity(malStatus);
+  const incOpacity  = ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
+  const stapOpacity = ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
 
   // OrbitControls ref（ドラッグ中に無効化するため）
   const orbitRef = useRef<any>(null);

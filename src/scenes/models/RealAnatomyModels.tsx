@@ -14,14 +14,22 @@ import * as THREE from 'three';
 // -- Display mode types --
 export type OpacityMode  = 'solid' | 'ghost' | 'hidden';
 export type StructureKey =
-  | 'bone' | 'auricle' | 'ossicles' | 'tympanic'
+  | 'bone' | 'auricle' | 'ossicles'
+  | 'malleus' | 'incus' | 'stapes'
+  | 'tympanic'
   | 'innerEar' | 'facialNerve' | 'chordaTympani' | 'eac' | 'roundWindow';
 export type VisibilityMap = Partial<Record<StructureKey, OpacityMode>>;
+
+/** 個別制御する耳小骨キー */
+export const OSSICLE_KEYS = ['malleus', 'incus', 'stapes'] as const;
 
 export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
   bone:          'ghost',
   auricle:       'hidden',
-  ossicles:      'solid',
+  ossicles:      'solid',   // 後方互換: 個別キー未指定時のフォールバック
+  malleus:       'solid',
+  incus:         'solid',
+  stapes:        'solid',
   tympanic:      'solid',
   innerEar:      'solid',
   facialNerve:   'solid',
@@ -30,13 +38,15 @@ export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
   roundWindow:   'solid',
 };
 
-const GHOST_OPACITY = 0.12;
+export const GHOST_OPACITY = 0.12;
 
 // -- Material config --
 const MAT: Record<string, { color: string; roughness: number; metalness?: number; opacity?: number }> = {
-  malleus:   { color: '#f0e6c8', roughness: 0.38, metalness: 0.04 },
-  incus:     { color: '#eee0be', roughness: 0.38, metalness: 0.04 },
-  stapes:    { color: '#e8d8a8', roughness: 0.35, metalness: 0.06 },
+  // 耳小骨：側頭骨（淡クリーム）と明確に区別するゴールド〜アンバー系。
+  // 3骨それぞれを微妙に色相変化させ、連鎖内での識別も容易にする。
+  malleus:   { color: '#e6a93a', roughness: 0.34, metalness: 0.32 },  // ツチ骨：ウォームゴールド
+  incus:     { color: '#d9892a', roughness: 0.34, metalness: 0.32 },  // キヌタ骨：ディープアンバー
+  stapes:    { color: '#f2cb54', roughness: 0.30, metalness: 0.40 },  // アブミ骨：ブライトゴールド
   tympanic:  { color: '#f8d8c0', roughness: 0.55, metalness: 0.02, opacity: 0.72 },
   scalaTym:  { color: '#60b8e0', roughness: 0.45, metalness: 0.0,  opacity: 0.82 },
   scalaVest: { color: '#80cce8', roughness: 0.45, metalness: 0.0,  opacity: 0.78 },
@@ -210,12 +220,21 @@ export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
   const opacity = (key: StructureKey): number | undefined =>
     getMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
 
+  // 耳小骨の個別モード：個別キー → 旧 ossicles キー → デフォルト の順でフォールバック
+  const ossicleMode = (key: 'malleus' | 'incus' | 'stapes'): OpacityMode =>
+    vis[key] ?? vis.ossicles ?? DEFAULT_MODES[key];
+  const ossicleShow    = (key: 'malleus' | 'incus' | 'stapes') => ossicleMode(key) !== 'hidden';
+  const ossicleOpacity = (key: 'malleus' | 'incus' | 'stapes'): number | undefined =>
+    ossicleMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
+
   return (
     <group>
       {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          />}
       {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       />}
       {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      />}
-      {show('ossicles')      && <RealOssicles          opacityOverride={opacity('ossicles')}      />}
+      {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} />}
+      {ossicleShow('incus')   && <RealIncus   opacityOverride={ossicleOpacity('incus')}   />}
+      {ossicleShow('stapes')  && <RealStapes  opacityOverride={ossicleOpacity('stapes')}  />}
       {show('roundWindow')   && <RealRoundWindow       opacityOverride={opacity('roundWindow')}   />}
       {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      />}
       {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   />}

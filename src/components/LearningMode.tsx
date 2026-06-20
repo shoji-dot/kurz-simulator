@@ -15,17 +15,19 @@ import {
 // ── 解剖構造リスト ────────────────────────────────────────────────
 const anatomyStructures = [
   { id: 'tympanoCavity', label: '鼓室 (Tympanic Cavity)', desc: '中耳腔。6つの壁で構成される空間。内側壁に岬角・卵円窓・正円窓が位置し、顔面神経水平部・鼓索神経が走行する。耳管で鼻咽腔に通じる。', color: '#e8c0a0' },
-  { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e8d5b0' },
-  { id: 'incus',   label: 'キヌタ骨 (Incus)',   desc: '中間に位置する耳小骨。体部・短突起・長突起から構成。慢性中耳炎では長突起尖端から壊死しやすい。', color: '#c4a97a' },
-  { id: 'stapes',  label: 'アブミ骨 (Stapes)',  desc: '最内側かつ最小の耳小骨。頭部・前後弓・底板で構成。底板が卵円窓を塞ぎ蝸牛へ振動を伝える。', color: '#e8d5b0' },
+  { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e6a93a' },
+  { id: 'incus',   label: 'キヌタ骨 (Incus)',   desc: '中間に位置する耳小骨。体部・短突起・長突起から構成。慢性中耳炎では長突起尖端から壊死しやすい。', color: '#d9892a' },
+  { id: 'stapes',  label: 'アブミ骨 (Stapes)',  desc: '最内側かつ最小の耳小骨。頭部・前後弓・底板で構成。底板が卵円窓を塞ぎ蝸牛へ振動を伝える。', color: '#f2cb54' },
   { id: 'membrane', label: '鼓膜 (Tympanic M.)', desc: '外耳道と鼓室を隔てる薄い膜。厚さ約0.1mm。中央部（臍）にツチ骨が付着。', color: '#f5e6c8' },
 ];
 
 // ── 3D表示切替アイテム定義 ──────────────────────────────────────
-const VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
+const VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?: boolean }[] = [
   { key: 'bone',          label: '側頭骨',  color: '#f2ead8' },
   { key: 'auricle',       label: '耳介',    color: '#e8c8a8' },
-  { key: 'ossicles',      label: '耳小骨',  color: '#e8d8a8' },
+  { key: 'malleus',       label: 'ツチ骨 (Malleus)',  color: '#e6a93a', indent: true },
+  { key: 'incus',         label: 'キヌタ骨 (Incus)',  color: '#d9892a', indent: true },
+  { key: 'stapes',        label: 'アブミ骨 (Stapes)', color: '#f2cb54', indent: true },
   { key: 'tympanic',      label: '鼓膜',    color: '#f8d8c0' },
   { key: 'innerEar',      label: '内耳',    color: '#60b8e0' },
   { key: 'facialNerve',   label: '顔面神経', color: '#f5d820' },
@@ -95,6 +97,14 @@ export function LearningMode() {
     setVis(v => ({ ...v, [key]: next }));
   };
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
+
+  // 耳小骨3骨の一括切替（代表値 = ツチ骨のモードを基準に次状態へ）
+  const ossicleGroupMode = (): OpacityMode => getMode('malleus');
+  const cycleOssicles = () => {
+    const curr = ossicleGroupMode();
+    const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
+    setVis(v => ({ ...v, malleus: next, incus: next, stapes: next }));
+  };
 
   // ズームレベル
   const [zoomLevel, setZoomLevel] = useState(0);
@@ -415,20 +425,37 @@ export function LearningMode() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
                   クリックで 実体 → 半透明 → 非表示 を切替
                 </div>
-                {VIS_ITEMS.map(({ key, label, color }) => {
+                {VIS_ITEMS.map(({ key, label, color, indent }) => {
                   const mode = getMode(key);
                   return (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
+                    <div key={key}>
+                      {/* 耳小骨グループの見出し＋一括切替 */}
+                      {key === 'malleus' && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 2px 3px', marginTop: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em' }}>
+                            耳小骨連鎖 (Ossicular Chain)
+                          </span>
+                          <button
+                            onClick={() => cycleOssicles()}
+                            title="3骨を一括で切替"
+                            style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(224,169,58,0.4)', cursor: 'pointer', fontSize: 10, fontWeight: 600, background: 'rgba(224,169,58,0.10)', color: '#e0a93a' }}
+                          >
+                            一括 {MODE_LABEL[ossicleGroupMode()]}
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', paddingLeft: indent ? 14 : 2, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                          <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
+                        </div>
+                        <button
+                          onClick={() => cycleMode(key)}
+                          style={{ padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52, transition: 'background .15s' }}
+                        >
+                          {MODE_LABEL[mode]}
+                        </button>
                       </div>
-                      <button
-                        onClick={() => cycleMode(key)}
-                        style={{ padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52, transition: 'background .15s' }}
-                      >
-                        {MODE_LABEL[mode]}
-                      </button>
                     </div>
                   );
                 })}

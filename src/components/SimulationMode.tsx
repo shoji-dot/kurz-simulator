@@ -48,8 +48,11 @@ import {
 } from '../scenes/models/RealAnatomyModels';
 
 // ── シミュレーション用表示切替アイテム ─────────────────────────────
-const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
+const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?: boolean }[] = [
   { key: 'bone',          label: '側頭骨',    color: '#f2ead8' },
+  { key: 'malleus',       label: 'ツチ骨',    color: '#e6a93a', indent: true },
+  { key: 'incus',         label: 'キヌタ骨',  color: '#d9892a', indent: true },
+  { key: 'stapes',        label: 'アブミ骨',  color: '#f2cb54', indent: true },
   { key: 'tympanic',      label: '鼓膜',      color: '#f8d8c0' },
   { key: 'innerEar',      label: '内耳',      color: '#60b8e0' },
   { key: 'facialNerve',   label: '顔面神経',  color: '#f5d820' },
@@ -410,10 +413,10 @@ function PlacementStep() {
         <div className="card">
           <div className="section-title" style={{ marginBottom: 8 }}>3D 表示切替</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {SIM_VIS_ITEMS.map(({ key, label, color }) => {
+            {SIM_VIS_ITEMS.map(({ key, label, color, indent }) => {
               const current: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
               return (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: indent ? 12 : 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
                     {label}
