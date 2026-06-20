@@ -13,6 +13,8 @@ import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap } from './models/RealAnatomyModels';
+import { TympanoCavityEdu } from './models/TympanoCavityModel';
+import { PinnaModel } from './models/PinnaModel';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 // ── FOVベースのズームハンドラ（Canvas内に置く）─────────────────
@@ -37,11 +39,18 @@ function ZoomHandler({ level }: { level: number }) {
 // メイン解剖シーン（AnatomyScene）
 // ══════════════════════════════════════════════════════════════════
 interface AnatomySceneProps {
-  vis?:       VisibilityMap;
-  zoomLevel?: number;
+  vis?:               VisibilityMap;
+  zoomLevel?:         number;
+  showTympanoCavity?: boolean;
+  showPinna?:         boolean;
 }
 
-export function AnatomyScene({ vis, zoomLevel = 0 }: AnatomySceneProps) {
+export function AnatomyScene({
+  vis,
+  zoomLevel = 0,
+  showTympanoCavity = false,
+  showPinna = false,
+}: AnatomySceneProps) {
   return (
     <Canvas
       camera={{ position: [8, 5, 22], fov: 46 }}
@@ -64,6 +73,10 @@ export function AnatomyScene({ vis, zoomLevel = 0 }: AnatomySceneProps) {
 
       <Suspense fallback={null}>
         <RealAnatomy vis={vis} />
+        {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
+        {showTympanoCavity && <TympanoCavityEdu />}
+        {/* 耳介 STL モデル（Viking HRTF Dataset v2 / CC-BY 4.0） */}
+        {showPinna && <PinnaModel opacity={0.80} />}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
           <shadowMaterial transparent opacity={0.15} />

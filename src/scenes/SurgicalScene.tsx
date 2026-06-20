@@ -21,6 +21,7 @@ import { Html } from '@react-three/drei';
 import { DrillModel } from './models/DrillModel';
 import { OssicleChain, TympanicMembrane, STAPES_HEAD } from './models/OssicleModels';
 import { ProsthesisModel } from './models/ProsthesisModels';
+import { TympanoCavitySurgical } from './models/TympanoCavityModel';
 import type { KurzProduct } from '../data/products';
 
 // ══════════════════════════════════════════════════════════════════
@@ -432,6 +433,12 @@ export function SurgicalSceneContent({ step, product }: SurgicalSceneContentProp
           showLabels={step.id >= 4}
         />
       )}
+
+      {/* ── 鼓室壁・解剖ランドマーク（TympanoCavity） ── */}
+      <TympanoCavitySurgical
+        showNerves={step.id >= 3}
+        wallOpacity={step.id <= 1 ? 0.30 : step.id <= 3 ? 0.20 : 0.10}
+      />
 
       {/* ── 内耳壁・岬角（深部構造） ── */}
       <group position={[0.84, -1.65, 1.0]}>

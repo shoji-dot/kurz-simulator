@@ -11,6 +11,7 @@ import {
 
 // ── 解剖構造リスト（サイドバー教育用）────────────────────────────
 const anatomyStructures = [
+  { id: 'tympanoCavity', label: '鼓室 (Tympanic Cavity)', desc: '中耳腔。6つの壁で構成される空間。内側壁に岬角・卵円窓・正円窓が位置し、顔面神経水平部・鼓索神経が走行する。耳管で鼻咽腔に通じる。', color: '#e8c0a0' },
   { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e8d5b0' },
   { id: 'incus',   label: 'キヌタ骨 (Incus)',   desc: '中間に位置する耳小骨。体部・短突起・長突起から構成。慢性中耳炎では長突起尖端から壊死しやすい。', color: '#c4a97a' },
   { id: 'stapes',  label: 'アブミ骨 (Stapes)',  desc: '最内側かつ最小の耳小骨。頭部・前後弓・底板で構成。底板が卵円窓を塞ぎ蝸牛へ振動を伝える。', color: '#e8d5b0' },
@@ -89,6 +90,10 @@ export function LearningMode() {
 
   const selProd = kurzProducts.find((p) => p.id === selectedProduct);
 
+  // 鼓室・耳介の表示制御
+  const showTympanoCavity = highlightedStructure === 'tympanoCavity';
+  const showPinna = highlightedStructure === 'tympanoCavity';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
       {/* Tabs */}
@@ -105,7 +110,12 @@ export function LearningMode() {
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
         <div className="canvas-wrapper" style={{ position: 'relative' }}>
-          <AnatomyScene vis={vis} zoomLevel={zoomLevel} />
+          <AnatomyScene
+            vis={vis}
+            zoomLevel={zoomLevel}
+            showTympanoCavity={showTympanoCavity}
+            showPinna={showPinna}
+          />
 
           {/* 操作ヒント */}
           <div className="canvas-overlay top-left">
