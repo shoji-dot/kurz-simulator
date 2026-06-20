@@ -253,9 +253,10 @@ function PlacementStep() {
           vis={simVis}
         />
         <div className="canvas-overlay top-left">
-          <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div>ドラッグ: 視点回転 ｜ ホイール: ズーム</div>
-            <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 目標位置</div>
+          <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+            <div>🖱 矢印ハンドル: プロテーゼをドラッグ</div>
+            <div>🔄 ハンドル外ドラッグ: 視点回転　｜　ホイール: ズーム</div>
+            <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 目標位置（アブミ骨頭中央）</div>
           </div>
         </div>
         <div style={{ position: 'absolute', top: 12, right: 12 }}>
@@ -272,8 +273,50 @@ function PlacementStep() {
       <div className="sidebar">
         <div className="card">
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{selectedProduct.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
             シャフト長: <strong style={{ color: 'var(--accent)' }}>{placement.selectedLength} mm</strong>
+          </div>
+
+          {/* 3D ドラッグ操作パネル */}
+          <div style={{
+            background: 'rgba(0,180,216,.07)',
+            border: '1px solid rgba(0,180,216,.22)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+              🖱 3D ドラッグ配置
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 8 }}>
+              プロテーゼの矢印ハンドルをドラッグして位置を調整。<br />
+              赤=X軸（内外側）　青=Z軸（前後）
+            </div>
+            {/* リアルタイム座標表示 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 11 }}>
+              {[
+                ['X (内外側)', (placement.lateralOffset + placement.dragOffsetX).toFixed(2)],
+                ['Z (前後)',   (placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)],
+              ].map(([label, val]) => (
+                <div key={label} style={{
+                  background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '3px 7px',
+                }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>{label}</div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                    {val} mm
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(placement.dragOffsetX !== 0 || placement.dragOffsetZ !== 0) && (
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ width: '100%', marginTop: 8, fontSize: 11 }}
+                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetZ: 0 })}
+              >
+                ↺ ドラッグをリセット
+              </button>
+            )}
           </div>
 
           {/* Length slider */}
@@ -296,11 +339,13 @@ function PlacementStep() {
             </div>
           </div>
 
-          {/* Lateral offset */}
+          {/* Lateral offset (補助スライダー) */}
           <div className="slider-group" style={{ marginBottom: 14 }}>
             <div className="slider-label">
-              <span>内外側 (Lateral)</span>
-              <strong>{placement.lateralOffset > 0 ? `外側 ${(placement.lateralOffset * 100).toFixed(0)}%` : placement.lateralOffset < 0 ? `内側 ${(-placement.lateralOffset * 100).toFixed(0)}%` : '中央'}</strong>
+              <span style={{ fontSize: 11 }}>微調整: 内外側</span>
+              <strong style={{ fontSize: 11 }}>
+                {placement.lateralOffset > 0 ? `外 ${placement.lateralOffset.toFixed(2)}mm` : placement.lateralOffset < 0 ? `内 ${(-placement.lateralOffset).toFixed(2)}mm` : '中央'}
+              </strong>
             </div>
             <input
               type="range" min={-1} max={1} step={0.05}
@@ -309,11 +354,13 @@ function PlacementStep() {
             />
           </div>
 
-          {/* Anterior offset */}
+          {/* Anterior offset (補助スライダー) */}
           <div className="slider-group" style={{ marginBottom: 14 }}>
             <div className="slider-label">
-              <span>前後 (Anterior)</span>
-              <strong>{placement.anteriorOffset > 0 ? `前方 ${(placement.anteriorOffset * 100).toFixed(0)}%` : placement.anteriorOffset < 0 ? `後方 ${(-placement.anteriorOffset * 100).toFixed(0)}%` : '中央'}</strong>
+              <span style={{ fontSize: 11 }}>微調整: 前後</span>
+              <strong style={{ fontSize: 11 }}>
+                {placement.anteriorOffset > 0 ? `前 ${placement.anteriorOffset.toFixed(2)}mm` : placement.anteriorOffset < 0 ? `後 ${(-placement.anteriorOffset).toFixed(2)}mm` : '中央'}
+              </strong>
             </div>
             <input
               type="range" min={-1} max={1} step={0.05}
@@ -340,9 +387,12 @@ function PlacementStep() {
             </div>
           </div>
 
-          <button className="btn btn-ghost btn-sm" style={{ width: '100%', marginBottom: 8 }}
-            onClick={() => updatePlacement({ lateralOffset: 0, anteriorOffset: 0, angleTilt: 0 })}>
-            ↺ リセット
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ width: '100%', marginBottom: 8 }}
+            onClick={() => updatePlacement({ lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 })}
+          >
+            ↺ すべてリセット
           </button>
         </div>
 
@@ -556,8 +606,8 @@ function ScoreStep() {
         <div className="section-title" style={{ marginBottom: 8 }}>あなたの設置</div>
         {[
           ['シャフト長', `${placement.selectedLength} mm`, `（推奨: ${selectedCase.recommendedLength} mm）`],
-          ['側方オフセット', `${(placement.lateralOffset * 100).toFixed(0)}%`, '（理想: 0%）'],
-          ['前後オフセット', `${(placement.anteriorOffset * 100).toFixed(0)}%`, '（理想: 0%）'],
+          ['内外側オフセット', `${(placement.lateralOffset + placement.dragOffsetX).toFixed(2)} mm`, '（理想: 0 mm）'],
+          ['前後オフセット', `${(placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)} mm`, '（理想: 0 mm）'],
           ['傾斜角', `${placement.angleTilt}°`, '（理想: 0°）'],
         ].map(([k, v, hint]) => (
           <div key={k} className="info-row">

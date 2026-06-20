@@ -10,11 +10,15 @@
  * ▼ GLBオフセット
  *   GLB座標系の原点 = アブミ骨底板 = STAPES_FOOTPLATE [0.84, -2.65, 2.12]
  *   → GLBグループを STAPES_FOOTPLATE 位置にオフセットすることで整合
+ *
+ * ▼ TransformControls によるドラッグ配置
+ *   プロテーゼを XZ 平面でドラッグ → mouseup 時に dragOffsetX/Z を更新
+ *   OrbitControls はドラッグ中に無効化
  */
 
-import { Suspense } from 'react';
+import { Suspense, useRef, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   STAPES_HEAD,
@@ -28,6 +32,7 @@ import {
   RealStapes,
   type VisibilityMap,
 } from './models/RealAnatomyModels';
+import { useSimStore } from '../store/useSimStore';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
 import type { PlacementState } from '../store/useSimStore';
@@ -61,23 +66,16 @@ interface SimSceneProps {
   vis?:          VisibilityMap;
 }
 
-// ── 配置ターゲットマーカー ───────────────────────────────────────────
-function PlacementMarker({
-  pos, lateralOffset, anteriorOffset,
-}: {
-  pos: THREE.Vector3; lateralOffset: number; anteriorOffset: number;
-}) {
-  const mx = pos.x + lateralOffset;
-  const my = pos.y;
-  const mz = pos.z + anteriorOffset;
+// ── 配置ターゲットマーカー（理想位置 = 常にアブミ骨頭中央）───────────
+function PlacementMarker({ pos }: { pos: THREE.Vector3 }) {
   return (
-    <group position={[mx, my, mz]}>
+    <group position={[pos.x, pos.y, pos.z]}>
       {/* 中心ドット */}
       <mesh>
         <cylinderGeometry args={[0.10, 0.10, 0.05, 12]} />
         <meshStandardMaterial color="#00b4d8" emissive="#00b4d8" emissiveIntensity={1.2} />
       </mesh>
-      {/* クロスライン */}
+      {/* クロスライン（ターゲット十字） */}
       <mesh>
         <boxGeometry args={[3.0, 0.05, 0.05]} />
         <meshStandardMaterial color="#00b4d8" transparent opacity={0.55} />
@@ -90,13 +88,91 @@ function PlacementMarker({
   );
 }
 
+// ── ドラッグ可能プロテーゼ（TransformControls） ──────────────────────
+interface DraggableProsthesisProps {
+  product:       KurzProduct;
+  selectedLength: number;
+  basePos:       THREE.Vector3;
+  lateralOffset: number;
+  anteriorOffset: number;
+  angleTilt:     number;
+  dragOffsetX:   number;
+  dragOffsetZ:   number;
+  orbitRef:      React.RefObject<any>;
+}
+
+function DraggableProsthesis({
+  product, selectedLength, basePos,
+  lateralOffset, anteriorOffset, angleTilt,
+  dragOffsetX, dragOffsetZ,
+  orbitRef,
+}: DraggableProsthesisProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const tcRef    = useRef<any>(null);
+
+  // TransformControls の dragging-changed イベントで OrbitControls を on/off
+  useEffect(() => {
+    const tc = tcRef.current;
+    if (!tc) return;
+
+    const handleDraggingChanged = (e: { value: boolean }) => {
+      // ドラッグ開始 → OrbitControls 無効
+      if (e.value) {
+        if (orbitRef.current) orbitRef.current.enabled = false;
+        return;
+      }
+      // ドラッグ終了 → OrbitControls 有効・位置を store に焼き込み
+      if (orbitRef.current) orbitRef.current.enabled = true;
+      const g = groupRef.current;
+      if (!g) return;
+      const { placement } = useSimStore.getState();
+      useSimStore.getState().updatePlacement({
+        dragOffsetX: clamp3(placement.dragOffsetX + g.position.x),
+        dragOffsetZ: clamp3(placement.dragOffsetZ + g.position.z),
+      });
+      // グループ位置をリセット（store の値で ProsthesisModel が再描画される）
+      g.position.set(0, 0, 0);
+    };
+
+    tc.addEventListener('dragging-changed', handleDraggingChanged);
+    return () => tc.removeEventListener('dragging-changed', handleDraggingChanged);
+  // orbitRef は ref なので依存なし。意図的に空 dep
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <TransformControls
+      ref={tcRef}
+      mode="translate"
+      showY={false}
+      size={0.65}
+    >
+      <group ref={groupRef}>
+        <ProsthesisModel
+          product={product}
+          shaftLength={selectedLength}
+          basePos={basePos.clone()}
+          lateralOffset={lateralOffset + dragOffsetX}
+          anteriorOffset={anteriorOffset + dragOffsetZ}
+          angleTilt={angleTilt}
+        />
+      </group>
+    </TransformControls>
+  );
+}
+
+/** XZ ドラッグ量を ±3mm にクランプ */
+function clamp3(v: number): number {
+  return Math.max(-3, Math.min(3, v));
+}
+
 // ══════════════════════════════════════════════════════════════════
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
   surgicalCase, product, placement, showIdeal = false, vis = {},
 }: SimSceneProps) {
-  const { selectedLength, lateralOffset, anteriorOffset, angleTilt } = placement;
+  const { selectedLength, lateralOffset, anteriorOffset, angleTilt, dragOffsetX, dragOffsetZ } = placement;
 
   const isTotal = product.footType === 'FLAT';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
@@ -118,6 +194,9 @@ export function SimScene({
   const incOpacity  = incStatus  === 'partial'       ? 0.45 : undefined;
   const stapOpacity = stapStatus === 'footplate-only' ? 0.35 : undefined;
 
+  // OrbitControls ref（ドラッグ中に無効化するため）
+  const orbitRef = useRef<any>(null);
+
   return (
     <Canvas
       camera={{ position: [8, 6, 26], fov: 38 }}
@@ -131,7 +210,7 @@ export function SimScene({
     >
       <color attach="background" args={['#050b15']} />
 
-      {/* ── ライティング（学習モードと同等） ── */}
+      {/* ── ライティング ── */}
       <directionalLight
         position={[5, 15, 10]} intensity={1.8} color="#fff8f0"
         castShadow shadow-mapSize={[1024, 1024]}
@@ -141,15 +220,12 @@ export function SimScene({
       <directionalLight position={[0, -8,  5]}  intensity={0.25} color="#d0e4ff" />
       <pointLight position={[0, -2, -8]}  intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
       <pointLight position={[1,  3,  4]}  intensity={2.0} color="#fff4e0" distance={14} decay={2} />
-      {/* チタン用リムライト */}
       <pointLight position={[3,  5, -5]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
 
       <Suspense fallback={null}>
-        {/* ── GLBリアルモデル（学習モードと同一 + 症例別耳小骨）── */}
-        {/* GLBはアブミ骨底板を原点としているのでSTAPES_FOOTPLATEにオフセット */}
+        {/* ── GLBリアルモデル ── */}
         <group position={GLB_OFFSET}>
           <RealAnatomy vis={mergedVis} />
-          {/* 症例別 GLB 耳小骨（absent/partial/intact に対応） */}
           {showMalleus && <RealMalleus opacityOverride={malOpacity}  />}
           {showIncus   && <RealIncus   opacityOverride={incOpacity}  />}
           {showStapes  && <RealStapes  opacityOverride={stapOpacity} />}
@@ -163,21 +239,20 @@ export function SimScene({
           />
         )}
 
-        {/* ── 実際のプロテーゼ配置 ── */}
-        <ProsthesisModel
+        {/* ── ターゲットマーカー（理想位置 = アブミ骨頭中央） ── */}
+        <PlacementMarker pos={basePos} />
+
+        {/* ── ドラッグ可能プロテーゼ ── */}
+        <DraggableProsthesis
           product={product}
-          shaftLength={selectedLength}
+          selectedLength={selectedLength}
           basePos={basePos.clone()}
           lateralOffset={lateralOffset}
           anteriorOffset={anteriorOffset}
           angleTilt={angleTilt}
-        />
-
-        {/* ── 配置ターゲットマーカー ── */}
-        <PlacementMarker
-          pos={basePos}
-          lateralOffset={lateralOffset}
-          anteriorOffset={anteriorOffset}
+          dragOffsetX={dragOffsetX}
+          dragOffsetZ={dragOffsetZ}
+          orbitRef={orbitRef}
         />
 
         {/* 影受け面 */}
@@ -188,6 +263,7 @@ export function SimScene({
       </Suspense>
 
       <OrbitControls
+        ref={orbitRef}
         target={[0.5, -0.5, 3]}
         enablePan={true}
         minDistance={8}

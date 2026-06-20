@@ -9,9 +9,11 @@ export type PatientId = 'J' | 'T' | 'A' | 'H' | 'E';
 
 export interface PlacementState {
   selectedLength: number;
-  lateralOffset: number;  // -1 to +1
-  anteriorOffset: number; // -1 to +1
+  lateralOffset: number;  // slider: -1 to +1 mm
+  anteriorOffset: number; // slider: -1 to +1 mm
   angleTilt: number;      // degrees, -15 to +15
+  dragOffsetX: number;    // 3D TransformControls drag accumulated X (mm)
+  dragOffsetZ: number;    // 3D TransformControls drag accumulated Z (mm)
 }
 
 export interface ScoreResult {
@@ -66,7 +68,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   simStep: 'case-select',
   selectedCase: null,
   selectedProduct: null,
-  placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0 },
+  placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
   scoreResult: null,
   highlightedStructure: null,
 
@@ -75,7 +77,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   setSimStep: (s) => set({ simStep: s }),
   setSelectedCase: (c) => set({
     selectedCase: c,
-    placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0 },
+    placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
     scoreResult: null,
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
@@ -87,8 +89,12 @@ export const useSimStore = create<SimStore>((set, get) => ({
     const { selectedCase, placement } = get();
     if (!selectedCase) return;
 
-    const { selectedLength, lateralOffset, anteriorOffset, angleTilt } = placement;
+    const { selectedLength, lateralOffset, anteriorOffset, angleTilt, dragOffsetX, dragOffsetZ } = placement;
     const { recommendedLength, idealAngle } = selectedCase;
+
+    // 合計オフセット（スライダー + 3Dドラッグ）
+    const totalLateral  = lateralOffset + dragOffsetX;
+    const totalAnterior = anteriorOffset + dragOffsetZ;
 
     // Size score (25pts)
     const lengthDiff = Math.abs(selectedLength - recommendedLength);
@@ -99,7 +105,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     else sizeScore = 0;
 
     // Position score (25pts)
-    const posMag = Math.sqrt(lateralOffset ** 2 + anteriorOffset ** 2);
+    const posMag = Math.sqrt(totalLateral ** 2 + totalAnterior ** 2);
     let positionScore = Math.round(25 * Math.max(0, 1 - posMag * 1.5));
 
     // Angle score (25pts)
@@ -119,7 +125,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
 
     const feedback: string[] = [];
     if (sizeScore < 25) feedback.push(`シャフト長：${selectedLength}mm → 推奨は${recommendedLength}mm（差${lengthDiff.toFixed(1)}mm）`);
-    if (positionScore < 20) feedback.push('配置位置：中心からのずれが大きい。内側寄りに微調整を。');
+    if (positionScore < 20) feedback.push(`配置位置：中心から${posMag.toFixed(2)}mmのずれ。アブミ骨頭部の中央に設置すること。`);
     if (angleScore < 20) feedback.push(`傾斜角：${angleTilt}° → 垂直（0°）に近づけること。`);
     if (stabilityScore < 20) feedback.push('安定性：位置または角度を最適化して安定性を改善。');
     if (total >= 90) feedback.push('✓ 優秀な設置です。臨床でそのまま使用できるレベルです。');
@@ -132,7 +138,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     simStep: 'case-select',
     selectedCase: null,
     selectedProduct: null,
-    placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0 },
+    placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
     scoreResult: null,
   }),
 
