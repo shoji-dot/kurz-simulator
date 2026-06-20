@@ -7,12 +7,15 @@
 	root * /app/dist
 	encode zstd gzip
 
-	header {
-		Content-Type "application/javascript; charset=utf-8" path *.js
-		Content-Type "application/javascript; charset=utf-8" path *.mjs
-		Content-Type "text/css; charset=utf-8" path *.css
-		Content-Type "model/gltf-binary" path *.glb
+	@js {
+		path *.js *.mjs
 	}
+	header @js Content-Type "application/javascript; charset=utf-8"
+
+	@css {
+		path *.css
+	}
+	header @css Content-Type "text/css; charset=utf-8"
 
 	file_server
 	try_files {path} /index.html
