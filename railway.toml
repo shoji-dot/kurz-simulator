@@ -5,4 +5,4 @@ builder = "nixpacks"
 healthcheckPath = "/"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
-startCommand = "npx vite preview"
+startCommand = "caddy run --config /assets/Caddyfile --adapter caddyfile"

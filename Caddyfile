@@ -1,0 +1,19 @@
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT} {
+	root * /app/dist
+	encode zstd gzip
+
+	header {
+		Content-Type "application/javascript; charset=utf-8" path *.js
+		Content-Type "application/javascript; charset=utf-8" path *.mjs
+		Content-Type "text/css; charset=utf-8" path *.css
+		Content-Type "model/gltf-binary" path *.glb
+	}
+
+	file_server
+	try_files {path} /index.html
+}
