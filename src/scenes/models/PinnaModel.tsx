@@ -7,10 +7,22 @@
  *
  * ▼ 対応患者ID: J / T / A / H / E
  *
- * ▼ 座標変換
- *   EAC入口 (eacInStl) → sim Z=EAC_SIM_Z (30mm)
- *   STL は重心中心化済み。eacInStl のオフセットで補正。
- *   rotation: [-π/2, 0, π] で STL 軸をシミュレーター軸に整合
+ * ▼ 座標変換（STL実測バウンディングボックスより確定）
+ *   subj_T 実測値:
+ *     X: -28.6 ~ +28.6 (57.2mm = 幅)
+ *     Y: -33.6 ~ +33.6 (67.3mm = 高さ)  ← Y が縦軸！
+ *     Z:  0.0  ~ +24.8 (24.8mm = 奥行き, Z=0 が頭側 = EAC 面)
+ *   セントロイド後 Z 範囲: -12.4 ~ +12.4
+ *
+ *   rotation = [0, 0, 0]（恒等回転）
+ *     → STL の Y（縦）がそのまま World Y（縦）に対応
+ *     → 旧 [-π/2, 0, π] は Y→Z にマッピングしており90°ずれていた
+ *
+ *   メッシュ位置算出（恒等回転: world_vertex = mesh_pos + stl_vertex）
+ *     world_eac = mesh_pos + eacInStl = (0, EAC_Y_CENTER, EAC_SIM_Z)
+ *     → posX = -eacInStl.x
+ *        posY =  EAC_Y_CENTER - eacInStl.y
+ *        posZ =  EAC_SIM_Z   - eacInStl.z
  */
 
 import { useMemo } from 'react';
@@ -23,6 +35,7 @@ import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 //   maxZ ≈ 14.44mm, Y 中央 ≈ 5.8mm (アブミ骨底板を原点としたGLB座標系)
 const EAC_SIM_Z    = 14.5;  // EAC 外側開口部の Z 座標（GLB空間）
 const EAC_Y_CENTER =  5.8;  // EAC 外側開口部の Y 座標（アブミ骨より上方）
+const EAC_RING_R   =  3.8;  // EAC 入口マーカーリング半径（mm）
 
 interface PinnaModelProps {
   /** 患者ID (J / T / A / H / E) */
@@ -33,7 +46,7 @@ interface PinnaModelProps {
   color?: string;
 }
 
-/** 単一 STL ローダー（useLoader は hooks ルールのため呼び出し元で patientId を固定する） */
+/** 単一 STL ローダー */
 function PinnaSTL({
   url,
   position,
@@ -54,6 +67,7 @@ function PinnaSTL({
     side: THREE.DoubleSide,
     transparent: opacity < 1,
     opacity,
+    depthWrite: opacity >= 0.99,
   }), [color, opacity]);
 
   return (
@@ -61,7 +75,7 @@ function PinnaSTL({
       geometry={geometry}
       material={mat}
       position={position}
-      rotation={[-Math.PI / 2, 0, Math.PI]}
+      rotation={[0, 0, 0]}   // 恒等回転: STL Y（縦）→ World Y（縦）
       castShadow
       receiveShadow
     />
@@ -70,27 +84,47 @@ function PinnaSTL({
 
 export function PinnaModel({
   patientId = 'T',
-  opacity = 0.85,
+  opacity = 0.55,            // 半透明デフォルト: EAC 周辺の解剖が透けて見える
   color = '#c8956c',
 }: PinnaModelProps) {
   const patient = getPatientById(patientId) ?? PATIENTS[1]; // fallback: T
   const { eacInStl } = patient;
   const url = getPinnaUrl(patientId);
 
-  // EAC入口 (eacInStl) を GLB EAC 外側開口部 (0, EAC_Y_CENTER, EAC_SIM_Z) に合わせる補正
-  // rotation [-π/2, 0, π]: (x,y,z) → (-x, -z, -y)
-  // world_eac = (posX - eacX, posY - eacZ, posZ - eacY) = (0, EAC_Y_CENTER, EAC_SIM_Z)
-  const posX = eacInStl.x;
-  const posY = eacInStl.z + EAC_Y_CENTER;
-  const posZ = EAC_SIM_Z  + eacInStl.y;
+  // 恒等回転 [0,0,0] での位置補正
+  // world_vertex = mesh_pos + stl_vertex  →  eacInStl + mesh_pos = EAC world 位置
+  // posX + eacInStl.x = 0              → posX = -eacInStl.x
+  // posY + eacInStl.y = EAC_Y_CENTER   → posY = EAC_Y_CENTER - eacInStl.y
+  // posZ + eacInStl.z = EAC_SIM_Z      → posZ = EAC_SIM_Z   - eacInStl.z
+  const posX = -eacInStl.x;
+  const posY =  EAC_Y_CENTER - eacInStl.y;
+  const posZ =  EAC_SIM_Z   - eacInStl.z;
 
   return (
-    <PinnaSTL
-      url={url}
-      position={[posX, posY, posZ]}
-      opacity={opacity}
-      color={color}
-    />
+    <group>
+      {/* 耳介 STL メッシュ */}
+      <PinnaSTL
+        url={url}
+        position={[posX, posY, posZ]}
+        opacity={opacity}
+        color={color}
+      />
+      {/* EAC 入口マーカーリング（GLB EAC 外側開口部に固定表示）
+          外耳道入口の位置を明示し、解剖との対応関係を示す */}
+      <mesh
+        position={[0, EAC_Y_CENTER, EAC_SIM_Z]}
+        rotation={[0, 0, 0]}
+      >
+        <torusGeometry args={[EAC_RING_R, 0.22, 8, 40]} />
+        <meshStandardMaterial
+          color="#44aaff"
+          emissive="#2288ff"
+          emissiveIntensity={1.2}
+          transparent
+          opacity={0.90}
+        />
+      </mesh>
+    </group>
   );
 }
 

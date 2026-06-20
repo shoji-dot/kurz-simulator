@@ -56,7 +56,8 @@ export function AnatomyScene({
   pinnaMode = 'solid',
   patientId = 'T',
 }: AnatomySceneProps) {
-  const pinnaOpacity = pinnaMode === 'ghost' ? 0.18 : 0.85;
+  // solid でも 0.55 に抑えて EAC 周辺の解剖が透けて見えるようにする
+  const pinnaOpacity = pinnaMode === 'ghost' ? 0.18 : 0.55;
   return (
     <Canvas
       camera={{ position: [8, 5, 22], fov: 46 }}
