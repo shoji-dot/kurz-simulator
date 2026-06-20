@@ -24,7 +24,7 @@ import type { OssicleStatus, StapesStatus } from '../data/cases';
 export function AnatomyScene() {
   return (
     <Canvas
-      camera={{ position: [12, 8, 20], fov: 48 }}
+      camera={{ position: [18, 10, 32], fov: 50 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}

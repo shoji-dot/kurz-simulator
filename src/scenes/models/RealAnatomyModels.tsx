@@ -39,6 +39,10 @@ const MAT: Record<string, { color: string; roughness: number; metalness?: number
   roundWin:  { color: '#5888a8', roughness: 0.30, metalness: 0.05 },
   // 蝸牛前庭神経: 明黄色
   nerve:     { color: '#f8e840', roughness: 0.58, metalness: 0.0, opacity: 0.85 },
+  // 側頭骨: 皮質骨（白〜淡黄色、やや光沢）
+  bone:      { color: '#f2ead8', roughness: 0.42, metalness: 0.05, opacity: 0.88 },
+  // 耳介: 皮膚質感（やや暖色、マット）
+  auricle:   { color: '#e8c8a8', roughness: 0.72, metalness: 0.0 },
 };
 
 // ── 単一GLBローダー ──────────────────────────────────────────────
@@ -124,20 +128,44 @@ export function RealRoundWindow() {
   return <GLBMesh url="/models/Round_Window.glb" matKey="roundWin" />;
 }
 
+// ── 側頭骨（Temporal Bone）───────────────────────────────────────
+// ALPHA CBCTデータから生成（2.3M面→80K面にデシメーション済み）
+export function RealTemporalBone() {
+  return (
+    <GLBMesh
+      url="/models/Bone.glb"
+      matKey="bone"
+      castShadow={false}
+    />
+  );
+}
+
+// ── 耳介（Auricle / Pinna）───────────────────────────────────────
+// 解剖学的計測値から手続き的に生成（helix・concha・lobule）
+export function RealAuricle() {
+  return <GLBMesh url="/models/Auricle.glb" matKey="auricle" />;
+}
+
 // ── 全解剖構造セット（学習モード用）─────────────────────────────
 interface RealAnatomyProps {
-  showNerves?: boolean;
+  showNerves?:  boolean;
   showInnerEar?: boolean;
-  showEAC?: boolean;
+  showEAC?:     boolean;
+  showBone?:    boolean;
+  showAuricle?: boolean;
 }
 
 export function RealAnatomy({
   showNerves   = true,
   showInnerEar = true,
   showEAC      = true,
+  showBone     = true,
+  showAuricle  = true,
 }: RealAnatomyProps) {
   return (
     <group>
+      {showBone     && <RealTemporalBone />}
+      {showAuricle  && <RealAuricle />}
       <RealTympanicMembrane />
       <RealOssicles />
       <RealRoundWindow />
@@ -160,3 +188,5 @@ useGLTF.preload('/models/Chorda_Tympani.glb');
 useGLTF.preload('/models/Cochleo_Vestibular_Nerve.glb');
 useGLTF.preload('/models/External_Auditory_Canal.glb');
 useGLTF.preload('/models/Round_Window.glb');
+useGLTF.preload('/models/Bone.glb');
+useGLTF.preload('/models/Auricle.glb');
