@@ -61,7 +61,17 @@ function PinnaSTL({
   opacity: number;
   color: string;
 }) {
-  const geometry = useLoader(STLLoader, url);
+  const rawGeometry = useLoader(STLLoader, url);
+
+  // STLLoader はジオメトリを自動センタリングしない。
+  // eacInStl 座標は重心（centroid）基準で測定済みのため、
+  // ここでセンタリングして整合させる。
+  // 実測: subj_T STL Z[0, 24.8] → 重心Z=12.4mm → center()後 Z[-12.4, +12.4]
+  const geometry = useMemo(() => {
+    const g = rawGeometry.clone();
+    g.center();
+    return g;
+  }, [rawGeometry]);
 
   const mat = useMemo(() => new THREE.MeshStandardMaterial({
     color,
