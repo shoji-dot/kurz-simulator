@@ -31,11 +31,14 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
 import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 
-// GLB解析結果: External_Auditory_Canal.glb の外側開口部
-//   maxZ ≈ 14.44mm, Y 中央 ≈ 5.8mm (アブミ骨底板を原点としたGLB座標系)
-const EAC_SIM_Z    = 14.5;  // EAC 外側開口部の Z 座標（GLB空間）
-const EAC_Y_CENTER =  5.8;  // EAC 外側開口部の Y 座標（アブミ骨より上方）
-const EAC_RING_R   =  3.8;  // EAC 入口マーカーリング半径（mm）
+// GLB解析結果: External_Auditory_Canal.glb の外側開口部（頂点実測 2026-06-20）
+//   Z=13~14.44mm の頂点群: 中心 X=-1.28, Y=6.32, 半径 X=1.19, Y=3.24
+//   → EAC は楕円形（横1.19×縦3.24mm 半径）で左方向に-1.28mmオフセット
+//   Bone.glb maxZ=30.93 は外耳道ではなく乳様突起/鼓室板（Y=-15〜+6の下部領域）
+const EAC_SIM_Z    = 14.44; // EAC 外側開口部の Z 座標（GLB空間、実測値）
+const EAC_X_CENTER = -1.28; // EAC 外側開口部の X 座標（左側にオフセット）
+const EAC_Y_CENTER =  6.32; // EAC 外側開口部の Y 座標（実測、旧値5.8から修正）
+const EAC_RING_R   =  3.8;  // EAC 入口マーカーリング半径（mm、視認用）
 
 interface PinnaModelProps {
   /** 患者ID (J / T / A / H / E) */
@@ -93,10 +96,10 @@ export function PinnaModel({
 
   // 恒等回転 [0,0,0] での位置補正
   // world_vertex = mesh_pos + stl_vertex  →  eacInStl + mesh_pos = EAC world 位置
-  // posX + eacInStl.x = 0              → posX = -eacInStl.x
+  // posX + eacInStl.x = EAC_X_CENTER   → posX = EAC_X_CENTER - eacInStl.x
   // posY + eacInStl.y = EAC_Y_CENTER   → posY = EAC_Y_CENTER - eacInStl.y
   // posZ + eacInStl.z = EAC_SIM_Z      → posZ = EAC_SIM_Z   - eacInStl.z
-  const posX = -eacInStl.x;
+  const posX =  EAC_X_CENTER - eacInStl.x;
   const posY =  EAC_Y_CENTER - eacInStl.y;
   const posZ =  EAC_SIM_Z   - eacInStl.z;
 
@@ -112,7 +115,7 @@ export function PinnaModel({
       {/* EAC 入口マーカーリング（GLB EAC 外側開口部に固定表示）
           外耳道入口の位置を明示し、解剖との対応関係を示す */}
       <mesh
-        position={[0, EAC_Y_CENTER, EAC_SIM_Z]}
+        position={[EAC_X_CENTER, EAC_Y_CENTER, EAC_SIM_Z]}
         rotation={[0, 0, 0]}
       >
         <torusGeometry args={[EAC_RING_R, 0.22, 8, 40]} />
