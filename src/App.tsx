@@ -2,6 +2,7 @@ import { useSimStore } from './store/useSimStore';
 import { HomeScreen } from './components/HomeScreen';
 import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
+import { StepFlowMode } from './components/StepFlowMode';
 
 function AppHeader() {
   const { screen, setScreen, resetSimulation } = useSimStore();
@@ -31,6 +32,13 @@ function AppHeader() {
         >
           🎯 シミュレーション
         </button>
+        <button
+          className={`btn btn-sm ${screen === 'stepflow' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setScreen('stepflow')}
+          style={{ borderColor: screen === 'stepflow' ? undefined : 'rgba(0,180,216,0.35)' }}
+        >
+          🎬 手術フロー
+        </button>
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>
@@ -49,6 +57,7 @@ function App() {
       {screen === 'home' && <HomeScreen />}
       {screen === 'learning' && <LearningMode />}
       {screen === 'simulation' && <SimulationMode />}
+      {screen === 'stepflow' && <StepFlowMode />}
     </>
   );
 }

@@ -7,9 +7,11 @@ import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
   DEFAULT_MODES,
+  DEFAULT_AURICLE_TRANSFORM,
   type OpacityMode,
   type StructureKey,
   type VisibilityMap,
+  type AuricleTransform,
 } from '../scenes/models/RealAnatomyModels';
 
 // ── 解剖構造リスト ────────────────────────────────────────────────
@@ -144,6 +146,23 @@ export function LearningMode() {
     return () => clearTimeout(timer);
   }, [s3IsPlaying, s3StepIndex]);
 
+  // ── 耳介フリームーブ（デバッグ用トランスフォーム）───────────────
+  const [auricleTransform, setAuricleTransform] = useState<AuricleTransform>(DEFAULT_AURICLE_TRANSFORM);
+  const setAuriclePos = (axis: 0 | 1 | 2, val: number) =>
+    setAuricleTransform(t => {
+      const p = [...t.position] as [number, number, number];
+      p[axis] = val;
+      return { ...t, position: p };
+    });
+  const setAuricleRot = (axis: 0 | 1 | 2, deg: number) =>
+    setAuricleTransform(t => {
+      const r = [...t.rotation] as [number, number, number];
+      r[axis] = (deg * Math.PI) / 180;
+      return { ...t, rotation: r };
+    });
+  const getAuricleRotDeg = (axis: 0 | 1 | 2) =>
+    Math.round((auricleTransform.rotation[axis] * 180) / Math.PI);
+
   // ── ビューモード（解剖タブ用）───────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
 
@@ -226,6 +245,8 @@ export function LearningMode() {
               pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
               patientId={selectedPatientId}
               viewMode={viewMode}
+              auricleTransform={auricleTransform}
+              highlightedKey={highlightedStructure}
             />
           )}
 
@@ -265,6 +286,69 @@ export function LearningMode() {
                   {icon} {label}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* ── 耳介フリームーブ デバッグパネル ── */}
+          {showPinna && learningTab === 'anatomy' && (
+            <div style={{
+              position: 'absolute', bottom: 12, left: 12, zIndex: 20,
+              background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)',
+              border: '1px solid rgba(230,169,58,0.45)',
+              borderRadius: 10, padding: '10px 14px', minWidth: 230,
+              color: '#e6c87a', fontSize: 11,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 12 }}>🦻 耳介 トランスフォーム</span>
+                <button
+                  onClick={() => setAuricleTransform(DEFAULT_AURICLE_TRANSFORM)}
+                  style={{ fontSize: 10, padding: '2px 7px', background: 'rgba(255,80,80,0.18)', border: '1px solid rgba(255,80,80,0.4)', borderRadius: 5, color: '#ff8080', cursor: 'pointer' }}
+                >リセット</button>
+              </div>
+              {/* 位置 */}
+              {(['X','Y','Z'] as const).map((ax, i) => (
+                <div key={`pos${ax}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ width: 42, opacity: 0.7 }}>位置{ax}</span>
+                  <input type="range" min={-60} max={60} step={0.5}
+                    value={auricleTransform.position[i]}
+                    onChange={e => setAuriclePos(i as 0|1|2, parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: '#e6a93a' }}
+                  />
+                  <span style={{ width: 36, textAlign: 'right', opacity: 0.9 }}>{auricleTransform.position[i].toFixed(1)}</span>
+                </div>
+              ))}
+              {/* 回転 */}
+              {(['X','Y','Z'] as const).map((ax, i) => (
+                <div key={`rot${ax}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ width: 42, opacity: 0.7 }}>回転{ax}</span>
+                  <input type="range" min={-180} max={180} step={1}
+                    value={getAuricleRotDeg(i as 0|1|2)}
+                    onChange={e => setAuricleRot(i as 0|1|2, parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: '#e6a93a' }}
+                  />
+                  <span style={{ width: 36, textAlign: 'right', opacity: 0.9 }}>{getAuricleRotDeg(i as 0|1|2)}°</span>
+                </div>
+              ))}
+              {/* 表裏反転 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <span style={{ opacity: 0.7 }}>表裏反転（X軸）</span>
+                <input type="checkbox" checked={auricleTransform.flip}
+                  onChange={e => setAuricleTransform(t => ({ ...t, flip: e.target.checked }))}
+                  style={{ accentColor: '#e6a93a', width: 14, height: 14, cursor: 'pointer' }}
+                />
+              </div>
+              {/* 値コピー */}
+              <button
+                onClick={() => {
+                  const p = auricleTransform.position.map(v => v.toFixed(2)).join(', ');
+                  const r = auricleTransform.rotation.map(v => v.toFixed(4)).join(', ');
+                  const text = `position: [${p}]\nrotation: [${r}]\nflip: ${auricleTransform.flip}`;
+                  navigator.clipboard.writeText(text);
+                }}
+                style={{ marginTop: 8, width: '100%', fontSize: 10, padding: '4px 0',
+                  background: 'rgba(0,180,216,0.15)', border: '1px solid rgba(0,180,216,0.35)',
+                  borderRadius: 5, color: '#7dd8e8', cursor: 'pointer' }}
+              >📋 値をコピー</button>
             </div>
           )}
 
@@ -336,14 +420,26 @@ export function LearningMode() {
             </div>
           )}
 
-          {/* 強調表示中の構造名（解剖タブ） */}
-          {learningTab === 'anatomy' && highlightedStructure && (
-            <div className="canvas-overlay bottom-left">
-              <div style={{ background: 'rgba(0,180,216,.15)', border: '1px solid var(--accent)', padding: '6px 10px', borderRadius: 6, color: 'var(--accent)', backdropFilter: 'blur(4px)' }}>
-                {anatomyStructures.find((s) => s.id === highlightedStructure)?.label}
+          {/* 強調表示中の構造名 + 説明パネル（解剖タブ） */}
+          {learningTab === 'anatomy' && highlightedStructure && (() => {
+            const s = anatomyStructures.find(x => x.id === highlightedStructure);
+            if (!s) return null;
+            return (
+              <div style={{
+                position: 'absolute', bottom: 60, left: 12, zIndex: 15,
+                maxWidth: 280,
+                background: 'rgba(6,10,26,0.88)', backdropFilter: 'blur(8px)',
+                border: `1px solid ${s.color}66`,
+                borderRadius: 10, padding: '10px 14px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}` }} />
+                  <span style={{ fontWeight: 700, fontSize: 13, color: s.color }}>{s.label}</span>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ズームボタン（削開タブ以外）*/}
           {learningTab !== 'drilling' && (

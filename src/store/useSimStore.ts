@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
 
-export type Screen = 'home' | 'learning' | 'simulation' | 'surgical';
+export type Screen = 'home' | 'learning' | 'simulation' | 'surgical' | 'stepflow';
 export type SimStep = 'case-select' | 'product-select' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
 export type PatientId = 'J' | 'T' | 'A' | 'H' | 'E';

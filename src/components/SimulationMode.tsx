@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 
 // ── スコア履歴 (localStorage) ──────────────────────────────────────
@@ -75,6 +75,36 @@ const MODE_FG: Record<OpacityMode, string> = {
 };
 
 
+// ── コンテキストタグバー ──────────────────────────────────────────
+interface ContextTagBarProps {
+  procedureTags: string[];
+  lesionTags: string[];
+  style?: CSSProperties;
+}
+function ContextTagBar({ procedureTags, lesionTags, style }: ContextTagBarProps) {
+  return (
+    <div style={{
+      display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center',
+      ...style,
+    }}>
+      {procedureTags.map(t => (
+        <span key={t} style={{
+          padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+          background: 'rgba(0,180,216,0.18)', color: '#7dd8e8',
+          border: '1px solid rgba(0,180,216,0.35)', letterSpacing: '.02em',
+        }}>{t}</span>
+      ))}
+      {lesionTags.map(t => (
+        <span key={t} style={{
+          padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+          background: 'rgba(255,209,102,0.15)', color: '#ffd166',
+          border: '1px solid rgba(255,209,102,0.35)', letterSpacing: '.02em',
+        }}>{t}</span>
+      ))}
+    </div>
+  );
+}
+
 const diffLabel: Record<string, string> = {
   beginner: '初級',
   intermediate: '中級',
@@ -114,6 +144,7 @@ function CaseSelect() {
               <span className={`badge ${diffBadge[c.difficulty]}`}>{diffLabel[c.difficulty]}</span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>{c.description}</p>
+            <ContextTagBar procedureTags={c.tags.procedure} lesionTags={c.tags.lesion} style={{ marginBottom: 6 }} />
             <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
               <span>ツチ骨: {ossicleLabel[c.ossicularStatus.malleus] ?? c.ossicularStatus.malleus}</span>
               <span>｜</span>
@@ -256,10 +287,17 @@ function PlacementStep() {
           vis={simVis}
         />
         <div className="canvas-overlay top-left">
-          <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
-            <div>🖱 矢印ハンドル: プロテーゼをドラッグ</div>
-            <div>🔄 ハンドル外ドラッグ: 視点回転　｜　ホイール: ズーム</div>
-            <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 目標位置（アブミ骨頭中央）</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* コンテキストタグ */}
+            <ContextTagBar
+              procedureTags={selectedCase.tags.procedure}
+              lesionTags={selectedCase.tags.lesion}
+            />
+            <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+              <div>🖱 矢印ハンドル: プロテーゼをドラッグ</div>
+              <div>🔄 ハンドル外ドラッグ: 視点回転　｜　ホイール: ズーム</div>
+              <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 目標位置（アブミ骨頭中央）</div>
+            </div>
           </div>
         </div>
         <div style={{ position: 'absolute', top: 12, right: 12 }}>

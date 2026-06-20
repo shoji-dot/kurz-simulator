@@ -17,6 +17,11 @@ export interface SurgicalCase {
   idealAngle: number;
   clinicalNotes: string;
   teachingPoints: string[];
+  /** コンテキストタグ（常時表示チップ） */
+  tags: {
+    procedure: string[];  // 術式チップ: 鼓室形成型・プロテーゼ種類
+    lesion: string[];     // 病変チップ: 疾患・状態
+  };
 }
 
 export const surgicalCases: SurgicalCase[] = [
@@ -37,6 +42,10 @@ export const surgicalCases: SurgicalCase[] = [
       '頭板と鼓膜の間に薄い軟骨片を挟む（押出し防止）。',
       '適切な張力：鼓膜閉鎖後わずかに張力がかかる程度。',
     ],
+    tags: {
+      procedure: ['鼓室形成II型', 'PORP'],
+      lesion:    ['慢性中耳炎', 'キヌタ骨欠損'],
+    },
   },
   {
     id: 'case-004',
@@ -56,6 +65,10 @@ export const surgicalCases: SurgicalCase[] = [
       'アブミ骨頭部の安定性確認：プロテーゼ設置前に必ずアブミ骨頭部の可動性と固定の有無を確認する。',
       '鼓膜（軟骨）と頭板の間に薄い軟骨片を追加挿入するとPORPの安定性が向上し、押し出しリスクが低下する。',
     ],
+    tags: {
+      procedure: ['鼓室形成III型', 'PORP'],
+      lesion:    ['真珠腫性中耳炎', 'ツチ骨・キヌタ骨欠損'],
+    },
   },
   {
     id: 'case-002',
@@ -75,6 +88,10 @@ export const surgicalCases: SurgicalCase[] = [
       '底板固定（耳硬化症の合併）が疑われる場合はTORPでも改善不良。術前の骨導聴力とCT所見を確認。',
       '軟骨片を頭板と鼓膜の間に挿入してTORPの押し出しを防止する。特に鼓膜が薄い症例では必須。',
     ],
+    tags: {
+      procedure: ['鼓室形成IV型', 'TORP'],
+      lesion:    ['真珠腫性中耳炎', '全耳小骨欠損'],
+    },
   },
   {
     id: 'case-003',
@@ -93,6 +110,10 @@ export const surgicalCases: SurgicalCase[] = [
       '過度のクリッピングでアブミ骨頭部骨折リスクあり。適切な力加減が必要。',
       '術野が狭い場合は通常のベル型PORPへの変更も考慮する。',
     ],
+    tags: {
+      procedure: ['クリップPORP', 'Dresden型'],
+      lesion:    ['真珠腫（術後）', 'キヌタ骨欠損'],
+    },
   },
   {
     id: 'case-005',
@@ -112,6 +133,10 @@ export const surgicalCases: SurgicalCase[] = [
       'アブミ骨上部構造の可動性確認は必須。長期癒着例では固定している可能性がある。',
       '鼓膜が菲薄化している場合、PORP押し出しリスクが高い。軟骨による鼓膜補強は必須条件。',
     ],
+    tags: {
+      procedure: ['鼓室形成II型変法', 'PORP'],
+      lesion:    ['癒着性中耳炎', 'キヌタ骨欠損'],
+    },
   },
   {
     id: 'case-006',
@@ -131,5 +156,9 @@ export const surgicalCases: SurgicalCase[] = [
       '耳硬化症合併例では術後 ABG 改善が不完全な場合がある。術前インフォームド・コンセントで予め伝える。',
       '混合性難聴（骨導低下）を伴う場合、術後の骨導改善は期待できない。気導改善のみを目標とした手術計画を立てる。',
     ],
+    tags: {
+      procedure: ['鼓室形成IV型', 'TORP'],
+      lesion:    ['耳硬化症合併', '全耳小骨欠損', '底板固定疑い'],
+    },
   },
 ];

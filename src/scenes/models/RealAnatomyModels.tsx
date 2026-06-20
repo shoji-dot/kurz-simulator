@@ -13,6 +13,23 @@ import * as THREE from 'three';
 
 // -- Display mode types --
 export type OpacityMode  = 'solid' | 'ghost' | 'hidden';
+
+/** 耳介の位置・回転・左右反転を自由に調整するためのデバッグ用トランスフォーム */
+export interface AuricleTransform {
+  /** 位置オフセット [x, y, z] (mm単位、GLB座標系) */
+  position: [number, number, number];
+  /** 回転角度 [x, y, z] (ラジアン) */
+  rotation: [number, number, number];
+  /** 表裏反転（X軸スケール -1） */
+  flip: boolean;
+}
+
+export const DEFAULT_AURICLE_TRANSFORM: AuricleTransform = {
+  position: [0, 0, 42],   // Auricle.glb: Z+42mm = 外耳道開口部相当（セッション12暫定値）
+  rotation: [0, 0, 0],
+  flip: false,
+};
+
 export type StructureKey =
   | 'bone' | 'auricle' | 'ossicles'
   | 'malleus' | 'incus' | 'stapes'
@@ -66,9 +83,11 @@ interface GLBMeshProps {
   matKey: keyof typeof MAT;
   castShadow?: boolean;
   opacityOverride?: number;
+  /** ハイライト表示（emissive glow） */
+  highlighted?: boolean;
 }
 
-function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshProps) {
+function GLBMesh({ url, matKey, castShadow = true, opacityOverride, highlighted }: GLBMeshProps) {
   const { scene } = useGLTF(url);
   const cfg       = MAT[matKey];
   const matRef    = useRef<THREE.MeshStandardMaterial | null>(null);
@@ -116,86 +135,102 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshPro
     });
   }, [opacityOverride, cfg.opacity, cloned]);
 
+  useEffect(() => {
+    const mat = matRef.current;
+    if (!mat) return;
+    if (highlighted) {
+      mat.emissive.set(cfg.color);
+      mat.emissiveIntensity = 0.55;
+    } else {
+      mat.emissive.set('#000000');
+      mat.emissiveIntensity = 0;
+    }
+    mat.needsUpdate = true;
+  }, [highlighted, cfg.color]);
+
   return <primitive object={cloned} />;
 }
 
 // -- Individual structure components --
-interface StructureProps { opacityOverride?: number }
+interface StructureProps { opacityOverride?: number; highlighted?: boolean }
 
-export function RealMalleus({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} />;
+export function RealMalleus({ opacityOverride, highlighted }: StructureProps) {
+  return <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} highlighted={highlighted} />;
 }
-export function RealIncus({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Incus.glb" matKey="incus" opacityOverride={opacityOverride} />;
+export function RealIncus({ opacityOverride, highlighted }: StructureProps) {
+  return <GLBMesh url="/models/Incus.glb" matKey="incus" opacityOverride={opacityOverride} highlighted={highlighted} />;
 }
-export function RealStapes({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Stapes.glb" matKey="stapes" opacityOverride={opacityOverride} />;
+export function RealStapes({ opacityOverride, highlighted }: StructureProps) {
+  return <GLBMesh url="/models/Stapes.glb" matKey="stapes" opacityOverride={opacityOverride} highlighted={highlighted} />;
 }
 
-export function RealOssicles({ opacityOverride }: StructureProps) {
+export function RealOssicles({ opacityOverride, highlighted }: StructureProps) {
   return (
     <group>
-      <RealMalleus opacityOverride={opacityOverride} />
-      <RealIncus   opacityOverride={opacityOverride} />
-      <RealStapes  opacityOverride={opacityOverride} />
+      <RealMalleus opacityOverride={opacityOverride} highlighted={highlighted} />
+      <RealIncus   opacityOverride={opacityOverride} highlighted={highlighted} />
+      <RealStapes  opacityOverride={opacityOverride} highlighted={highlighted} />
     </group>
   );
 }
 
-export function RealTympanicMembrane({ opacityOverride }: StructureProps) {
+export function RealTympanicMembrane({ opacityOverride, highlighted }: StructureProps) {
   return (
     <GLBMesh
       url="/models/Tympanic_Membrane.glb"
       matKey="tympanic"
       castShadow={false}
       opacityOverride={opacityOverride}
+      highlighted={highlighted}
     />
   );
 }
 
-export function RealInnerEar({ opacityOverride }: StructureProps) {
+export function RealInnerEar({ opacityOverride, highlighted }: StructureProps) {
   return (
     <group>
-      <GLBMesh url="/models/Scala_Tympani.glb"           matKey="scalaTym"  castShadow={false} opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Scala_Vestibuli.glb"          matKey="scalaVest" castShadow={false} opacityOverride={opacityOverride} />
-      <GLBMesh url="/models/Cochleo_Vestibular_Nerve.glb" matKey="nerve"     castShadow={false} opacityOverride={opacityOverride} />
+      <GLBMesh url="/models/Scala_Tympani.glb"           matKey="scalaTym"  castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
+      <GLBMesh url="/models/Scala_Vestibuli.glb"          matKey="scalaVest" castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
+      <GLBMesh url="/models/Cochleo_Vestibular_Nerve.glb" matKey="nerve"     castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
     </group>
   );
 }
 
-export function RealFacialNerve({ opacityOverride }: StructureProps) {
+export function RealFacialNerve({ opacityOverride, highlighted }: StructureProps) {
   return (
-    <GLBMesh url="/models/Facial_Nerve.glb" matKey="facial" castShadow={false} opacityOverride={opacityOverride} />
+    <GLBMesh url="/models/Facial_Nerve.glb" matKey="facial" castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
   );
 }
-export function RealChordaTympani({ opacityOverride }: StructureProps) {
+export function RealChordaTympani({ opacityOverride, highlighted }: StructureProps) {
   return (
-    <GLBMesh url="/models/Chorda_Tympani.glb" matKey="chorda" castShadow={false} opacityOverride={opacityOverride} />
+    <GLBMesh url="/models/Chorda_Tympani.glb" matKey="chorda" castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
   );
 }
 
-export function RealEAC({ opacityOverride }: StructureProps) {
+export function RealEAC({ opacityOverride, highlighted }: StructureProps) {
   return (
     <GLBMesh
       url="/models/External_Auditory_Canal.glb"
       matKey="eac"
       castShadow={false}
       opacityOverride={opacityOverride}
+      highlighted={highlighted}
     />
   );
 }
 
-export function RealRoundWindow({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Round_Window.glb" matKey="roundWin" opacityOverride={opacityOverride} />;
+export function RealRoundWindow({ opacityOverride, highlighted }: StructureProps) {
+  return <GLBMesh url="/models/Round_Window.glb" matKey="roundWin" opacityOverride={opacityOverride} highlighted={highlighted} />;
 }
 
-export function RealTemporalBone({ opacityOverride }: StructureProps) {
+export function RealTemporalBone({ opacityOverride, highlighted }: StructureProps) {
   return (
     <GLBMesh
       url="/models/Bone.glb"
       matKey="bone"
       castShadow={false}
       opacityOverride={opacityOverride}
+      highlighted={highlighted}
     />
   );
 }
@@ -205,20 +240,37 @@ export function RealTemporalBone({ opacityOverride }: StructureProps) {
  *
  * Auricle.glb is from the same OpenEar ALPHA CT scan as Bone.glb.
  * Already aligned in the same GLB coordinate space (measured Z: 6.65-24.85).
- * No additional offset needed. Old position=[0,0,42] was incorrect (removed).
+ * transform プロパティで位置・回転・表裏反転をデバッグ調整できる。
  */
-export function RealAuricle({ opacityOverride }: StructureProps) {
+interface AuricleProps extends StructureProps {
+  transform?: AuricleTransform;
+}
+export function RealAuricle({ opacityOverride, transform }: AuricleProps) {
+  const t = transform ?? DEFAULT_AURICLE_TRANSFORM;
   return (
-    <GLBMesh url="/models/Auricle.glb" matKey="auricle" opacityOverride={opacityOverride} />
+    <group
+      position={t.position}
+      rotation={t.rotation}
+      scale={t.flip ? [-1, 1, 1] : [1, 1, 1]}
+    >
+      <GLBMesh url="/models/Auricle.glb" matKey="auricle" opacityOverride={opacityOverride} />
+    </group>
   );
 }
 
 // -- Full anatomy set --
-export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
+interface RealAnatomyProps {
+  vis?: VisibilityMap;
+  auricleTransform?: AuricleTransform;
+  /** ハイライトする構造キー（StructureKey または 'tympanic'/'membrane'） */
+  highlightedKey?: string | null;
+}
+export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey }: RealAnatomyProps) {
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
   const show    = (key: StructureKey) => getMode(key) !== 'hidden';
   const opacity = (key: StructureKey): number | undefined =>
     getMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
+  const hl      = (key: string) => highlightedKey === key;
 
   // 耳小骨の個別モード：個別キー → 旧 ossicles キー → デフォルト の順でフォールバック
   const ossicleMode = (key: 'malleus' | 'incus' | 'stapes'): OpacityMode =>
@@ -229,17 +281,17 @@ export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
 
   return (
     <group>
-      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          />}
-      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       />}
-      {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      />}
-      {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} />}
-      {ossicleShow('incus')   && <RealIncus   opacityOverride={ossicleOpacity('incus')}   />}
-      {ossicleShow('stapes')  && <RealStapes  opacityOverride={ossicleOpacity('stapes')}  />}
-      {show('roundWindow')   && <RealRoundWindow       opacityOverride={opacity('roundWindow')}   />}
-      {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      />}
-      {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   />}
-      {show('chordaTympani') && <RealChordaTympani     opacityOverride={opacity('chordaTympani')} />}
-      {show('eac')           && <RealEAC               opacityOverride={opacity('eac')}           />}
+      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} />}
+      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       transform={auricleTransform} />}
+      {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      highlighted={hl('tympanic') || hl('membrane')} />}
+      {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} highlighted={hl('malleus')} />}
+      {ossicleShow('incus')   && <RealIncus   opacityOverride={ossicleOpacity('incus')}   highlighted={hl('incus')} />}
+      {ossicleShow('stapes')  && <RealStapes  opacityOverride={ossicleOpacity('stapes')}  highlighted={hl('stapes')} />}
+      {show('roundWindow')   && <RealRoundWindow       opacityOverride={opacity('roundWindow')}   highlighted={hl('roundWindow')} />}
+      {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      highlighted={hl('innerEar')} />}
+      {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   highlighted={hl('facialNerve')} />}
+      {show('chordaTympani') && <RealChordaTympani     opacityOverride={opacity('chordaTympani')} highlighted={hl('chordaTympani')} />}
+      {show('eac')           && <RealEAC               opacityOverride={opacity('eac')}           highlighted={hl('eac')} />}
     </group>
   );
 }

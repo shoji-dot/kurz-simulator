@@ -17,7 +17,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
-import { RealAnatomy, type VisibilityMap } from './models/RealAnatomyModels';
+import { RealAnatomy, type VisibilityMap, type AuricleTransform } from './models/RealAnatomyModels';
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
@@ -72,6 +72,10 @@ interface AnatomySceneProps {
   patientId?:         string;
   /** 手術用ビューモード（CSS オーバーレイは LearningMode 側で描画） */
   viewMode?:          ViewMode;
+  /** 耳介の位置・回転・反転をデバッグ調整するトランスフォーム */
+  auricleTransform?:  AuricleTransform;
+  /** ハイライトする構造キー */
+  highlightedKey?:    string | null;
 }
 
 export function AnatomyScene({
@@ -82,6 +86,8 @@ export function AnatomyScene({
   pinnaMode = 'solid',
   patientId = 'T',
   viewMode = 'normal',
+  auricleTransform,
+  highlightedKey,
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -115,7 +121,7 @@ export function AnatomyScene({
 
       <Suspense fallback={null}>
         {/* 耳介は mergedVis.auricle で制御（Auricle.glb: Bone.glbと同一CT、位置合わせ済み） */}
-        <RealAnatomy vis={mergedVis} />
+        <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} />
         {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
         {showTympanoCavity && <TympanoCavityEdu />}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
