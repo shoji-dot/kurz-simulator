@@ -14,7 +14,6 @@ import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap } from './models/RealAnatomyModels';
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
-import { PinnaModel } from './models/PinnaModel';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 // ── FOVベースのズームハンドラ（Canvas内に置く）─────────────────
@@ -56,8 +55,13 @@ export function AnatomyScene({
   pinnaMode = 'solid',
   patientId = 'T',
 }: AnatomySceneProps) {
-  // solid でも 0.55 に抑えて EAC 周辺の解剖が透けて見えるようにする
-  const pinnaOpacity = pinnaMode === 'ghost' ? 0.18 : 0.55;
+  // 耳介（Auricle.glb）を vis に統合
+  // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
+  // solid=0.55 / ghost=0.12（GHOST_OPACITY準拠）
+  const auricleMode = showPinna
+    ? (pinnaMode === 'ghost' ? 'ghost' : 'solid')
+    : (vis?.auricle ?? 'hidden');
+  const mergedVis: VisibilityMap = { ...vis, auricle: auricleMode };
   return (
     <Canvas
       camera={{ position: [8, 5, 22], fov: 46 }}
@@ -79,13 +83,10 @@ export function AnatomyScene({
       <pointLight position={[1,  3,  4]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        <RealAnatomy vis={vis} />
+        {/* 耳介は mergedVis.auricle で制御（Auricle.glb: Bone.glbと同一CT、位置合わせ済み） */}
+        <RealAnatomy vis={mergedVis} />
         {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
         {showTympanoCavity && <TympanoCavityEdu />}
-        {/* 耳介 STL モデル（Viking HRTF Dataset v2 / CC-BY 4.0） */}
-        {showPinna && (
-          <PinnaModel patientId={patientId} opacity={pinnaOpacity} />
-        )}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
           <shadowMaterial transparent opacity={0.15} />

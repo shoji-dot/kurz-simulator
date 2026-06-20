@@ -20,7 +20,6 @@ export interface SurgicalCase {
 }
 
 export const surgicalCases: SurgicalCase[] = [
-  // ── II型: キヌタ骨欠損、ツチ骨・アブミ骨温存 ─────────────────────
   {
     id: 'case-001',
     title: '症例1: キヌタ骨欠損（II型）— PORP',
@@ -39,7 +38,6 @@ export const surgicalCases: SurgicalCase[] = [
       '適切な張力：鼓膜閉鎖後わずかに張力がかかる程度。',
     ],
   },
-  // ── III型: ツチ骨・キヌタ骨欠損、アブミ骨上部構造温存 ───────────
   {
     id: 'case-004',
     title: '症例2: ツチ骨・キヌタ骨欠損（III型）— PORP',
@@ -59,7 +57,6 @@ export const surgicalCases: SurgicalCase[] = [
       '鼓膜（軟骨）と頭板の間に薄い軟骨片を追加挿入するとPORPの安定性が向上し、押し出しリスクが低下する。',
     ],
   },
-  // ── IV型: 全耳小骨欠損、底板のみ残存 ───────────────────────────
   {
     id: 'case-002',
     title: '症例3: 全耳小骨欠損（IV型）— TORP',
@@ -79,26 +76,6 @@ export const surgicalCases: SurgicalCase[] = [
       '軟骨片を頭板と鼓膜の間に挿入してTORPの押し出しを防止する。特に鼓膜が薄い症例では必須。',
     ],
   },
-  {
-    id: 'case-004',
-    title: '症例4: ツチ骨・キヌタ骨欠損（III型）— PORP',
-    description: '47歳女性。真珠腫性中耳炎（アティコトミー後再発）。ツチ骨・キヌタ骨は真珠腫により破壊・摘出。アブミ骨上部構造（頭部・前後脚）は温存、可動性良好。鼓室形成III型の典型例。PORP適応。',
-    difficulty: 'intermediate',
-    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
-    recommendedLength: 2.0,
-    idealLateralOffset: 0,
-    idealAngle: 0,
-    clinicalNotes: '軟骨（耳珠軟骨）で鼓膜を再建し、軟骨〜アブミ骨頭間距離をサイザーで実測。本症例は約2.0mm。アブミ骨頭部が明視野に確認でき、ベル型フットで安定保持が可能。',
-    teachingPoints: [
-      'III型の定義：ツチ骨・キヌタ骨欠損、アブミ骨上部構造温存。PORPのベル型フット（Bell foot）がアブミ骨頭部を包む形で設置。',
-      'III型 vs II型の判断：ツチ骨柄が残存していればII型（PORP under malleus handle）。ツチ骨柄なしならIII型（PORP直接on stapes head）。',
-      'PORPのシャフト長はサイザーを使い必ず術中実測。術前CTの距離は参考値。通常1.5〜2.5mmの範囲。',
-      'アブミ骨頭部の安定性確認：プロテーゼ設置前に必ずアブミ骨頭部の可動性と固定の有無を確認する。',
-      '鼓膜（軟骨）と頭板の間に薄い軟骨片を追加挿入するとPORPの安定性が向上し、押し出しリスクが低下する。',
-    ],
-  },
-  // ── クリップPORP: ツチ骨部分欠損・アブミ骨頭温存 ─────────────────
   {
     id: 'case-003',
     title: '症例4: クリップPORP使用例（応用）',

@@ -1,39 +1,38 @@
 /**
- * RealAnatomyModels.tsx  ── ALPHA データセット由来の実解剖学的3Dモデル
+ * RealAnatomyModels.tsx  -- ALPHA dataset real anatomical 3D models
  *
- * ▼ 座標系
- *   全GLBはアブミ骨底板を原点(0,0,0)として配置済み。
- *   Z+ = 外耳道方向（カメラ側）
- *   Y+ = 上方
+ * Coordinate system:
+ *   All GLBs are placed with stapes footplate at origin (0,0,0).
+ *   Z+ = toward EAC (camera side)
+ *   Y+ = up
  */
 
 import { useMemo, useEffect, useRef } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
-// ── 表示モード型定義 ──────────────────────────────────────────────
+// -- Display mode types --
 export type OpacityMode  = 'solid' | 'ghost' | 'hidden';
 export type StructureKey =
   | 'bone' | 'auricle' | 'ossicles' | 'tympanic'
   | 'innerEar' | 'facialNerve' | 'chordaTympani' | 'eac' | 'roundWindow';
 export type VisibilityMap = Partial<Record<StructureKey, OpacityMode>>;
 
-/** 各構造のデフォルト表示モード */
 export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
-  bone:          'ghost',   // 骨は初期半透明（内部が見えるように）
-  auricle:       'hidden',  // 耳介は初期非表示
+  bone:          'ghost',
+  auricle:       'hidden',
   ossicles:      'solid',
   tympanic:      'solid',
   innerEar:      'solid',
-  facialNerve:   'solid',   // 顔面神経（水平部・垂直部）
-  chordaTympani: 'solid',   // 鼓索神経（顔面神経の分枝）
+  facialNerve:   'solid',
+  chordaTympani: 'solid',
   eac:           'solid',
   roundWindow:   'solid',
 };
 
 const GHOST_OPACITY = 0.12;
 
-// ── マテリアル設定 ────────────────────────────────────────────────
+// -- Material config --
 const MAT: Record<string, { color: string; roughness: number; metalness?: number; opacity?: number }> = {
   malleus:   { color: '#f0e6c8', roughness: 0.38, metalness: 0.04 },
   incus:     { color: '#eee0be', roughness: 0.38, metalness: 0.04 },
@@ -46,54 +45,52 @@ const MAT: Record<string, { color: string; roughness: number; metalness?: number
   eac:       { color: '#d8c8a0', roughness: 0.70, metalness: 0.0,  opacity: 0.20 },
   roundWin:  { color: '#5888a8', roughness: 0.30, metalness: 0.05 },
   nerve:     { color: '#f8e840', roughness: 0.58, metalness: 0.0,  opacity: 0.85 },
-  bone:      { color: '#f2ead8', roughness: 0.42, metalness: 0.05 }, // opacity はモードで制御
-  auricle:   { color: '#e8c8a8', roughness: 0.72, metalness: 0.0  },
+  bone:      { color: '#f2ead8', roughness: 0.42, metalness: 0.05 },
+  // Auricle.glb: same OpenEar ALPHA CT as Bone.glb -- no offset needed, opacity 0.55
+  auricle:   { color: '#e8c8a8', roughness: 0.72, metalness: 0.0,  opacity: 0.55 },
 };
 
-// ── 単一GLBローダー ──────────────────────────────────────────────
+// -- GLB mesh loader --
 interface GLBMeshProps {
   url: string;
   matKey: keyof typeof MAT;
   castShadow?: boolean;
-  opacityOverride?: number; // undefined = MAT デフォルト使用
+  opacityOverride?: number;
 }
 
 function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshProps) {
   const { scene } = useGLTF(url);
   const cfg       = MAT[matKey];
   const matRef    = useRef<THREE.MeshStandardMaterial | null>(null);
-  // 最新の opacityOverride を useMemo 内で参照するためのリーフRef
   const overrideRef = useRef(opacityOverride);
   overrideRef.current = opacityOverride;
 
-  // scene / cfg / castShadow が変わった時のみ再クローン
   const cloned = useMemo(() => {
     const c   = scene.clone(true);
     const ov  = overrideRef.current;
     const opacity = ov !== undefined ? ov : (cfg.opacity ?? 1);
     const mat = new THREE.MeshStandardMaterial({
-      color:      cfg.color,
-      roughness:  cfg.roughness,
-      metalness:  cfg.metalness ?? 0.05,
+      color:       cfg.color,
+      roughness:   cfg.roughness,
+      metalness:   cfg.metalness ?? 0.05,
       transparent: opacity < 1,
       opacity,
-      side:       THREE.DoubleSide,
-      depthWrite: opacity >= 0.99,
+      side:        THREE.DoubleSide,
+      depthWrite:  opacity >= 0.99,
     });
     matRef.current = mat;
     c.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const m = child as THREE.Mesh;
-        m.material     = mat;
-        m.castShadow   = castShadow;
+        m.material      = mat;
+        m.castShadow    = castShadow;
         m.receiveShadow = true;
-        m.renderOrder  = opacity < 0.99 ? 1 : 0;
+        m.renderOrder   = opacity < 0.99 ? 1 : 0;
       }
     });
     return c;
   }, [scene, cfg, castShadow]);
 
-  // 透明度だけを差分更新（再クローン不要）
   useEffect(() => {
     const mat = matRef.current;
     if (!mat) return;
@@ -102,7 +99,6 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshPro
     mat.transparent = opacity < 1;
     mat.depthWrite  = opacity >= 0.99;
     mat.needsUpdate = true;
-    // traverse で renderOrder も更新
     cloned.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         child.renderOrder = opacity < 0.99 ? 1 : 0;
@@ -113,18 +109,17 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride }: GLBMeshPro
   return <primitive object={cloned} />;
 }
 
-// ── 各構造コンポーネント ──────────────────────────────────────────
+// -- Individual structure components --
 interface StructureProps { opacityOverride?: number }
 
-// 耳小骨 個別コンポーネント（SimScene での症例別表示に使用）
 export function RealMalleus({ opacityOverride }: StructureProps) {
   return <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} />;
 }
 export function RealIncus({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Incus.glb"   matKey="incus"   opacityOverride={opacityOverride} />;
+  return <GLBMesh url="/models/Incus.glb" matKey="incus" opacityOverride={opacityOverride} />;
 }
 export function RealStapes({ opacityOverride }: StructureProps) {
-  return <GLBMesh url="/models/Stapes.glb"  matKey="stapes"  opacityOverride={opacityOverride} />;
+  return <GLBMesh url="/models/Stapes.glb" matKey="stapes" opacityOverride={opacityOverride} />;
 }
 
 export function RealOssicles({ opacityOverride }: StructureProps) {
@@ -158,7 +153,6 @@ export function RealInnerEar({ opacityOverride }: StructureProps) {
   );
 }
 
-// 神経 個別コンポーネント（顔面神経と鼓索神経を個別に表示制御可能）
 export function RealFacialNerve({ opacityOverride }: StructureProps) {
   return (
     <GLBMesh url="/models/Facial_Nerve.glb" matKey="facial" castShadow={false} opacityOverride={opacityOverride} />
@@ -197,26 +191,23 @@ export function RealTemporalBone({ opacityOverride }: StructureProps) {
 }
 
 /**
- * 耳介（Auricle / Pinna）
+ * Auricle (Pinna)
  *
- * ▼ 位置補正
- *   生成時の keypoints は原点付近（Z≈0）にあるため、
- *   ここで外耳道開口部相当の Z+42mm へ移動する。
- *   外耳道長（約25mm）＋鼓膜〜外耳道開口部（約17mm）≒ 42mm 側方
+ * Auricle.glb is from the same OpenEar ALPHA CT scan as Bone.glb.
+ * Already aligned in the same GLB coordinate space (measured Z: 6.65-24.85).
+ * No additional offset needed. Old position=[0,0,42] was incorrect (removed).
  */
 export function RealAuricle({ opacityOverride }: StructureProps) {
   return (
-    <group position={[0, 0, 42]}>
-      <GLBMesh url="/models/Auricle.glb" matKey="auricle" opacityOverride={opacityOverride} />
-    </group>
+    <GLBMesh url="/models/Auricle.glb" matKey="auricle" opacityOverride={opacityOverride} />
   );
 }
 
-// ── 全解剖構造セット ─────────────────────────────────────────────
+// -- Full anatomy set --
 export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
-  const getMode  = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
-  const show     = (key: StructureKey) => getMode(key) !== 'hidden';
-  const opacity  = (key: StructureKey): number | undefined =>
+  const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
+  const show    = (key: StructureKey) => getMode(key) !== 'hidden';
+  const opacity = (key: StructureKey): number | undefined =>
     getMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
 
   return (
@@ -229,12 +220,12 @@ export function RealAnatomy({ vis = {} }: { vis?: VisibilityMap }) {
       {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      />}
       {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   />}
       {show('chordaTympani') && <RealChordaTympani     opacityOverride={opacity('chordaTympani')} />}
-      {show('eac')           && <RealEAC              opacityOverride={opacity('eac')}           />}
+      {show('eac')           && <RealEAC               opacityOverride={opacity('eac')}           />}
     </group>
   );
 }
 
-// ── Preload ───────────────────────────────────────────────────────
+// -- Preload --
 useGLTF.preload('/models/Malleus.glb');
 useGLTF.preload('/models/Incus.glb');
 useGLTF.preload('/models/Stapes.glb');
