@@ -3,19 +3,17 @@
  *
  * Coordinate: 1 unit = 1 mm (OssicleModels convention)
  *
- * KURZ catalog dimensions (Duesseldorf / Dresden series):
- *   Head plate   : 3.0 mm diam, 0.25 mm thick   (all types)
- *   PORP Bell    : 2.5 mm diam bell cup           (cradles stapes head)
- *   TORP Flat    : 4.5 mm diam disc               (rests on footplate)
- *   Clip Dresden : 2.0 mm spring clip             (grips stapes head)
- *   Shaft        : 0.5 mm diam titanium cylinder
+ * KURZ catalog dimensions (catalog M9600320_0723, Duesseldorf / Dresden):
+ *   Head plate   : 3.6 mm diam  (all types)        -- was 3.0 mm (wrong)
+ *   Shaft        : 0.2 mm diam  (all types)        -- was 0.5 mm (wrong)
+ *   PORP Bell    : 2.6 mm diam spherical-arc dome  -- cups stapes head
+ *   TORP Aerial  : 2.6 mm diam flat disc           -- rests on footplate
+ *   Clip Dresden : 2.6 mm spread spring clip       -- grips stapes head
  *
- * NOTE on BellFoot orientation:
- *   The foot group sits below the shaft bottom.
- *   Y=0 in foot-local space = shaft connection point (top of foot).
- *   Cup opens DOWNWARD (Y negative) toward the stapes head.
- *   Old code had radiusTop=1.25 (wide at top) -- WRONG (inverted).
- *   Fixed: LatheGeometry traces narrow top -> flared rim -> inner cup.
+ * BellFoot geometry note:
+ *   Catalog photo shows a smooth, oblate dome (spherical cap), NOT a funnel.
+ *   LatheGeometry traces a circular arc (sphere R=1.6) from dome pole to rim.
+ *   DoubleSide material makes the inner concave surface visible.
  */
 
 import { useMemo } from 'react';
@@ -23,96 +21,115 @@ import * as THREE from 'three';
 import type { KurzProduct } from '../../data/products';
 import { STAPES_HEAD, STAPES_FOOTPLATE, UMBO_POS } from './OssicleModels';
 
-// -- Titanium appearance --
+// -- Titanium appearance (KURZ pure titanium, ASTM F67) --
 const TI_COLOR = '#c8d4dc';
 
 function TitaniumMat({ ghost }: { ghost?: boolean }) {
   return (
     <meshStandardMaterial
       color={TI_COLOR}
-      metalness={0.86}
-      roughness={0.14}
+      metalness={0.88}
+      roughness={0.12}
       transparent={ghost}
-      opacity={ghost ? 0.30 : 1.0}
+      opacity={ghost ? 0.28 : 1.0}
     />
   );
 }
 
-// DoubleSide titanium for cup interiors
+// DoubleSide variant for concave / hollow surfaces
 function TitaniumMatDS({ ghost }: { ghost?: boolean }) {
   return (
     <meshStandardMaterial
       color={TI_COLOR}
-      metalness={0.86}
-      roughness={0.14}
+      metalness={0.88}
+      roughness={0.12}
       transparent={ghost}
-      opacity={ghost ? 0.30 : 1.0}
+      opacity={ghost ? 0.28 : 1.0}
       side={THREE.DoubleSide}
     />
   );
 }
 
-// -- Head plate: 3.0 mm diam disc, 0.25 mm thick (all types) --
+// ----------------------------------------------------------------
+// Head plate  3.6 mm diam, 0.25 mm thick  (all prosthesis types)
+// ----------------------------------------------------------------
 function HeadPlate({ ghost }: { ghost?: boolean }) {
   return (
     <mesh>
-      <cylinderGeometry args={[1.5, 1.5, 0.25, 32]} />
+      <cylinderGeometry args={[1.8, 1.8, 0.25, 32]} />
       <TitaniumMat ghost={ghost} />
     </mesh>
   );
 }
 
 // ----------------------------------------------------------------
-// PORP Bell foot (Duesseldorf)
+// PORP Bell foot  (Duesseldorf Type Bell Partial Prosthesis)
 //
-// LatheGeometry profile sweeps around the Y axis.
-// Y=0 is shaft connection (top of foot group).
-// Profile traces: outer wall down to rim, then back up inner wall.
-// Result: a concave cup (2.5 mm diam) that cradles the stapes head.
+// Catalog spec: 2.6 mm diameter, smooth oblate dome shape.
+// Modeled as a spherical-arc cap (arc sphere R=1.6 mm).
+// Outer dome: circular arc from pole (top, r=0) to rim (r=1.3, y~-0.67).
+// Inner surface: gentle concave bowl that cradles the stapes head.
+// Y=0 in foot-local space = shaft connection point (top of bell).
 // ----------------------------------------------------------------
 function BellFoot({ ghost }: { ghost?: boolean }) {
-  const points = useMemo(() => [
-    // outer surface: shaft -> flare -> rim
-    new THREE.Vector2(0.28,  0.00),  // shaft connection (top, r=0.28)
-    new THREE.Vector2(0.42, -0.12),  // flare begins
-    new THREE.Vector2(0.72, -0.35),  // bell outer curve
-    new THREE.Vector2(1.08, -0.52),  // outer wall
-    new THREE.Vector2(1.25, -0.62),  // rim outer edge (r=1.25 = 2.5 mm diam)
-    new THREE.Vector2(1.25, -0.76),  // rim bottom outer
-    // inner surface: rim -> inner cup -> back up
-    new THREE.Vector2(1.10, -0.76),  // rim bottom inner
-    new THREE.Vector2(1.10, -0.62),  // rim inner edge
-    new THREE.Vector2(0.80, -0.50),  // inner bell wall
-    new THREE.Vector2(0.50, -0.32),  // inner cup curve
-    new THREE.Vector2(0.40, -0.12),  // inner top (stapes head sits here)
-    new THREE.Vector2(0.28,  0.00),  // close back at shaft
-  ], []);
+  const points = useMemo(() => {
+    const R = 1.6;      // sphere radius for outer arc
+    const rimR = 1.3;   // 2.6 mm diam / 2
+    const maxTheta = Math.asin(rimR / R);  // ~54.3 deg
+    const pts: THREE.Vector2[] = [];
+
+    // Outer dome: spherical arc, pole at y=0, rim at y=-rimDepth
+    const steps = 14;
+    for (let i = 0; i <= steps; i++) {
+      const theta = (i / steps) * maxTheta;
+      pts.push(new THREE.Vector2(
+        R * Math.sin(theta),
+        -(R - R * Math.cos(theta))   // dome opens downward
+      ));
+    }
+
+    const rimY = -(R - R * Math.cos(maxTheta));  // approx -0.666
+
+    // Rim edge (thin wall at circumference)
+    pts.push(new THREE.Vector2(rimR,        rimY - 0.09));
+    pts.push(new THREE.Vector2(rimR - 0.20, rimY - 0.09));
+    pts.push(new THREE.Vector2(rimR - 0.20, rimY));
+
+    // Inner concave bowl -- stapes head (r ~0.45 mm) rests here
+    pts.push(new THREE.Vector2(0.90, rimY + 0.16));
+    pts.push(new THREE.Vector2(0.50, rimY + 0.38));
+    pts.push(new THREE.Vector2(0.22, rimY + 0.52));
+    pts.push(new THREE.Vector2(0.0,  rimY + 0.58));  // inner pole
+
+    return pts;
+  }, []);
 
   return (
     <mesh>
-      <latheGeometry args={[points, 28]} />
+      <latheGeometry args={[points, 30]} />
       <TitaniumMatDS ghost={ghost} />
     </mesh>
   );
 }
 
 // ----------------------------------------------------------------
-// TORP Flat foot (Duesseldorf)
-// 4.5 mm diam disc, 0.20 mm thick.
-// Three small hemisphere nubs on the underside for centering.
+// TORP Flat foot  (Duesseldorf Type AERIAL Total Prosthesis)
+//
+// Catalog: 2.6 mm diameter foot disc resting on stapes footplate.
+// Three small hemisphere nubs on underside aid centering.
 // ----------------------------------------------------------------
 function FlatFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
       <mesh>
-        <cylinderGeometry args={[2.25, 2.25, 0.20, 36]} />
+        <cylinderGeometry args={[1.3, 1.3, 0.22, 32]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
       {[0, 120, 240].map((deg) => {
         const rad = (deg * Math.PI) / 180;
         return (
-          <mesh key={deg} position={[Math.cos(rad) * 1.55, -0.16, Math.sin(rad) * 1.55]}>
-            <sphereGeometry args={[0.10, 8, 6]} />
+          <mesh key={deg} position={[Math.cos(rad) * 0.80, -0.17, Math.sin(rad) * 0.80]}>
+            <sphereGeometry args={[0.09, 8, 6]} />
             <TitaniumMat ghost={ghost} />
           </mesh>
         );
@@ -122,25 +139,27 @@ function FlatFoot({ ghost }: { ghost?: boolean }) {
 }
 
 // ----------------------------------------------------------------
-// Clip foot (Dresden Clip Partial)
+// Dresden Clip foot  (CliP Partial Prosthesis Dresden Type)
 //
-// Two C-shaped spring arms, each built as a TubeGeometry along a
-// CatmullRomCurve3 path.  Arms curve inward at the tip to grip the
-// stapes head.  A short horizontal bar connects them at the top.
+// Two elastic spring arms that grip the stapes head (diam ~0.9 mm).
+// Each arm is a TubeGeometry following a CatmullRomCurve3 path:
+//   - starts at shaft base, curves outward then inward (C-shape)
+//   - arm tips meet near stapes head surface
+// Total clip spread at widest: ~2.6 mm.  Tip gap: ~0.5 mm.
 // ----------------------------------------------------------------
 function ClipArm({ side, ghost }: { side: number; ghost?: boolean }) {
   const tube = useMemo(() => {
     const pts = [
-      new THREE.Vector3(side * 0.52,  0.28,  0),
-      new THREE.Vector3(side * 0.58,  0.05,  0),
-      new THREE.Vector3(side * 0.62, -0.20,  0),
-      new THREE.Vector3(side * 0.56, -0.44,  0),
-      new THREE.Vector3(side * 0.40, -0.61,  0),
-      new THREE.Vector3(side * 0.20, -0.68,  0),
-      new THREE.Vector3(side * 0.05, -0.62,  0),
+      new THREE.Vector3(side * 0.22,  0.24,  0),   // near shaft
+      new THREE.Vector3(side * 0.40,  0.06,  0),   // spreading outward
+      new THREE.Vector3(side * 0.55, -0.18,  0),   // mid arm, peak spread
+      new THREE.Vector3(side * 0.58, -0.40,  0),   // lower arm
+      new THREE.Vector3(side * 0.46, -0.58,  0),   // curving inward
+      new THREE.Vector3(side * 0.26, -0.68,  0),   // closing in
+      new THREE.Vector3(side * 0.10, -0.72,  0),   // tip (gap ~0.2 mm per side)
     ];
     const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 14, 0.09, 8, false);
+    return new THREE.TubeGeometry(curve, 16, 0.07, 8, false);
   }, [side]);
 
   return (
@@ -155,9 +174,9 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
     <group>
       <ClipArm side={ 1} ghost={ghost} />
       <ClipArm side={-1} ghost={ghost} />
-      {/* Cross-bar connecting both arms at the top */}
-      <mesh position={[0, 0.28, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.09, 0.09, 1.04, 8]} />
+      {/* Horizontal bar connecting both arms at shaft base */}
+      <mesh position={[0, 0.24, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.80, 8]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
     </group>
@@ -167,25 +186,26 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
 // ================================================================
 // ProsthesisModel
 //
-// Shaft runs base -> top (stapes -> umbo direction).
-// Head plate at top (+headOffset from group center).
-// Foot at bottom (-footOffset from group center).
+// Shaft runs base (stapes) → top (umbo direction).
+// Head plate at top;  foot at bottom.
+//
+// Catalog shaft diameter 0.2 mm → cylinderGeometry radius 0.10.
 //
 // Args:
 //   product        : selects footType (BELL | FLAT | CLIP)
 //   shaftLength    : catalog shaft length [mm]
-//   basePos        : shaft bottom world pos (default: stapes head/plate)
-//   direction      : shaft unit vector (default: auto toward umbo)
+//   basePos        : shaft bottom world coord (default: stapes head/plate)
+//   direction      : unit vector along shaft  (default: auto toward umbo)
 //   lateralOffset  : X nudge [mm]
 //   anteriorOffset : Z nudge [mm]
-//   angleTilt      : tilt around X axis [deg]
-//   ghost          : semi-transparent ideal-placement display
+//   angleTilt      : tilt around shaft-perpendicular axis [deg]
+//   ghost          : semi-transparent ideal-placement overlay
 // ================================================================
 interface ProsthesisProps {
-  product:        KurzProduct;
-  shaftLength:    number;
-  basePos?:       THREE.Vector3;
-  direction?:     THREE.Vector3;
+  product:         KurzProduct;
+  shaftLength:     number;
+  basePos?:        THREE.Vector3;
+  direction?:      THREE.Vector3;
   lateralOffset?:  number;
   anteriorOffset?: number;
   angleTilt?:      number;
@@ -211,30 +231,30 @@ export function ProsthesisModel({
     ? direction.clone().normalize()
     : new THREE.Vector3().subVectors(UMBO_POS, base).normalize();
 
-  const top = base.clone().addScaledVector(dir, shaftLength);
-  const mid = base.clone().add(top).multiplyScalar(0.5);
-  const len = shaftLength;
+  const top  = base.clone().addScaledVector(dir, shaftLength);
+  const mid  = base.clone().add(top).multiplyScalar(0.5);
+  const len  = shaftLength;
 
   const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   const euler = new THREE.Euler().setFromQuaternion(quat);
 
-  const tiltRad  = (angleTilt * Math.PI) / 180;
-  const headOff  = len / 2 + 0.15;
-  const footOff  = -(len / 2) - 0.20;
+  const tiltRad = (angleTilt * Math.PI) / 180;
+  const headOff = len / 2 + 0.15;
+  const footOff = -(len / 2);       // foot group at shaft bottom (no gap)
 
   return (
     <group
       position={[mid.x, mid.y, mid.z]}
       rotation={[euler.x + tiltRad, euler.y, euler.z]}
     >
-      {/* Head plate */}
+      {/* Head plate  3.6 mm diam */}
       <group position={[0, headOff, 0]}>
         <HeadPlate ghost={ghost} />
       </group>
 
-      {/* Shaft: 0.5 mm diam titanium cylinder */}
+      {/* Shaft  0.2 mm diam (r=0.10) -- characteristic of KURZ titanium */}
       <mesh>
-        <cylinderGeometry args={[0.25, 0.25, len, 16]} />
+        <cylinderGeometry args={[0.10, 0.10, len, 12]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
 
