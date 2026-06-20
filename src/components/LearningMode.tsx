@@ -90,9 +90,14 @@ export function LearningMode() {
 
   const selProd = kurzProducts.find((p) => p.id === selectedProduct);
 
-  // 鼓室・耳介の表示制御
+  // 鼓室の表示制御（構造ハイライトで ON）
   const showTympanoCavity = highlightedStructure === 'tympanoCavity';
-  const showPinna = highlightedStructure === 'tympanoCavity';
+  // 耳介 STL PinnaModel: 3D表示切替の「耳介」が solid/ghost のときに表示
+  // RealAuricle.glb の代わりに STL を使うため、vis.auricle を 'hidden' に強制する
+  const auricleMode = vis.auricle ?? DEFAULT_MODES.auricle;
+  const showPinna = auricleMode !== 'hidden';
+  // AnatomyScene に渡す vis: 耳介を常に hidden にして GLB auricle を非表示にする
+  const visForScene: VisibilityMap = { ...vis, auricle: 'hidden' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
@@ -111,10 +116,11 @@ export function LearningMode() {
         {/* 3D Canvas */}
         <div className="canvas-wrapper" style={{ position: 'relative' }}>
           <AnatomyScene
-            vis={vis}
+            vis={visForScene}
             zoomLevel={zoomLevel}
             showTympanoCavity={showTympanoCavity}
             showPinna={showPinna}
+            pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
             patientId={selectedPatientId}
           />
 

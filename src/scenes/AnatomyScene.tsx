@@ -43,6 +43,8 @@ interface AnatomySceneProps {
   zoomLevel?:         number;
   showTympanoCavity?: boolean;
   showPinna?:         boolean;
+  /** showPinna=true のとき ghost(半透明) or solid で不透明度が変わる */
+  pinnaMode?:         'solid' | 'ghost';
   patientId?:         string;
 }
 
@@ -51,8 +53,10 @@ export function AnatomyScene({
   zoomLevel = 0,
   showTympanoCavity = false,
   showPinna = false,
+  pinnaMode = 'solid',
   patientId = 'T',
 }: AnatomySceneProps) {
+  const pinnaOpacity = pinnaMode === 'ghost' ? 0.18 : 0.85;
   return (
     <Canvas
       camera={{ position: [8, 5, 22], fov: 46 }}
@@ -78,7 +82,9 @@ export function AnatomyScene({
         {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
         {showTympanoCavity && <TympanoCavityEdu />}
         {/* 耳介 STL モデル（Viking HRTF Dataset v2 / CC-BY 4.0） */}
-        {showPinna && <PinnaModel patientId={patientId} opacity={0.80} />}
+        {showPinna && (
+          <PinnaModel patientId={patientId} opacity={pinnaOpacity} />
+        )}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
           <shadowMaterial transparent opacity={0.15} />
