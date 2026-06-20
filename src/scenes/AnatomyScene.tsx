@@ -5,6 +5,11 @@
  *   アブミ骨底板 = 原点 (0,0,0)
  *   Z+ = 外耳道方向（カメラ側）
  *   Y+ = 上方
+ *
+ * ▼ viewMode
+ *   'normal'     : 通常ビュー（FOV 46°）
+ *   'microscope' : 手術顕微鏡ビュー（狭FOV 12°, CSSビネット）
+ *   'endoscope'  : 硬性内視鏡ビュー（広角FOV 110°, 円形クリップ）
  */
 
 import { Suspense, useRef, useEffect } from 'react';
@@ -16,6 +21,8 @@ import { RealAnatomy, type VisibilityMap } from './models/RealAnatomyModels';
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
+export type ViewMode = 'normal' | 'microscope' | 'endoscope';
+
 // ── FOVベースのズームハンドラ（Canvas内に置く）─────────────────
 function ZoomHandler({ level }: { level: number }) {
   const { camera } = useThree();
@@ -25,11 +32,29 @@ function ZoomHandler({ level }: { level: number }) {
     const diff = level - prevLevel.current;
     if (diff === 0) return;
     const cam = camera as THREE.PerspectiveCamera;
-    // +ボタン(diff>0)でFOVを縮小→ズームイン / -ボタンで拡大→ズームアウト
     cam.fov = Math.max(8, Math.min(85, cam.fov - diff * 5));
     cam.updateProjectionMatrix();
     prevLevel.current = level;
   }, [level, camera]);
+
+  return null;
+}
+
+// ── ビューモードコントローラー（Canvas内に置く）─────────────────
+const VIEW_FOV: Record<ViewMode, number> = {
+  normal:     46,
+  microscope: 11,
+  endoscope:  112,
+};
+
+function ViewModeController({ mode }: { mode: ViewMode }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    cam.fov = VIEW_FOV[mode];
+    cam.updateProjectionMatrix();
+  }, [mode, camera]);
 
   return null;
 }
@@ -45,6 +70,8 @@ interface AnatomySceneProps {
   /** showPinna=true のとき ghost(半透明) or solid で不透明度が変わる */
   pinnaMode?:         'solid' | 'ghost';
   patientId?:         string;
+  /** 手術用ビューモード（CSS オーバーレイは LearningMode 側で描画） */
+  viewMode?:          ViewMode;
 }
 
 export function AnatomyScene({
@@ -54,6 +81,7 @@ export function AnatomyScene({
   showPinna = false,
   pinnaMode = 'solid',
   patientId = 'T',
+  viewMode = 'normal',
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -73,6 +101,9 @@ export function AnatomyScene({
 
       {/* ── ズームハンドラ ── */}
       <ZoomHandler level={zoomLevel} />
+
+      {/* ── ビューモードコントローラー ── */}
+      <ViewModeController mode={viewMode} />
 
       {/* ── ライティング ── */}
       <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
-import { DrillTrainingScene } from '../scenes/DrillTrainingScene';
+import type { ViewMode } from '../scenes/AnatomyScene';
+import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
   DEFAULT_MODES,
@@ -11,7 +12,7 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 
-// ── 解剖構造リスト（サイドバー教育用）────────────────────────────
+// ── 解剖構造リスト ────────────────────────────────────────────────
 const anatomyStructures = [
   { id: 'tympanoCavity', label: '鼓室 (Tympanic Cavity)', desc: '中耳腔。6つの壁で構成される空間。内側壁に岬角・卵円窓・正円窓が位置し、顔面神経水平部・鼓索神経が走行する。耳管で鼻咽腔に通じる。', color: '#e8c0a0' },
   { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e8d5b0' },
@@ -20,7 +21,7 @@ const anatomyStructures = [
   { id: 'membrane', label: '鼓膜 (Tympanic M.)', desc: '外耳道と鼓室を隔てる薄い膜。厚さ約0.1mm。中央部（臍）にツチ骨が付着。', color: '#f5e6c8' },
 ];
 
-// ── 3D表示切替アイテム定義 ───────────────────────────────────────
+// ── 3D表示切替アイテム定義 ──────────────────────────────────────
 const VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
   { key: 'bone',          label: '側頭骨',  color: '#f2ead8' },
   { key: 'auricle',       label: '耳介',    color: '#e8c8a8' },
@@ -46,7 +47,7 @@ const MODE_FG: Record<OpacityMode, string> = {
   hidden: '#555',
 };
 
-// ── 術式データ ────────────────────────────────────────────────────
+// ── 術式データ ─────────────────────────────────────────────────────
 const procedures = [
   {
     title: 'PORP 設置手順（ベル型）',
@@ -74,22 +75,19 @@ const procedures = [
   },
 ];
 
-// ── 危険部位カテゴリラベル ─────────────────────────────────────────
-const CAT_LABEL: Record<string, string> = {
-  facial:   '顔面神経系',
-  vascular: '血管系',
-};
-const CAT_COLOR: Record<string, string> = {
-  facial:   '#f5d820',
-  vascular: '#4477ff',
-};
+// ── ビューモード定義 ──────────────────────────────────────────────
+const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[] = [
+  { mode: 'normal',     icon: '👁',  label: '通常',   desc: '標準3Dビュー' },
+  { mode: 'microscope', icon: '🔬', label: '顕微鏡', desc: '手術用顕微鏡視野（狭FOV・ビネット）' },
+  { mode: 'endoscope',  icon: '🔭', label: '内視鏡', desc: '硬性内視鏡視野（広角・円形）' },
+];
 
-// ════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
-  // 3D表示モード状態
+  // 3D表示モード
   const [vis, setVis] = useState<VisibilityMap>({});
   const cycleMode = (key: StructureKey) => {
     const curr = vis[key] ?? DEFAULT_MODES[key];
@@ -102,25 +100,80 @@ export function LearningMode() {
   const [zoomLevel, setZoomLevel] = useState(0);
 
   // 削開タブ状態
-  const [drillScenario, setDrillScenario] = useState<'s1' | 's2'>('s1');
+  const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3'>('s1');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
-  const selProd = kurzProducts.find((p) => p.id === selectedProduct);
-  const selectedZone = DANGER_ZONES.find((z) => z.id === selectedZoneId) ?? null;
+  // ── S3 アニメーション状態 ─────────────────────────────────────
+  const [s3StepIndex, setS3StepIndex] = useState(0);
+  const [s3IsPlaying, setS3IsPlaying] = useState(false);
 
-  // 鼓室の表示制御
+  const handleS3Next = useCallback(() => {
+    setS3StepIndex(i => Math.min(i + 1, DRILL_STEPS.length - 1));
+  }, []);
+  const handleS3Prev = useCallback(() => {
+    setS3StepIndex(i => Math.max(i - 1, 0));
+  }, []);
+  const handleS3StepComplete = useCallback(() => {
+    setS3StepIndex(i => {
+      if (i < DRILL_STEPS.length - 1) return i + 1;
+      setS3IsPlaying(false);
+      return i;
+    });
+  }, []);
+
+  // オートプレイ: 1ステップ5秒で自動進行
+  useEffect(() => {
+    if (!s3IsPlaying) return;
+    const timer = setTimeout(() => {
+      setS3StepIndex(i => {
+        if (i < DRILL_STEPS.length - 1) return i + 1;
+        setS3IsPlaying(false);
+        return i;
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [s3IsPlaying, s3StepIndex]);
+
+  // ── ビューモード（解剖タブ用）───────────────────────────────────
+  const [viewMode, setViewMode] = useState<ViewMode>('normal');
+
+  // タブ変更時にビューモードをリセット
+  useEffect(() => {
+    if (learningTab !== 'anatomy') setViewMode('normal');
+  }, [learningTab]);
+
+  const selProd = kurzProducts.find((p) => p.id === selectedProduct);
   const showTympanoCavity = highlightedStructure === 'tympanoCavity';
   const auricleMode = vis.auricle ?? DEFAULT_MODES.auricle;
   const showPinna = auricleMode !== 'hidden';
   const visForScene: VisibilityMap = { ...vis, auricle: 'hidden' };
 
-  // タブ定義
   const TAB_LIST = [
     { key: 'anatomy',   label: '🦴 解剖' },
     { key: 'products',  label: '🔩 製品' },
     { key: 'procedure', label: '📋 術式' },
     { key: 'drilling',  label: '🔴 削開' },
   ] as const;
+
+  // ── CSS オーバーレイ（顕微鏡/内視鏡効果）──────────────────────
+  const vignetteStyle: CSSProperties | null =
+    viewMode === 'microscope' ? {
+      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+      background: 'radial-gradient(circle at center, transparent 26%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.92) 68%, black 82%)',
+    } :
+    viewMode === 'endoscope' ? {
+      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+      background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
+    } : null;
+
+  // 内視鏡ビュー: 円形クリップ用
+  const canvasWrapperStyle: CSSProperties = {
+    position: 'relative',
+    ...(viewMode === 'endoscope' ? {
+      clipPath: 'circle(43% at center)',
+      background: 'black',
+    } : {}),
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
@@ -144,12 +197,15 @@ export function LearningMode() {
 
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
-        <div className="canvas-wrapper" style={{ position: 'relative' }}>
+        <div className="canvas-wrapper" style={canvasWrapperStyle}>
           {learningTab === 'drilling' ? (
             <DrillTrainingScene
               scenario={drillScenario}
               selectedZoneId={selectedZoneId}
               onZoneSelect={setSelectedZoneId}
+              s3StepIndex={s3StepIndex}
+              s3IsPlaying={s3IsPlaying}
+              onS3StepComplete={handleS3StepComplete}
             />
           ) : (
             <AnatomyScene
@@ -159,7 +215,47 @@ export function LearningMode() {
               showPinna={showPinna}
               pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
               patientId={selectedPatientId}
+              viewMode={viewMode}
             />
+          )}
+
+          {/* CSS ビネット/内視鏡オーバーレイ */}
+          {vignetteStyle && <div style={vignetteStyle} />}
+
+          {/* 内視鏡: 青みフィルター */}
+          {viewMode === 'endoscope' && (
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+              background: 'rgba(10, 25, 60, 0.08)',
+            }} />
+          )}
+
+          {/* ── ビューモードトグル（解剖タブ）── */}
+          {learningTab === 'anatomy' && (
+            <div style={{
+              position: 'absolute', top: 12, right: 16, zIndex: 15,
+              display: 'flex', gap: 5,
+            }}>
+              {VIEW_MODES.map(({ mode, icon, label, desc }) => (
+                <button
+                  key={mode}
+                  title={desc}
+                  onClick={() => setViewMode(mode)}
+                  style={{
+                    padding: '5px 11px',
+                    borderRadius: 7,
+                    border: `1px solid ${viewMode === mode ? 'var(--accent)' : 'rgba(255,255,255,0.18)'}`,
+                    background: viewMode === mode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
+                    color: viewMode === mode ? 'var(--accent)' : '#7a8898',
+                    fontSize: 11, fontWeight: viewMode === mode ? 700 : 400,
+                    cursor: 'pointer', backdropFilter: 'blur(6px)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {icon} {label}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* 操作ヒント */}
@@ -167,23 +263,66 @@ export function LearningMode() {
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>
               {learningTab === 'drilling' && drillScenario === 's2'
                 ? '球をクリック: 危険部位を選択 ｜ ドラッグ: 回転'
+                : learningTab === 'drilling' && drillScenario === 's3'
+                ? '▶ 再生で自動進行 ｜ ドラッグ: 自由回転'
                 : 'ドラッグ: 回転 ｜ ホイール: ズーム'}
             </div>
           </div>
 
-          {/* 危険部位選択インジケーター（S2） */}
-          {learningTab === 'drilling' && drillScenario === 's2' && selectedZone && (
+          {/* ビューモードラベル */}
+          {learningTab === 'anatomy' && viewMode !== 'normal' && (
             <div className="canvas-overlay bottom-left">
               <div style={{
-                background: 'rgba(10,10,20,.82)',
-                border: `1px solid ${selectedZone.color}`,
-                padding: '8px 12px', borderRadius: 8,
-                backdropFilter: 'blur(4px)',
+                background: 'rgba(0,180,216,.12)', border: '1px solid var(--accent)',
+                padding: '5px 10px', borderRadius: 6, color: 'var(--accent)',
+                backdropFilter: 'blur(4px)', fontSize: 12,
               }}>
-                <span style={{ color: selectedZone.color, fontWeight: 700, fontSize: 13 }}>
-                  ⚠ {selectedZone.nameJa}
-                </span>
+                {viewMode === 'microscope' ? '🔬 手術顕微鏡ビュー' : '🔭 硬性内視鏡ビュー'}
               </div>
+            </div>
+          )}
+
+          {/* 危険部位選択インジケーター（S2） */}
+          {learningTab === 'drilling' && drillScenario === 's2' && selectedZoneId && (() => {
+            const zone = DANGER_ZONES.find(z => z.id === selectedZoneId);
+            if (!zone) return null;
+            return (
+              <div className="canvas-overlay bottom-left">
+                <div style={{
+                  background: 'rgba(10,10,20,.82)',
+                  border: `1px solid ${zone.color}`,
+                  padding: '8px 12px', borderRadius: 8,
+                  backdropFilter: 'blur(4px)',
+                }}>
+                  <span style={{ color: zone.color, fontWeight: 700, fontSize: 13 }}>
+                    ⚠ {zone.nameJa}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* S3: ステッパー表示 */}
+          {learningTab === 'drilling' && drillScenario === 's3' && (
+            <div style={{
+              position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 15, display: 'flex', gap: 6,
+            }}>
+              {DRILL_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                  style={{
+                    width: i === s3StepIndex ? 28 : 8,
+                    height: 8, borderRadius: 4,
+                    background: i === s3StepIndex
+                      ? 'var(--accent)'
+                      : i < s3StepIndex ? 'rgba(0,180,216,0.5)' : 'rgba(255,255,255,0.18)',
+                    cursor: 'pointer',
+                    transition: 'all .3s',
+                  }}
+                />
+              ))}
             </div>
           )}
 
@@ -196,7 +335,7 @@ export function LearningMode() {
             </div>
           )}
 
-          {/* ズームボタン（削開タブ以外） */}
+          {/* ズームボタン（削開タブ以外）*/}
           {learningTab !== 'drilling' && (
             <div style={{
               position: 'absolute', bottom: 16, right: 16,
@@ -211,18 +350,12 @@ export function LearningMode() {
                   title={title}
                   onClick={() => setZoomLevel(z => z + delta)}
                   style={{
-                    width: 34, height: 34,
-                    borderRadius: 8,
+                    width: 34, height: 34, borderRadius: 8,
                     border: '1px solid rgba(255,255,255,0.18)',
-                    background: 'rgba(10,15,26,0.80)',
-                    color: '#c0d8e8',
-                    fontSize: 18,
-                    cursor: 'pointer',
-                    backdropFilter: 'blur(6px)',
-                    lineHeight: 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 700,
-                    transition: 'background .15s',
+                    background: 'rgba(10,15,26,0.80)', color: '#c0d8e8',
+                    fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)',
+                    lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, transition: 'background .15s',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,180,216,0.22)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,15,26,0.80)')}
@@ -234,11 +367,25 @@ export function LearningMode() {
           )}
         </div>
 
-        {/* Sidebar */}
+        {/* ═══ Sidebar ═══ */}
         <div className="sidebar">
-          {/* ══ 解剖タブ ══ */}
+          {/* ── 解剖タブ ── */}
           {learningTab === 'anatomy' && (
             <>
+              {/* ビューモード説明 */}
+              {viewMode !== 'normal' && (
+                <div className="card" style={{ padding: '10px 14px', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 12, marginBottom: 5 }}>
+                    {viewMode === 'microscope' ? '🔬 手術顕微鏡ビュー' : '🔭 硬性内視鏡ビュー'}
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                    {viewMode === 'microscope'
+                      ? 'FOV 11° の狭い視野で術野を拡大表示。実際の手術顕微鏡（例: Zeiss Pentero）と同等の視野角。外周ビネットが特徴的な顕微鏡視野を再現。'
+                      : 'FOV 112° の広角レンズ効果。Hopkins 式硬性内視鏡（0° または 30°）の視野を模擬。円形視野と周辺の暗部が内視鏡視野の特徴。'}
+                  </p>
+                </div>
+              )}
+
               <div className="card">
                 <div className="section-title">構造を選択してハイライト</div>
                 {anatomyStructures.map((s) => (
@@ -297,7 +444,7 @@ export function LearningMode() {
             </>
           )}
 
-          {/* ══ 製品タブ ══ */}
+          {/* ── 製品タブ ── */}
           {learningTab === 'products' && (
             <>
               <div className="card" style={{ padding: '12px' }}>
@@ -347,7 +494,7 @@ export function LearningMode() {
             </>
           )}
 
-          {/* ══ 術式タブ ══ */}
+          {/* ── 術式タブ ── */}
           {learningTab === 'procedure' && (
             <>
               {procedures.map((proc) => (
@@ -372,48 +519,49 @@ export function LearningMode() {
             </>
           )}
 
-          {/* ══ 削開タブ ══ */}
+          {/* ── 削開タブ ── */}
           {learningTab === 'drilling' && (
             <>
               {/* シナリオセレクター */}
               <div className="card">
                 <div className="section-title">シナリオ選択</div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                   {([
-                    { key: 's1', label: 'S1: 解剖探索', desc: '自由に回転・拡大して構造を確認' },
-                    { key: 's2', label: 'S2: 危険部位特定', desc: '危険部位をクリックして確認' },
+                    { key: 's1', label: 'S1: 解剖探索', desc: '自由に観察' },
+                    { key: 's2', label: 'S2: 危険部位', desc: 'クリックで確認' },
+                    { key: 's3', label: 'S3: 削開動画', desc: '5ステップ手術' },
                   ] as const).map(({ key, label, desc }) => (
                     <button
                       key={key}
-                      onClick={() => { setDrillScenario(key); setSelectedZoneId(null); }}
+                      onClick={() => {
+                        setDrillScenario(key);
+                        setSelectedZoneId(null);
+                        if (key === 's3') { setS3StepIndex(0); setS3IsPlaying(false); }
+                      }}
                       style={{
-                        flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
+                        flex: '1 1 80px', padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
                         border: `1px solid ${drillScenario === key ? 'var(--accent)' : 'var(--border)'}`,
                         background: drillScenario === key ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
                         color: drillScenario === key ? 'var(--accent)' : 'var(--text-secondary)',
-                        fontSize: 12, fontWeight: drillScenario === key ? 700 : 400,
-                        textAlign: 'center', transition: 'all .15s',
+                        fontSize: 11, textAlign: 'center', transition: 'all .15s',
                       }}
                     >
-                      <div style={{ fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontWeight: 700, marginBottom: 2 }}>{label}</div>
                       <div style={{ fontSize: 10, opacity: 0.75 }}>{desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* S1: 解剖探索 */}
+              {/* ── S1 ── */}
               {drillScenario === 's1' && (
                 <div className="card">
                   <div className="section-title">S1 — 解剖探索</div>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
-                    側頭骨と中耳構造を自由に観察してください。
-                    ドラッグで回転、ホイールでズームができます。
+                    側頭骨と中耳構造を自由に観察してください。ドラッグで回転、ホイールでズームができます。
                   </p>
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>
-                      学習チェックポイント
-                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>学習チェックポイント</div>
                     {[
                       '顔面神経の走行（水平部・膝部・乳突部）',
                       '卵円窓と正円窓の位置関係',
@@ -428,25 +576,20 @@ export function LearningMode() {
                 </div>
               )}
 
-              {/* S2: 危険部位特定 */}
+              {/* ── S2 ── */}
               {drillScenario === 's2' && (
                 <>
-                  {/* 凡例 */}
                   <div className="card" style={{ padding: '10px 14px' }}>
                     <div className="section-title">危険部位警告システム</div>
                     <div style={{ display: 'flex', gap: 16, marginBottom: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#f5d820' }} />
-                        顔面神経系
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#4477ff' }} />
-                        血管系
-                      </div>
+                      {[['#f5d820', '顔面神経系'], ['#4477ff', '血管系']].map(([color, label]) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', background: color }} />
+                          {label}
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      ● 核（小）: 危険域 2mm以内　◯ 外周（大）: 警告域 5mm以内
-                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>● 核（小）: 危険域 2mm以内　◯ 外周（大）: 警告域 5mm以内</div>
                   </div>
 
                   {/* 顔面神経系 */}
@@ -525,6 +668,134 @@ export function LearningMode() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── S3 ── */}
+              {drillScenario === 's3' && (
+                <>
+                  {/* 現在のステップ */}
+                  <div className="card" style={{ padding: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        ステップ {s3StepIndex + 1} / {DRILL_STEPS.length}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {DRILL_STEPS.map((_, i) => (
+                          <div
+                            key={i}
+                            onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                            style={{
+                              width: i === s3StepIndex ? 18 : 7, height: 7, borderRadius: 4,
+                              background: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'rgba(0,180,216,0.45)' : 'rgba(255,255,255,0.15)',
+                              cursor: 'pointer', transition: 'all .3s',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)', marginBottom: 6 }}>
+                      {DRILL_STEPS[s3StepIndex].title}
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: 10 }}>
+                      {DRILL_STEPS[s3StepIndex].subtitle}
+                    </p>
+
+                    {/* 臨床メモ */}
+                    <div style={{
+                      background: 'rgba(0,180,216,0.07)', border: '1px solid rgba(0,180,216,0.20)',
+                      borderRadius: 7, padding: '8px 10px', marginBottom: 12,
+                    }}>
+                      <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginBottom: 3 }}>💡 臨床メモ</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        {DRILL_STEPS[s3StepIndex].clinicalNote}
+                      </div>
+                    </div>
+
+                    {/* 再生コントロール */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        onClick={handleS3Prev}
+                        disabled={s3StepIndex === 0}
+                        style={{
+                          width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)',
+                          background: 'rgba(255,255,255,0.05)', color: s3StepIndex === 0 ? '#333' : '#aaa',
+                          fontSize: 16, cursor: s3StepIndex === 0 ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        ◀
+                      </button>
+
+                      <button
+                        onClick={() => setS3IsPlaying(p => !p)}
+                        style={{
+                          flex: 1, height: 36, borderRadius: 8,
+                          border: `1px solid ${s3IsPlaying ? '#f59020' : 'var(--accent)'}`,
+                          background: s3IsPlaying ? 'rgba(245,144,32,0.15)' : 'rgba(0,180,216,0.15)',
+                          color: s3IsPlaying ? '#f59020' : 'var(--accent)',
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        {s3IsPlaying ? '⏸ 一時停止' : '▶ 再生'}
+                      </button>
+
+                      <button
+                        onClick={handleS3Next}
+                        disabled={s3StepIndex === DRILL_STEPS.length - 1}
+                        style={{
+                          width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)',
+                          background: 'rgba(255,255,255,0.05)', color: s3StepIndex === DRILL_STEPS.length - 1 ? '#333' : '#aaa',
+                          fontSize: 16, cursor: s3StepIndex === DRILL_STEPS.length - 1 ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        ▶
+                      </button>
+                    </div>
+
+                    {s3IsPlaying && (
+                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                        5秒後に次のステップへ自動進行
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 全ステップ一覧 */}
+                  <div className="card">
+                    <div className="section-title">全手術ステップ</div>
+                    {DRILL_STEPS.map((step, i) => (
+                      <div
+                        key={step.id}
+                        onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                        style={{
+                          padding: '8px 10px', borderRadius: 7, cursor: 'pointer', marginBottom: 5,
+                          background: i === s3StepIndex ? 'rgba(0,180,216,.12)' : i < s3StepIndex ? 'rgba(0,180,216,.04)' : 'rgba(255,255,255,.02)',
+                          border: `1px solid ${i === s3StepIndex ? 'var(--accent)' : 'var(--border)'}`,
+                          transition: 'all .15s',
+                          display: 'flex', alignItems: 'center', gap: 10,
+                        }}
+                      >
+                        <div style={{
+                          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                          background: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'rgba(0,180,216,0.4)' : 'rgba(255,255,255,0.08)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10, fontWeight: 700, color: i <= s3StepIndex ? '#001a20' : '#555',
+                        }}>
+                          {i < s3StepIndex ? '✓' : i + 1}
+                        </div>
+                        <span style={{
+                          fontSize: 12,
+                          color: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'var(--text-secondary)' : 'var(--text-muted)',
+                          fontWeight: i === s3StepIndex ? 700 : 400,
+                        }}>
+                          {step.title}
+                        </span>
                       </div>
                     ))}
                   </div>

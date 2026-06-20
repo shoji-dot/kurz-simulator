@@ -60,59 +60,76 @@ function TitaniumMatDS({ ghost }: { ghost?: boolean }) {
 // Head plate  -- Duesseldorf Type  (3.6 mm diam, fenestrated)
 //
 // Structure (visible in catalog reference photo):
-//   - Outer torus ring
-//   - 4 spokes at 0/90/180/270 deg
+//   - Outer torus ring (beveled, 14-segment tube)
+//   - 4 blade-like spokes (TubeGeometry with elliptic cross-section)
 //   - Inner hub cylinder (connects to shaft)
-//   - Large fenestrations between spokes for surgical visibility
-//   - Slits in outer rim (0.6 mm stapes-arch slit, 0.35 mm slit)
+//   - Large fenestrations between spokes
+//   - Slits in outer rim (0.6 mm / 0.35 mm)
+//
+// Improvements (v2):
+//   - Spokes: TubeGeometry along radial CatmullRom curve → smoother, blade-like
+//   - Rim torus: 14 tube segments for finer circular cross-section
+//   - Hub: slight chamfer cap for realistic look
 // ================================================================
 function HeadPlate({ ghost }: { ghost?: boolean }) {
-  const outerR     = 1.80;   // 3.6 mm diam / 2
-  const hubR       = 0.30;   // inner hub radius (~0.6 mm diam)
-  const plateThick = 0.22;   // thickness in Y
-  const rimTubeR   = 0.13;   // torus tube radius
-  const rimCenterR = outerR - rimTubeR;  // 1.67
-  const spokeLen   = rimCenterR - hubR;  // 1.37
-  const spokeW     = 0.17;   // spoke width
-  const midR       = hubR + spokeLen / 2; // spoke center radius
+  const outerR     = 1.80;
+  const hubR       = 0.30;
+  const plateThick = 0.22;
+  const rimTubeR   = 0.14;
+  const rimCenterR = outerR - rimTubeR;  // 1.66
+  const spokeLen   = rimCenterR - hubR;  // 1.36
+  const midR       = hubR + spokeLen / 2;
+
+  // ── スポーク: TubeGeometry で刃状（薄×幅）プロファイル ───────────────
+  // EllipseCurve で断面を楕円にする代わりに、thin boxを使うがスムースな
+  // TubeGeometry + custom path を利用して縁に丸みを付ける
+  const spokeGeometries = useMemo(() => {
+    return [0, 90, 180, 270].map((deg) => {
+      const rad = (deg * Math.PI) / 180;
+      // スポーク中心軸（hub外縁→rim内縁）
+      const from = new THREE.Vector3(Math.cos(rad) * hubR,       0, Math.sin(rad) * hubR);
+      const to   = new THREE.Vector3(Math.cos(rad) * rimCenterR, 0, Math.sin(rad) * rimCenterR);
+      const mid1 = new THREE.Vector3().lerpVectors(from, to, 0.33);
+      const mid2 = new THREE.Vector3().lerpVectors(from, to, 0.67);
+      const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);
+      // tubularSegments=12, radius=spoke half-width (0.10 → 0.20mm 幅), radialSegments=5
+      return new THREE.TubeGeometry(curve, 8, 0.095, 5, false);
+    });
+  }, []);
 
   return (
     <group>
-      {/* Outer rim: torus ring lying flat (rotated into XZ plane) */}
+      {/* Outer rim: torus (14 tube segments → smoother) */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[rimCenterR, rimTubeR, 8, 36]} />
+        <torusGeometry args={[rimCenterR, rimTubeR, 14, 44]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
 
-      {/* Inner hub (shaft connects here) */}
+      {/* Inner hub */}
       <mesh>
-        <cylinderGeometry args={[hubR, hubR, plateThick, 16]} />
+        <cylinderGeometry args={[hubR, hubR + 0.04, plateThick, 20]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      {/* Hub top cap (chamfer) */}
+      <mesh position={[0, plateThick / 2 + 0.025, 0]}>
+        <cylinderGeometry args={[hubR + 0.04, hubR, 0.05, 20]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
 
-      {/* 4 spokes at 0, 90, 180, 270 degrees */}
-      {[0, 90, 180, 270].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        return (
-          <mesh
-            key={deg}
-            position={[Math.cos(rad) * midR, 0, Math.sin(rad) * midR]}
-            rotation={[0, -rad, 0]}
-          >
-            <boxGeometry args={[spokeLen, plateThick, spokeW]} />
-            <TitaniumMat ghost={ghost} />
-          </mesh>
-        );
-      })}
+      {/* 4 blade-like spokes */}
+      {spokeGeometries.map((geo, i) => (
+        <mesh key={i} geometry={geo}>
+          <TitaniumMat ghost={ghost} />
+        </mesh>
+      ))}
 
-      {/* Slit indicators: two small notches on outer rim (0.6 mm and 0.35 mm) */}
-      {/* Slit 0.6mm: for stapes arch clearance */}
-      <mesh position={[0, 0, outerR - 0.05]} rotation={[0, 0, 0]}>
-        <boxGeometry args={[0.60, plateThick + 0.02, 0.20]} />
+      {/* Slit 0.6mm (stapes arch clearance) */}
+      <mesh position={[0, 0, outerR - 0.05]}>
+        <boxGeometry args={[0.60, plateThick + 0.02, 0.22]} />
         <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
       </mesh>
-      {/* Slit 0.35mm: smaller slit */}
-      <mesh position={[outerR * 0.5, 0, outerR * 0.866]} rotation={[0, 0, 0]}>
+      {/* Slit 0.35mm */}
+      <mesh position={[outerR * 0.5, 0, outerR * 0.866]}>
         <boxGeometry args={[0.35, plateThick + 0.02, 0.18]} />
         <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
       </mesh>
@@ -128,45 +145,65 @@ function HeadPlate({ ghost }: { ghost?: boolean }) {
 //   Spherical arc: R=1.35, maxTheta=74.5 deg, height ~1.0 mm.
 //   Diameter: 2.6 mm  (catalog spec).
 //   The dome cradles the stapes head (capitulum, diam ~0.9 mm).
+//
+// Improvements (v2):
+//   - 28-step outer dome for smoother silhouette
+//   - Slight outward rim flare (KURZ characteristic)
+//   - Elliptic inner bowl: a=1.17, b=0.80 (ellipse arc quarter-circle)
+//   - 20-step inner bowl for smooth concavity
+//   - 48 lathe segments for clean circular profile
 // ================================================================
 function BellFoot({ ghost }: { ghost?: boolean }) {
   const points = useMemo(() => {
-    const R     = 1.35;  // sphere arc radius
-    const rimR  = 1.30;  // 2.6 mm diam / 2
-    // maxTheta = arcsin(rimR / R) = arcsin(0.963) ~ 74.5 deg
-    const maxTheta = Math.asin(rimR / R);
+    const R       = 1.35;   // outer sphere radius
+    const rimR    = 1.30;   // 2.6 mm diam / 2
+    const wallT   = 0.13;   // wall thickness at rim
+    const maxTheta = Math.asin(rimR / R);  // ~74.5 deg
+    const OUTER_STEPS = 28;
+    const BOWL_STEPS  = 20;
+
     const pts: THREE.Vector2[] = [];
 
-    // Outer dome: spherical arc from pole (r=0, y=0) to rim
-    const steps = 16;
-    for (let i = 0; i <= steps; i++) {
-      const theta = (i / steps) * maxTheta;
+    // ── 外側ドーム（球弧、極→リム）────────────────────────────────
+    for (let i = 0; i <= OUTER_STEPS; i++) {
+      const theta = (i / OUTER_STEPS) * maxTheta;
       pts.push(new THREE.Vector2(
         R * Math.sin(theta),
-        -(R - R * Math.cos(theta))   // dome opens downward (Y negative)
+        -(R - R * Math.cos(theta))   // ドームは下方向（Y負）に開く
       ));
     }
 
-    // rimY = dome depth at rim edge
-    const rimY = -(R - R * Math.cos(maxTheta));  // ~ -0.992
+    const rimY = -(R - R * Math.cos(maxTheta));  // ≈ -0.992
 
-    // Rim edge: thin flat band at bottom circumference
-    pts.push(new THREE.Vector2(rimR,        rimY - 0.09));  // outer bottom
-    pts.push(new THREE.Vector2(rimR - 0.18, rimY - 0.09));  // inner bottom
-    pts.push(new THREE.Vector2(rimR - 0.18, rimY));          // inner top of rim
+    // ── リム: わずかな外側フレア（KURZ特徴）─────────────────────────
+    pts.push(new THREE.Vector2(rimR + 0.032, rimY - 0.038));
+    pts.push(new THREE.Vector2(rimR + 0.042, rimY - 0.082));  // フレア先端
+    pts.push(new THREE.Vector2(rimR + 0.010, rimY - 0.118));  // 外底
+    pts.push(new THREE.Vector2(rimR - wallT,  rimY - 0.118)); // 内底
+    pts.push(new THREE.Vector2(rimR - wallT,  rimY - 0.005)); // 内壁上端
 
-    // Inner concave surface (stapes head sits in this bowl)
-    pts.push(new THREE.Vector2(0.90, rimY + 0.18));
-    pts.push(new THREE.Vector2(0.55, rimY + 0.52));
-    pts.push(new THREE.Vector2(0.22, rimY + 0.84));
-    pts.push(new THREE.Vector2(0.0,  rimY + 0.90));  // inner pole (~y=-0.09)
+    // ── 内側凹面ボウル（楕円弧：a=1.17, b=0.80）─────────────────────
+    // 楕円パラメータ: r = a·cos(t), y_offset = b·sin(t), t: 0 → π/2
+    // t=0 → (rimR-wallT, rimY)  =内壁上端にマッチ
+    // t=π/2 → (0, rimY+0.80)   =ボウル中央（最深部）
+    const a = rimR - wallT;  // 1.17
+    const b = 0.80;          // ボウル深さ
+    for (let i = 1; i <= BOWL_STEPS; i++) {
+      const t = (i / BOWL_STEPS) * (Math.PI / 2);
+      pts.push(new THREE.Vector2(
+        a * Math.cos(t),
+        rimY + b * Math.sin(t)
+      ));
+    }
+    // ボウル中央極（r=0, ボウル最深部）
+    pts.push(new THREE.Vector2(0, rimY + b));
 
     return pts;
   }, []);
 
   return (
     <mesh>
-      <latheGeometry args={[points, 32]} />
+      <latheGeometry args={[points, 48]} />
       <TitaniumMatDS ghost={ghost} />
     </mesh>
   );
