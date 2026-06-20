@@ -1,4 +1,5 @@
-import { useSimStore } from '../store/useSimStore';
+import { useSimStore, type PatientId } from '../store/useSimStore';
+import { PATIENTS, getDifficultyLabel, SIZE_LABEL } from '../data/patients';
 
 const features = [
   { icon: '🔬', title: '解剖学習モード', desc: '鼓室解剖・耳小骨連鎖・製品ラインナップをインタラクティブ3Dで学習' },
@@ -15,6 +16,8 @@ const specs = [
 
 export function HomeScreen() {
   const setScreen = useSimStore((s) => s.setScreen);
+  const selectedPatientId = useSimStore((s) => s.selectedPatientId);
+  const setSelectedPatientId = useSimStore((s) => s.setSelectedPatientId);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 20px', background: 'radial-gradient(ellipse at 50% 0%, #0d1f3c 0%, #0a0e1a 60%)' }}>
@@ -51,6 +54,48 @@ export function HomeScreen() {
             <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{f.desc}</div>
           </div>
         ))}
+      </div>
+
+      {/* 患者選択（耳介バリエーション） */}
+      <div className="card" style={{ maxWidth: 900, width: '100%', marginBottom: 24 }}>
+        <div className="section-title" style={{ marginBottom: 4 }}>症例を選択</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+          耳介形状（Viking HRTF Dataset v2 / CC-BY 4.0）と中耳所見の組み合わせで難易度が変わります
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+          {PATIENTS.map((p) => {
+            const isSelected = selectedPatientId === p.id;
+            return (
+              <div
+                key={p.id}
+                onClick={() => setSelectedPatientId(p.id as PatientId)}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                  background: isSelected ? 'rgba(0,180,216,.12)' : 'rgba(255,255,255,.03)',
+                  transition: 'all .15s',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '.06em',
+                    color: isSelected ? 'var(--accent)' : 'var(--text-muted)',
+                    background: isSelected ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.06)',
+                    padding: '2px 7px', borderRadius: 4,
+                  }}>{SIZE_LABEL[p.size]}</span>
+                  <span style={{ fontSize: 11, color: '#f5d820' }}>{getDifficultyLabel(p.difficulty)}</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, lineHeight: 1.4 }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  {p.pinnaDimensions.w.toFixed(0)}×{p.pinnaDimensions.h.toFixed(0)}mm
+                  ／ {p.recommendedProsthesis} {p.recommendedShaftLength}mm
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Specs table */}

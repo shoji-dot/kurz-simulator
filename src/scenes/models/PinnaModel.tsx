@@ -1,56 +1,49 @@
 /**
- * PinnaModel.tsx  ── 耳介 STL モデル（Viking HRTF Dataset v2 / CC-BY 4.0）
+ * PinnaModel.tsx  ── 耳介 STL モデル（患者バリエーション対応）
  *
  * ▼ ソース
- *   subj_T.stl : KEMAR 標準人工左耳介
- *   スキャン解像度 1mm / Creaform Go!SCAN 20
- *   ライセンス: CC-BY 4.0
- *   引用: Spagnol et al. (2020) The Viking HRTF dataset v2, DOI:10.5281/zenodo.4160401
+ *   Viking HRTF Dataset v2 (CC-BY 4.0)
+ *   Spagnol et al. (2020) DOI:10.5281/zenodo.4160401
  *
- * ▼ STL 座標系（原点 = 耳介重心、単位 mm）
- *   EAC 入口中心: (-2.25, 2.40, 0.0)  ← Step1で定義
- *   Z+ : 耳介前面（外側方向）
- *   Z=0: KEMARへの取付け面（EAC入口側）
- *   Z=24.8: 耳介最突出点（耳輪）
+ * ▼ 対応患者ID: J / T / A / H / E
  *
- * ▼ シミュレーター座標系への変換
- *   シミュレーター Z+ = 外耳道方向（カメラ側）
- *   外耳道長 ≈ 25mm → 鼓膜(Z=5)から Z≈30 が皮膚表面
- *   pinna Z=0（EAC入口）→ sim Z=30
- *   pinna Z=24.8（耳輪）→ sim Z=54.8
- *
- *   変換:
- *     position = [eacOffset.x, eacOffset.y, 30]  EAC入口を sim Z=30 に合わせる
- *     rotation = [-π/2, 0, 0]  STL Z+ → sim Z+ に回転
- *     EAC入口オフセット補正: x += 2.25, y -= 2.40
+ * ▼ 座標変換
+ *   EAC入口 (eacInStl) → sim Z=EAC_SIM_Z (30mm)
+ *   STL は重心中心化済み。eacInStl のオフセットで補正。
+ *   rotation: [-π/2, 0, π] で STL 軸をシミュレーター軸に整合
  */
 
 import { useMemo } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import * as THREE from 'three';
-
-// EAC 入口の STL 内座標（Step1 解析値）
-const EAC_IN_STL = { x: -2.25, y: 2.40, z: 0.0 };
+import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 
 // シミュレーター上の EAC 入口 Z 座標（外耳道長 25mm + 鼓膜 Z=5）
 const EAC_SIM_Z = 30;
 
 interface PinnaModelProps {
-  /** 表示/非表示 */
-  visible?: boolean;
+  /** 患者ID (J / T / A / H / E) */
+  patientId?: string;
   /** 不透明度 */
   opacity?: number;
   /** 表面色 */
   color?: string;
 }
 
-export function PinnaModel({
-  visible = true,
-  opacity = 0.85,
-  color = '#c8956c',
-}: PinnaModelProps) {
-  const geometry = useLoader(STLLoader, '/models/pinna_subj_T.stl');
+/** 単一 STL ローダー（useLoader は hooks ルールのため呼び出し元で patientId を固定する） */
+function PinnaSTL({
+  url,
+  position,
+  opacity,
+  color,
+}: {
+  url: string;
+  position: [number, number, number];
+  opacity: number;
+  color: string;
+}) {
+  const geometry = useLoader(STLLoader, url);
 
   const mat = useMemo(() => new THREE.MeshStandardMaterial({
     color,
@@ -61,30 +54,42 @@ export function PinnaModel({
     opacity,
   }), [color, opacity]);
 
-  if (!visible) return null;
-
-  // STL は mm 単位 → シミュレーターも mm 単位なのでスケール変換不要
-  // EAC入口 (-2.25, 2.40, 0) → sim (0, 0, EAC_SIM_Z) に補正
-  const posX = 0 - EAC_IN_STL.x;   // +2.25
-  const posY = 0 - EAC_IN_STL.y;   // -2.40
-  const posZ = EAC_SIM_Z - EAC_IN_STL.z; // 30.0
-
   return (
     <mesh
       geometry={geometry}
       material={mat}
-      position={[posX, posY, posZ]}
-      rotation={[
-        -Math.PI / 2,  // STL Y+ → sim Y+ (STL の Z+ を sim の Z+ に向ける)
-        0,
-        Math.PI,       // 左耳を正しい向きに（ミラー補正）
-      ]}
+      position={position}
+      rotation={[-Math.PI / 2, 0, Math.PI]}
       castShadow
       receiveShadow
     />
   );
 }
 
-// プリロード
-// ※ STLLoader は useGLTF.preload 形式ではなく手動で preload するか
-//    Suspense でフォールバックを使う
+export function PinnaModel({
+  patientId = 'T',
+  opacity = 0.85,
+  color = '#c8956c',
+}: PinnaModelProps) {
+  const patient = getPatientById(patientId) ?? PATIENTS[1]; // fallback: T
+  const { eacInStl } = patient;
+  const url = getPinnaUrl(patientId);
+
+  // EAC入口 (eacInStl) をシミュレーター上の (0, 0, EAC_SIM_Z) に合わせる補正
+  const posX = -eacInStl.x;
+  const posY = -eacInStl.y;
+  const posZ = EAC_SIM_Z - eacInStl.z;
+
+  return (
+    <PinnaSTL
+      url={url}
+      position={[posX, posY, posZ]}
+      opacity={opacity}
+      color={color}
+    />
+  );
+}
+
+// ── 患者選択UI用サムネイルコンポーネント ──────────────────────────
+/** 患者一覧から選択するためのプレビュー（将来拡張用） */
+export { PATIENTS } from '../../data/patients';

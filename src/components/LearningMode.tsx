@@ -73,7 +73,7 @@ const procedures = [
 
 // ════════════════════════════════════════════════════════
 export function LearningMode() {
-  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
+  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 3D表示モード状態（デフォルトはRealAnatomyModelsのDEFAULT_MODESに委譲）
@@ -115,6 +115,7 @@ export function LearningMode() {
             zoomLevel={zoomLevel}
             showTympanoCavity={showTympanoCavity}
             showPinna={showPinna}
+            patientId={selectedPatientId}
           />
 
           {/* 操作ヒント */}

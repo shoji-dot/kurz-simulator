@@ -43,6 +43,7 @@ interface AnatomySceneProps {
   zoomLevel?:         number;
   showTympanoCavity?: boolean;
   showPinna?:         boolean;
+  patientId?:         string;
 }
 
 export function AnatomyScene({
@@ -50,6 +51,7 @@ export function AnatomyScene({
   zoomLevel = 0,
   showTympanoCavity = false,
   showPinna = false,
+  patientId = 'T',
 }: AnatomySceneProps) {
   return (
     <Canvas
@@ -76,7 +78,7 @@ export function AnatomyScene({
         {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
         {showTympanoCavity && <TympanoCavityEdu />}
         {/* 耳介 STL モデル（Viking HRTF Dataset v2 / CC-BY 4.0） */}
-        {showPinna && <PinnaModel opacity={0.80} />}
+        {showPinna && <PinnaModel patientId={patientId} opacity={0.80} />}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
           <shadowMaterial transparent opacity={0.15} />
