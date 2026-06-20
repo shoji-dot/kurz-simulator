@@ -1,5 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSimStore } from '../store/useSimStore';
+
+// ── スコア履歴 (localStorage) ──────────────────────────────────────
+interface HistoryEntry {
+  date: string;        // ISO string
+  caseTitle: string;
+  productName: string;
+  total: number;
+  rank: string;
+  sizeScore: number;
+  positionScore: number;
+  angleScore: number;
+  stabilityScore: number;
+}
+
+const HISTORY_KEY = 'kurz_score_history';
+const MAX_HISTORY = 10;
+
+function loadHistory(): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(entries: HistoryEntry[]): void {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function pushHistory(entry: HistoryEntry): HistoryEntry[] {
+  const prev = loadHistory();
+  const next = [entry, ...prev].slice(0, MAX_HISTORY);
+  saveHistory(next);
+  return next;
+}
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS } from '../scenes/SimScene';
@@ -365,9 +403,41 @@ function PlacementStep() {
   );
 }
 
+// ── ABG 改善予測 ──────────────────────────────────────────────────
+function predictABGImprovement(score: number): { value: number; label: string; color: string } {
+  // 参考: Merchant et al. (1998), Austin classification ABG outcomes
+  // 理想的 PORP 設置で ~25-30 dB 改善。スコアに比例してスケール。
+  const value = Math.round(8 + (score / 100) * 22);  // 8〜30 dB range
+  if (value >= 25) return { value, label: '優秀', color: '#4ade80' };
+  if (value >= 18) return { value, label: '良好', color: '#60b8e0' };
+  if (value >= 12) return { value, label: '中程度', color: '#ffd166' };
+  return { value, label: '不十分', color: '#f87171' };
+}
+
 // ─── Step 4: Score ────────────────────────────────────────────────────────
 function ScoreStep() {
-  const { scoreResult, selectedCase, placement, resetSimulation, setSimStep, setScreen } = useSimStore();
+  const { scoreResult, selectedCase, selectedProduct, placement, resetSimulation, setSimStep, setScreen } = useSimStore();
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  // スコアを localStorage に保存（初回のみ）
+  useEffect(() => {
+    if (!scoreResult || !selectedCase || !selectedProduct) return;
+    const entry: HistoryEntry = {
+      date: new Date().toISOString(),
+      caseTitle: selectedCase.title,
+      productName: selectedProduct.name,
+      total: scoreResult.total,
+      rank: scoreResult.rank,
+      sizeScore: scoreResult.sizeScore,
+      positionScore: scoreResult.positionScore,
+      angleScore: scoreResult.angleScore,
+      stabilityScore: scoreResult.stabilityScore,
+    };
+    const updated = pushHistory(entry);
+    setHistory(updated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!scoreResult || !selectedCase) return null;
 
   const { sizeScore, positionScore, angleScore, stabilityScore, total, rank, feedback } = scoreResult;
@@ -378,12 +448,23 @@ function ScoreStep() {
     { label: '安定性', score: stabilityScore, color: '#c77dff' },
   ];
 
+  // 前回スコア（履歴[1] = 今回保存前の最新）
+  const prevEntry = history[1];
+  const prevTotal = prevEntry?.total;
+  const diff = prevTotal !== undefined ? total - prevTotal : null;
+  const avgTotal = history.length > 1
+    ? Math.round(history.reduce((s, e) => s + e.total, 0) / history.length)
+    : null;
+
+  // ABG 予測
+  const abg = predictABGImprovement(total);
+
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: 24 }}>
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
       <h2 style={{ marginBottom: 4, fontSize: 20 }}>評価結果</h2>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 24 }}>{selectedCase.title}</p>
 
-      {/* Main score ring */}
+      {/* Main score ring + trend */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div className={`score-ring rank-${rank}`}>
           <div style={{ fontSize: 28, fontWeight: 900 }}>{total}</div>
@@ -396,6 +477,61 @@ function ScoreStep() {
           {rank === 'C' && '△ '}
           {rank === 'D' && '× '}
           ランク {rank}
+        </div>
+
+        {/* 前回比 / 平均 */}
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
+          {diff !== null && (
+            <div style={{
+              padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: diff >= 0 ? 'rgba(74,222,128,.15)' : 'rgba(248,113,113,.15)',
+              color: diff >= 0 ? '#4ade80' : '#f87171',
+              border: `1px solid ${diff >= 0 ? '#4ade8044' : '#f8717144'}`,
+            }}>
+              前回比 {diff >= 0 ? `+${diff}` : diff} pt
+            </div>
+          )}
+          {avgTotal !== null && (
+            <div style={{
+              padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              background: 'rgba(255,255,255,.06)',
+              color: 'var(--text-secondary)',
+            }}>
+              平均 {avgTotal} pt（{history.length} 回）
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ABG 改善予測 */}
+      <div className="card" style={{ marginBottom: 16, borderColor: `${abg.color}44` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.06em', marginBottom: 4 }}>
+              🩺 術後 ABG 改善予測（モデル推算）
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: abg.color }}>
+              約 {abg.value} dB 改善
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              予測評価: <span style={{ color: abg.color, fontWeight: 700 }}>{abg.label}</span>
+              　気導骨導差（ABG）の縮小量の推算値です
+            </div>
+          </div>
+          <div style={{
+            marginLeft: 'auto',
+            width: 56, height: 56,
+            borderRadius: '50%',
+            background: `${abg.color}18`,
+            border: `3px solid ${abg.color}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, flexShrink: 0,
+          }}>
+            👂
+          </div>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+          ※ Merchant et al. (1998) の PORP/TORP 成績データに基づく簡易推算。実際の結果は個人差があります。
         </div>
       </div>
 
@@ -432,7 +568,7 @@ function ScoreStep() {
       </div>
 
       {/* Feedback */}
-      <div className="card" style={{ marginBottom: 24 }}>
+      <div className="card" style={{ marginBottom: 16 }}>
         <div className="section-title" style={{ marginBottom: 8 }}>フィードバック</div>
         {feedback.map((f, i) => (
           <div key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 6, paddingLeft: 10, borderLeft: `2px solid ${total >= 75 ? 'var(--green)' : 'var(--yellow)'}` }}>
@@ -440,6 +576,40 @@ function ScoreStep() {
           </div>
         ))}
       </div>
+
+      {/* スコア履歴 */}
+      {history.length > 1 && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="section-title" style={{ marginBottom: 10 }}>📈 直近のスコア履歴</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {history.slice(0, 5).map((e, i) => {
+              const rankColors: Record<string, string> = { S: '#f0c040', A: '#4ade80', B: '#60b8e0', C: '#ffd166', D: '#f87171' };
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '5px 8px', borderRadius: 6,
+                  background: i === 0 ? 'rgba(0,180,216,.08)' : 'rgba(255,255,255,.03)',
+                  border: i === 0 ? '1px solid rgba(0,180,216,.2)' : '1px solid transparent',
+                }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 14, textAlign: 'center' }}>
+                    {i === 0 ? '★' : `${i + 1}`}
+                  </span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: rankColors[e.rank] ?? 'var(--text-primary)',
+                    minWidth: 18,
+                  }}>{e.rank}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, minWidth: 28 }}>{e.total}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.caseTitle}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {new Date(e.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>
