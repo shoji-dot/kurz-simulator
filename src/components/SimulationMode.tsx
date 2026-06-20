@@ -44,6 +44,13 @@ const diffBadge: Record<string, string> = {
   intermediate: 'badge-yellow',
   advanced: 'badge-red',
 };
+const ossicleLabel: Record<string, string> = {
+  intact:          '温存',
+  partial:         '部分欠損',
+  absent:          '欠損',
+  suprastructure:  '上部構造温存',
+  'footplate-only': '底板のみ',
+};
 
 // ─── Step 1: Case selection ───────────────────────────────────────────────
 function CaseSelect() {
@@ -67,11 +74,11 @@ function CaseSelect() {
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>{c.description}</p>
             <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>ツチ骨: {c.ossicularStatus.malleus}</span>
+              <span>ツチ骨: {ossicleLabel[c.ossicularStatus.malleus] ?? c.ossicularStatus.malleus}</span>
               <span>｜</span>
-              <span>キヌタ骨: {c.ossicularStatus.incus}</span>
+              <span>キヌタ骨: {ossicleLabel[c.ossicularStatus.incus] ?? c.ossicularStatus.incus}</span>
               <span>｜</span>
-              <span>アブミ骨: {c.ossicularStatus.stapes}</span>
+              <span>アブミ骨: {ossicleLabel[c.ossicularStatus.stapes] ?? c.ossicularStatus.stapes}</span>
             </div>
           </div>
         ))}
