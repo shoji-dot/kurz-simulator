@@ -2,8 +2,14 @@ import { useState } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
-import type { RealAnatomyProps } from '../scenes/models/RealAnatomyModels';
+import {
+  DEFAULT_MODES,
+  type OpacityMode,
+  type StructureKey,
+  type VisibilityMap,
+} from '../scenes/models/RealAnatomyModels';
 
+// ── 解剖構造リスト（サイドバー教育用）────────────────────────────
 const anatomyStructures = [
   { id: 'malleus',  label: 'ツチ骨 (Malleus)',  desc: '鼓膜に付着する最外側の耳小骨。鼓膜の振動を受け取りキヌタ骨に伝達。マニュブリウム（柄）とヘッド部からなる。', color: '#e8d5b0' },
   { id: 'incus',   label: 'キヌタ骨 (Incus)',   desc: '中間に位置する耳小骨。体部・短突起・長突起から構成。慢性中耳炎では長突起尖端から壊死しやすい。', color: '#c4a97a' },
@@ -11,6 +17,32 @@ const anatomyStructures = [
   { id: 'membrane', label: '鼓膜 (Tympanic M.)', desc: '外耳道と鼓室を隔てる薄い膜。厚さ約0.1mm。中央部（臍）にツチ骨が付着。', color: '#f5e6c8' },
 ];
 
+// ── 3D表示切替アイテム定義 ───────────────────────────────────────
+const VIS_ITEMS: { key: StructureKey; label: string; color: string }[] = [
+  { key: 'bone',        label: '側頭骨',  color: '#f2ead8' },
+  { key: 'auricle',     label: '耳介',    color: '#e8c8a8' },
+  { key: 'ossicles',    label: '耳小骨',  color: '#e8d8a8' },
+  { key: 'tympanic',    label: '鼓膜',    color: '#f8d8c0' },
+  { key: 'innerEar',    label: '内耳',    color: '#60b8e0' },
+  { key: 'nerves',      label: '神経',    color: '#f5d820' },
+  { key: 'eac',         label: '外耳道',  color: '#d8c8a0' },
+  { key: 'roundWindow', label: '正円窓',  color: '#5888a8' },
+];
+
+const CYCLE: OpacityMode[] = ['solid', 'ghost', 'hidden'];
+const MODE_LABEL: Record<OpacityMode, string> = { solid: '実体', ghost: '半透明', hidden: '非表示' };
+const MODE_BG: Record<OpacityMode, string> = {
+  solid:  'var(--accent)',
+  ghost:  'rgba(0,180,216,0.30)',
+  hidden: 'rgba(255,255,255,0.07)',
+};
+const MODE_FG: Record<OpacityMode, string> = {
+  solid:  '#001a20',
+  ghost:  '#7dd8e8',
+  hidden: '#555',
+};
+
+// ── 術式データ ────────────────────────────────────────────────────
 const procedures = [
   {
     title: 'PORP 設置手順（ベル型）',
@@ -38,36 +70,22 @@ const procedures = [
   },
 ];
 
-// 表示切替の定義
-const VISIBILITY_ITEMS: { key: keyof RealAnatomyProps; label: string; color: string }[] = [
-  { key: 'showBone',        label: '側頭骨',  color: '#f2ead8' },
-  { key: 'showAuricle',     label: '耳介',    color: '#e8c8a8' },
-  { key: 'showOssicles',    label: '耳小骨',  color: '#e8d8a8' },
-  { key: 'showTympanic',    label: '鼓膜',    color: '#f8d8c0' },
-  { key: 'showInnerEar',    label: '内耳',    color: '#60b8e0' },
-  { key: 'showNerves',      label: '神経',    color: '#f5d820' },
-  { key: 'showEAC',         label: '外耳道',  color: '#d8c8a0' },
-  { key: 'showRoundWindow', label: '正円窓',  color: '#5888a8' },
-];
-
-const DEFAULT_VISIBILITY: RealAnatomyProps = {
-  showBone: true,
-  showAuricle: false,
-  showOssicles: true,
-  showTympanic: true,
-  showInnerEar: true,
-  showNerves: true,
-  showEAC: true,
-  showRoundWindow: true,
-};
-
+// ════════════════════════════════════════════════════════
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [visibility, setVisibility] = useState<RealAnatomyProps>(DEFAULT_VISIBILITY);
 
-  const toggleVisibility = (key: keyof RealAnatomyProps) =>
-    setVisibility(v => ({ ...v, [key]: !v[key] }));
+  // 3D表示モード状態（デフォルトはRealAnatomyModelsのDEFAULT_MODESに委譲）
+  const [vis, setVis] = useState<VisibilityMap>({});
+  const cycleMode = (key: StructureKey) => {
+    const curr = vis[key] ?? DEFAULT_MODES[key];
+    const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
+    setVis(v => ({ ...v, [key]: next }));
+  };
+  const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
+
+  // ズームレベル（0 = 初期FOV）
+  const [zoomLevel, setZoomLevel] = useState(0);
 
   const selProd = kurzProducts.find((p) => p.id === selectedProduct);
 
@@ -86,13 +104,17 @@ export function LearningMode() {
 
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
-        <div className="canvas-wrapper">
-          <AnatomyScene visibility={visibility} />
+        <div className="canvas-wrapper" style={{ position: 'relative' }}>
+          <AnatomyScene vis={vis} zoomLevel={zoomLevel} />
+
+          {/* 操作ヒント */}
           <div className="canvas-overlay top-left">
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>
               ドラッグ: 回転 ｜ ホイール: ズーム
             </div>
           </div>
+
+          {/* 強調表示中の構造名 */}
           {highlightedStructure && (
             <div className="canvas-overlay bottom-left">
               <div style={{ background: 'rgba(0,180,216,.15)', border: '1px solid var(--accent)', padding: '6px 10px', borderRadius: 6, color: 'var(--accent)', backdropFilter: 'blur(4px)' }}>
@@ -100,12 +122,48 @@ export function LearningMode() {
               </div>
             </div>
           )}
+
+          {/* ズームボタン */}
+          <div style={{
+            position: 'absolute', bottom: 16, right: 16,
+            display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10,
+          }}>
+            {[
+              { label: '＋', delta: 1, title: 'ズームイン' },
+              { label: '－', delta: -1, title: 'ズームアウト' },
+            ].map(({ label, delta, title }) => (
+              <button
+                key={label}
+                title={title}
+                onClick={() => setZoomLevel(z => z + delta)}
+                style={{
+                  width: 34, height: 34,
+                  borderRadius: 8,
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  background: 'rgba(10,15,26,0.80)',
+                  color: '#c0d8e8',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(6px)',
+                  lineHeight: 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700,
+                  transition: 'background .15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,180,216,0.22)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,15,26,0.80)')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Sidebar */}
         <div className="sidebar">
           {learningTab === 'anatomy' && (
             <>
+              {/* 構造ハイライト */}
               <div className="card">
                 <div className="section-title">構造を選択してハイライト</div>
                 {anatomyStructures.map((s) => (
@@ -113,10 +171,7 @@ export function LearningMode() {
                     key={s.id}
                     onClick={() => setHighlightedStructure(highlightedStructure === s.id ? null : s.id)}
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      cursor: 'pointer',
-                      marginBottom: 6,
+                      padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
                       background: highlightedStructure === s.id ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
                       border: `1px solid ${highlightedStructure === s.id ? 'var(--accent)' : 'var(--border)'}`,
                       transition: 'all .15s',
@@ -132,56 +187,52 @@ export function LearningMode() {
                   </div>
                 ))}
               </div>
+
+              {/* 3D表示切替 */}
               <div className="card">
-                <div className="section-title">3D表示切替</div>
-                {VISIBILITY_ITEMS.map(({ key, label, color }) => {
-                  const isOn = !!visibility[key];
+                <div className="section-title">3D 表示切替</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  クリックで 実体 → 半透明 → 非表示 を切替
+                </div>
+                {VIS_ITEMS.map(({ key, label, color }) => {
+                  const mode = getMode(key);
                   return (
                     <div
                       key={key}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '7px 4px',
-                        borderBottom: '1px solid rgba(255,255,255,0.06)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '6px 2px',
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0, opacity: isOn ? 1 : 0.3 }} />
-                        <span style={{ fontSize: 13, color: isOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</span>
-                      </div>
-                      {/* トグルスイッチ */}
-                      <div
-                        onClick={() => toggleVisibility(key)}
-                        style={{
-                          width: 38,
-                          height: 20,
-                          borderRadius: 10,
-                          background: isOn ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
-                          cursor: 'pointer',
-                          position: 'relative',
-                          transition: 'background .2s',
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{
+                          width: 9, height: 9, borderRadius: '50%',
+                          background: color,
+                          opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1,
                           flexShrink: 0,
+                        }} />
+                        <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>
+                          {label}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => cycleMode(key)}
+                        style={{
+                          padding: '3px 10px', borderRadius: 4, border: 'none',
+                          cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                          background: MODE_BG[mode], color: MODE_FG[mode],
+                          minWidth: 52, transition: 'background .15s',
                         }}
                       >
-                        <div style={{
-                          position: 'absolute',
-                          top: 2,
-                          left: isOn ? 20 : 2,
-                          width: 16,
-                          height: 16,
-                          borderRadius: '50%',
-                          background: '#fff',
-                          transition: 'left .2s',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                        }} />
-                      </div>
+                        {MODE_LABEL[mode]}
+                      </button>
                     </div>
                   );
                 })}
               </div>
 
+              {/* 音響伝達 */}
               <div className="card">
                 <div className="section-title">耳小骨連鎖の音響伝達</div>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
