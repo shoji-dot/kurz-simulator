@@ -108,6 +108,30 @@ export function LearningMode() {
     setVis(v => ({ ...v, malleus: next, incus: next, stapes: next }));
   };
 
+  // 外殻グループ（側頭骨 + 外耳道 + 耳介）
+  const shellGroupMode = (): OpacityMode => getMode('bone');
+  const cycleShell = () => {
+    const curr = shellGroupMode();
+    const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
+    setVis(v => ({ ...v, bone: next, eac: next, auricle: next }));
+  };
+
+  // 神経グループ（顔面神経 + 鼓索神経）
+  const nerveGroupMode = (): OpacityMode => getMode('facialNerve');
+  const cycleNerves = () => {
+    const curr = nerveGroupMode();
+    const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
+    setVis(v => ({ ...v, facialNerve: next, chordaTympani: next }));
+  };
+
+  // 内耳グループ（内耳 + 正円窓）
+  const innerEarGroupMode = (): OpacityMode => getMode('innerEar');
+  const cycleInnerEar = () => {
+    const curr = innerEarGroupMode();
+    const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
+    setVis(v => ({ ...v, innerEar: next, roundWindow: next }));
+  };
+
   // ズームレベル
   const [zoomLevel, setZoomLevel] = useState(0);
 
@@ -543,23 +567,50 @@ export function LearningMode() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
                   クリックで 実体 → 半透明 → 非表示 を切替
                 </div>
+
+                {/* ── グループ一括切替 ── */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', marginBottom: 5 }}>
+                    グループ一括切替
+                  </div>
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {[
+                      { label: '🦴 外殻', mode: shellGroupMode(), onClick: cycleShell, color: '#f2ead8' },
+                      { label: '🔗 耳小骨', mode: ossicleGroupMode(), onClick: cycleOssicles, color: '#e6a93a' },
+                      { label: '⚡ 神経', mode: nerveGroupMode(), onClick: cycleNerves, color: '#f5d820' },
+                      { label: '🐚 内耳', mode: innerEarGroupMode(), onClick: cycleInnerEar, color: '#60b8e0' },
+                    ].map(({ label, mode, onClick, color }) => (
+                      <button
+                        key={label}
+                        onClick={onClick}
+                        style={{
+                          flex: '1 1 80px',
+                          padding: '5px 6px',
+                          borderRadius: 6,
+                          border: `1px solid ${mode === 'solid' ? color : mode === 'ghost' ? color + '66' : 'var(--border)'}`,
+                          background: mode === 'solid' ? color + '22' : mode === 'ghost' ? color + '11' : 'rgba(255,255,255,0.03)',
+                          color: mode === 'hidden' ? 'var(--text-muted)' : color,
+                          fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                          textAlign: 'center', transition: 'all .15s',
+                        }}
+                      >
+                        <div>{label}</div>
+                        <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{MODE_LABEL[mode]}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px solid var(--border)', marginBottom: 8 }} />
+
                 {VIS_ITEMS.map(({ key, label, color, indent }) => {
                   const mode = getMode(key);
                   return (
                     <div key={key}>
-                      {/* 耳小骨グループの見出し＋一括切替 */}
                       {key === 'malleus' && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 2px 3px', marginTop: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em' }}>
+                        <div style={{ padding: '7px 2px 3px', marginTop: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em', opacity: 0.7 }}>
                             耳小骨連鎖 (Ossicular Chain)
                           </span>
-                          <button
-                            onClick={() => cycleOssicles()}
-                            title="3骨を一括で切替"
-                            style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(224,169,58,0.4)', cursor: 'pointer', fontSize: 10, fontWeight: 600, background: 'rgba(224,169,58,0.10)', color: '#e0a93a' }}
-                          >
-                            一括 {MODE_LABEL[ossicleGroupMode()]}
-                          </button>
                         </div>
                       )}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', paddingLeft: indent ? 14 : 2, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
