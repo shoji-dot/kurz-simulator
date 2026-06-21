@@ -62,6 +62,8 @@ export const SIM_DEFAULT_VIS: VisibilityMap = {
   roundWindow:   'solid',
 };
 
+export type DragMode = 'move' | 'view';
+
 interface SimSceneProps {
   surgicalCase:  SurgicalCase;
   product:       KurzProduct;
@@ -69,6 +71,8 @@ interface SimSceneProps {
   showIdeal?:    boolean;
   /** 表示切替（学習モードと同一形式） */
   vis?:          VisibilityMap;
+  /** 操作モード: 'move'=プロテーゼ移動, 'view'=ビュー操作 */
+  dragMode?:     DragMode;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -106,7 +110,8 @@ interface DraggableProsthesisProps {
   dragOffsetX:    number;
   dragOffsetY:    number;
   dragOffsetZ:    number;
-  orbitRef:       React.RefObject<any>;
+  /** 'move' のときのみ TransformControls を表示・有効化 */
+  dragMode:       DragMode;
 }
 
 function DraggableProsthesis({
@@ -114,22 +119,18 @@ function DraggableProsthesis({
   lateralOffset, anteriorOffset, verticalOffset,
   angleTilt, angleTiltZ,
   dragOffsetX, dragOffsetY, dragOffsetZ,
-  orbitRef,
+  dragMode,
 }: DraggableProsthesisProps) {
   const groupRef = useRef<THREE.Group>(null);
   const tcRef    = useRef<any>(null);
 
-  // TransformControls の dragging-changed イベントで OrbitControls を on/off
+  // ドラッグ完了時に offset を store に積み込む
   useEffect(() => {
     const tc = tcRef.current;
     if (!tc) return;
 
     const handleDraggingChanged = (e: { value: boolean }) => {
-      if (e.value) {
-        if (orbitRef.current) orbitRef.current.enabled = false;
-        return;
-      }
-      if (orbitRef.current) orbitRef.current.enabled = true;
+      if (e.value) return; // ドラッグ開始: 何もしない（Orbitは dragMode で制御）
       const g = groupRef.current;
       if (!g) return;
       const { placement } = useSimStore.getState();
@@ -146,6 +147,25 @@ function DraggableProsthesis({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const prosthesis = (
+    <group ref={groupRef}>
+      <ProsthesisModel
+        product={product}
+        shaftLength={selectedLength}
+        basePos={basePos.clone()}
+        lateralOffset={lateralOffset   + dragOffsetX}
+        verticalOffset={verticalOffset + dragOffsetY}
+        anteriorOffset={anteriorOffset + dragOffsetZ}
+        angleTilt={angleTilt}
+        angleTiltZ={angleTiltZ}
+      />
+    </group>
+  );
+
+  // viewモード: TransformControls なし（OrbitControls のみ有効）
+  if (dragMode === 'view') return prosthesis;
+
+  // moveモード: TransformControls でラップ
   return (
     <TransformControls
       ref={tcRef}
@@ -153,18 +173,7 @@ function DraggableProsthesis({
       showX showY showZ
       size={0.65}
     >
-      <group ref={groupRef}>
-        <ProsthesisModel
-          product={product}
-          shaftLength={selectedLength}
-          basePos={basePos.clone()}
-          lateralOffset={lateralOffset   + dragOffsetX}
-          verticalOffset={verticalOffset + dragOffsetY}
-          anteriorOffset={anteriorOffset + dragOffsetZ}
-          angleTilt={angleTilt}
-          angleTiltZ={angleTiltZ}
-        />
-      </group>
+      {prosthesis}
     </TransformControls>
   );
 }
@@ -178,7 +187,7 @@ function clamp3(v: number): number {
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
-  surgicalCase, product, placement, showIdeal = false, vis = {},
+  surgicalCase, product, placement, showIdeal = false, vis = {}, dragMode = 'view',
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -218,7 +227,6 @@ export function SimScene({
   const incOpacity  = ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
   const stapOpacity = ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
 
-  // OrbitControls ref（ドラッグ中に無効化するため）
   const orbitRef = useRef<any>(null);
 
   return (
@@ -281,7 +289,7 @@ export function SimScene({
           dragOffsetX={dragOffsetX}
           dragOffsetY={dragOffsetY}
           dragOffsetZ={dragOffsetZ}
-          orbitRef={orbitRef}
+          dragMode={dragMode}
         />
 
         {/* 影受け面 */}
@@ -298,6 +306,7 @@ export function SimScene({
         minDistance={8}
         maxDistance={40}
         autoRotate={false}
+        enabled={dragMode === 'view'}
       />
     </Canvas>
   );

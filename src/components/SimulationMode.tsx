@@ -34,7 +34,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 import { useSimStore } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
-import { SimScene, SIM_DEFAULT_VIS } from '../scenes/SimScene';
+import { SimScene, SIM_DEFAULT_VIS, type DragMode } from '../scenes/SimScene';
 import {
   type OpacityMode,
   type StructureKey,
@@ -360,6 +360,7 @@ function PlacementStep() {
   const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore } = useSimStore();
   const [showIdeal, setShowIdeal] = useState(false);
   const [simVis, setSimVis] = useState<VisibilityMap>({});
+  const [dragMode, setDragMode] = useState<DragMode>('view');
 
   if (!selectedCase || !selectedProduct) return null;
 
@@ -398,6 +399,7 @@ function PlacementStep() {
           placement={safeP}
           showIdeal={showIdeal}
           vis={simVis}
+          dragMode={dragMode}
         />
         </ErrorBoundary>
         <div className="canvas-overlay top-left">
@@ -408,13 +410,50 @@ function PlacementStep() {
               lesionTags={selectedCase.tags.lesion}
             />
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
-              <div>🖱 矢印ハンドル: 赤X(内外側) 緑Y(上下) 青Z(前後)</div>
-              <div>🔄 ハンドル外ドラッグ: 視点回転　｜　ホイール: ズーム</div>
+              {dragMode === 'move' ? (
+                <>
+                  <div>🖱 <strong style={{ color: 'var(--accent)' }}>プロテーゼ移動モード</strong></div>
+                  <div>赤ハンドル: 内外側　緑: 上下　青: 前後</div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>視点操作は「👁 ビュー操作」に切替</div>
+                </>
+              ) : (
+                <>
+                  <div>👁 <strong style={{ color: '#4ade80' }}>ビュー操作モード</strong></div>
+                  <div>ドラッグ: 視点回転　｜　ホイール: ズーム</div>
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>プロテーゼ移動は「🖱 プロテーゼ移動」に切替</div>
+                </>
+              )}
               <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 理想位置　👻ボタン: 理想形を表示</div>
             </div>
           </div>
         </div>
-        <div style={{ position: 'absolute', top: 12, right: 12 }}>
+        <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          {/* 操作モード切替 */}
+          <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
+            <button
+              onClick={() => setDragMode('move')}
+              style={{
+                padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: dragMode === 'move' ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
+                color: dragMode === 'move' ? '#001a20' : 'var(--text-muted)',
+                transition: 'all .15s',
+              }}
+            >
+              🖱 プロテーゼ移動
+            </button>
+            <button
+              onClick={() => setDragMode('view')}
+              style={{
+                padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: dragMode === 'view' ? '#4ade80' : 'rgba(255,255,255,0.08)',
+                color: dragMode === 'view' ? '#001a20' : 'var(--text-muted)',
+                transition: 'all .15s',
+              }}
+            >
+              👁 ビュー操作
+            </button>
+          </div>
+          {/* 理想位置トグル */}
           <button
             className={`btn btn-sm ${showIdeal ? 'btn-secondary' : 'btn-ghost'}`}
             onClick={() => setShowIdeal(!showIdeal)}
