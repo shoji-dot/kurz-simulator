@@ -123,6 +123,43 @@ const ossicleLabel: Record<string, string> = {
   'footplate-only': '底板のみ',
 };
 
+// ─── 微調整行コンポーネント ───────────────────────────────────────────────
+function AdjRow({
+  label, value, onStep, steps,
+}: {
+  label: string;
+  value: string;
+  onStep: (d: number) => void;
+  steps: { label: string; d: number }[];
+}) {
+  const btnStyle = (i: number): React.CSSProperties => ({
+    flex: 1,
+    padding: '6px 2px',
+    borderRadius: 5,
+    border: '1px solid rgba(255,255,255,.12)',
+    background: i < steps.length / 2 ? 'rgba(255,120,80,.1)' : 'rgba(80,200,120,.1)',
+    color: i < steps.length / 2 ? '#ff9060' : '#60e090',
+    fontSize: 10,
+    fontWeight: 700,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+    transition: 'background .1s',
+  });
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', minWidth: 60, textAlign: 'right' }}>{value}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 3 }}>
+        {steps.map(({ label: l, d }, i) => (
+          <button key={l} style={btnStyle(i)} onClick={() => onStep(d)}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Step 1: Case selection ───────────────────────────────────────────────
 function CaseSelect() {
   const { selectedCase, setSelectedCase, setSimStep } = useSimStore();
@@ -324,9 +361,9 @@ function PlacementStep() {
               lesionTags={selectedCase.tags.lesion}
             />
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
-              <div>🖱 矢印ハンドル: プロテーゼをドラッグ</div>
+              <div>🖱 矢印ハンドル: 赤X(内外側) 緑Y(上下) 青Z(前後)</div>
               <div>🔄 ハンドル外ドラッグ: 視点回転　｜　ホイール: ズーム</div>
-              <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 目標位置（アブミ骨頭中央）</div>
+              <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 理想位置　👻ボタン: 理想形を表示</div>
             </div>
           </div>
         </div>
@@ -343,128 +380,121 @@ function PlacementStep() {
       {/* Controls */}
       <div className="sidebar">
         <div className="card">
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{selectedProduct.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            シャフト長: <strong style={{ color: 'var(--accent)' }}>{placement.selectedLength} mm</strong>
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{selectedProduct.name}</div>
 
-          {/* 3D ドラッグ操作パネル */}
-          <div style={{
-            background: 'rgba(0,180,216,.07)',
-            border: '1px solid rgba(0,180,216,.22)',
-            borderRadius: 8,
-            padding: '8px 12px',
-            marginBottom: 12,
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
-              🖱 3D ドラッグ配置
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 8 }}>
-              プロテーゼの矢印ハンドルをドラッグして位置を自由に調整。<br />
-              赤=X（内外側）　緑=Y（上下）　青=Z（前後）
-            </div>
-            {/* リアルタイム座標表示 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, fontSize: 11 }}>
-              {[
-                ['X 内外側', (placement.lateralOffset  + placement.dragOffsetX).toFixed(2)],
-                ['Y 上下',   (placement.verticalOffset + placement.dragOffsetY).toFixed(2)],
-                ['Z 前後',   (placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)],
-              ].map(([label, val]) => (
-                <div key={label} style={{ background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '3px 7px' }}>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>{label}</div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{val} mm</div>
-                </div>
-              ))}
-            </div>
-            {(placement.dragOffsetX !== 0 || placement.dragOffsetY !== 0 || placement.dragOffsetZ !== 0) && (
-              <button
-                className="btn btn-ghost btn-sm"
-                style={{ width: '100%', marginTop: 8, fontSize: 11 }}
-                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}
-              >
-                ↺ ドラッグをリセット
-              </button>
-            )}
-          </div>
-
-          {/* Length slider */}
-          <div className="slider-group" style={{ marginBottom: 14 }}>
-            <div className="slider-label">
-              <span>シャフト長</span>
-              <strong>{placement.selectedLength.toFixed(1)} mm</strong>
-            </div>
-            <input
-              type="range"
-              min={selectedProduct.shaftLengths[0]}
-              max={selectedProduct.shaftLengths[selectedProduct.shaftLengths.length - 1]}
-              step={0.5}
-              value={placement.selectedLength}
-              onChange={(e) => updatePlacement({ selectedLength: parseFloat(e.target.value) })}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-              <span>{selectedProduct.shaftLengths[0]}mm</span>
-              <span>{selectedProduct.shaftLengths[selectedProduct.shaftLengths.length - 1]}mm</span>
-            </div>
-          </div>
-
-          {/* 位置スライダー（3軸） */}
-          {([
-            { key: 'lateralOffset'  as const, label: '位置: 内外側', unit: ['内', '外'] },
-            { key: 'anteriorOffset' as const, label: '位置: 前後',   unit: ['後', '前'] },
-            { key: 'verticalOffset' as const, label: '位置: 上下',   unit: ['下', '上'] },
-          ]).map(({ key, label, unit }) => {
-            const val = placement[key] as number;
-            return (
-              <div key={key} className="slider-group" style={{ marginBottom: 14 }}>
-                <div className="slider-label">
-                  <span style={{ fontSize: 11 }}>{label}</span>
-                  <strong style={{ fontSize: 11 }}>
-                    {val > 0 ? `${unit[1]} ${val.toFixed(2)}mm` : val < 0 ? `${unit[0]} ${(-val).toFixed(2)}mm` : '中央'}
-                  </strong>
-                </div>
-                <input
-                  type="range" min={-3} max={3} step={0.05}
-                  value={val}
-                  onChange={(e) => updatePlacement({ [key]: parseFloat(e.target.value) })}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-                  <span>-3mm</span><span>0</span><span>+3mm</span>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* 傾斜角スライダー（2軸） */}
-          {([
-            { key: 'angleTilt'  as const, label: '傾斜: 前後 (Tilt)' },
-            { key: 'angleTiltZ' as const, label: '傾斜: 左右 (Roll)' },
-          ]).map(({ key, label }) => {
-            const val = placement[key] as number;
-            return (
-              <div key={key} className="slider-group" style={{ marginBottom: 14 }}>
-                <div className="slider-label">
-                  <span style={{ fontSize: 11 }}>{label}</span>
-                  <strong>{val > 0 ? `+${val}°` : `${val}°`}</strong>
-                </div>
-                <input
-                  type="range" min={-180} max={180} step={1}
-                  value={val}
-                  onChange={(e) => updatePlacement({ [key]: parseInt(e.target.value) })}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-                  <span>-180°</span><span>0°</span><span>+180°</span>
-                </div>
-              </div>
-            );
-          })}
-
+          {/* ── スナップ + リセット ── */}
+          <button
+            style={{
+              width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg,#0096c7,#0077a8)',
+              color: '#fff', fontSize: 13, fontWeight: 700, marginBottom: 6, letterSpacing: '.02em',
+            }}
+            onClick={() => updatePlacement({
+              lateralOffset: selectedCase.idealLateralOffset,
+              anteriorOffset: 0, verticalOffset: 0,
+              angleTilt: selectedCase.idealAngle, angleTiltZ: 0,
+              dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+            })}
+          >
+            📍 理想位置に配置
+          </button>
           <button
             className="btn btn-ghost btn-sm"
-            style={{ width: '100%', marginBottom: 8 }}
-            onClick={() => updatePlacement({ lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}
+            style={{ width: '100%', marginBottom: 12, fontSize: 11 }}
+            onClick={() => updatePlacement({
+              lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0,
+              angleTilt: 0, angleTiltZ: 0,
+              dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+            })}
           >
             ↺ すべてリセット
           </button>
+
+          {/* ── シャフト長 ── */}
+          <AdjRow
+            label="シャフト長"
+            value={`${placement.selectedLength.toFixed(1)} mm`}
+            onStep={(d) => {
+              const lengths = selectedProduct.shaftLengths;
+              const cur = placement.selectedLength;
+              const next = parseFloat((cur + d).toFixed(1));
+              if (next >= lengths[0] && next <= lengths[lengths.length - 1])
+                updatePlacement({ selectedLength: next });
+            }}
+            steps={[{ label: '−0.5', d: -0.5 }, { label: '−', d: -0.25 }, { label: '+', d: 0.25 }, { label: '+0.5', d: 0.5 }]}
+          />
+
+          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', paddingTop: 8 }}>
+            位置調整（mm）
+          </div>
+
+          {/* ── 位置 3軸 ── */}
+          {([
+            { key: 'lateralOffset'  as const, label: '内外側', neg: '内', pos: '外', dragKey: 'dragOffsetX' as const },
+            { key: 'anteriorOffset' as const, label: '前後',   neg: '後', pos: '前', dragKey: 'dragOffsetZ' as const },
+            { key: 'verticalOffset' as const, label: '上下',   neg: '下', pos: '上', dragKey: 'dragOffsetY' as const },
+          ]).map(({ key, label, neg, pos, dragKey }) => {
+            const total = (placement[key] as number) + (placement[dragKey] as number);
+            return (
+              <AdjRow
+                key={key}
+                label={label}
+                value={
+                  total > 0.005 ? `${pos} ${total.toFixed(2)}` :
+                  total < -0.005 ? `${neg} ${(-total).toFixed(2)}` : '0.00'
+                }
+                onStep={(d) => updatePlacement({ [key]: Math.max(-3, Math.min(3, (placement[key] as number) + d)) })}
+                steps={[
+                  { label: `${neg}0.5`, d: -0.5 },
+                  { label: `${neg}0.1`, d: -0.1 },
+                  { label: `${pos}0.1`, d:  0.1 },
+                  { label: `${pos}0.5`, d:  0.5 },
+                ]}
+              />
+            );
+          })}
+
+          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', paddingTop: 8 }}>
+            傾斜調整（°）
+          </div>
+
+          {/* ── 傾斜 2軸 ── */}
+          {([
+            { key: 'angleTilt'  as const, label: '前後傾斜', neg: '後', pos: '前' },
+            { key: 'angleTiltZ' as const, label: '左右傾斜', neg: '左', pos: '右' },
+          ]).map(({ key, label, neg, pos }) => {
+            const val = placement[key] as number;
+            return (
+              <AdjRow
+                key={key}
+                label={label}
+                value={val === 0 ? '0°' : val > 0 ? `${pos} ${val}°` : `${neg} ${-val}°`}
+                onStep={(d) => updatePlacement({ [key]: Math.max(-180, Math.min(180, (placement[key] as number) + d)) })}
+                steps={[
+                  { label: `${neg}15°`, d: -15 },
+                  { label: `${neg}5°`,  d:  -5 },
+                  { label: `${pos}5°`,  d:   5 },
+                  { label: `${pos}15°`, d:  15 },
+                ]}
+              />
+            );
+          })}
+
+          {/* 3Dドラッグ座標（補助表示） */}
+          {(placement.dragOffsetX !== 0 || placement.dragOffsetY !== 0 || placement.dragOffsetZ !== 0) && (
+            <div style={{ marginTop: 8, background: 'rgba(0,180,216,.07)', border: '1px solid rgba(0,180,216,.2)', borderRadius: 6, padding: '6px 10px', fontSize: 10 }}>
+              <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>🖱 3Dドラッグ中</div>
+              <div style={{ display: 'flex', gap: 8, fontFamily: 'monospace' }}>
+                <span>X:{placement.dragOffsetX.toFixed(2)}</span>
+                <span>Y:{placement.dragOffsetY.toFixed(2)}</span>
+                <span>Z:{placement.dragOffsetZ.toFixed(2)}</span>
+              </div>
+              <button className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: 6, fontSize: 10 }}
+                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}>
+                ↺ ドラッグをリセット
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3D 表示切替 */}
