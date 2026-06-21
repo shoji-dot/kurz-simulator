@@ -147,33 +147,31 @@ function DraggableProsthesis({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const prosthesis = (
-    <group ref={groupRef}>
-      <ProsthesisModel
-        product={product}
-        shaftLength={selectedLength}
-        basePos={basePos.clone()}
-        lateralOffset={lateralOffset   + dragOffsetX}
-        verticalOffset={verticalOffset + dragOffsetY}
-        anteriorOffset={anteriorOffset + dragOffsetZ}
-        angleTilt={angleTilt}
-        angleTiltZ={angleTiltZ}
-      />
-    </group>
-  );
-
-  // viewモード: TransformControls なし（OrbitControls のみ有効）
-  if (dragMode === 'view') return prosthesis;
-
-  // moveモード: TransformControls でラップ
+  // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
+  // アンマウント→再マウントするとグループが再生成されて position がリセットされるため。
+  const isMove = dragMode === 'move';
   return (
     <TransformControls
       ref={tcRef}
       mode="translate"
-      showX showY showZ
+      showX={isMove}
+      showY={isMove}
+      showZ={isMove}
+      enabled={isMove}
       size={0.65}
     >
-      {prosthesis}
+      <group ref={groupRef}>
+        <ProsthesisModel
+          product={product}
+          shaftLength={selectedLength}
+          basePos={basePos.clone()}
+          lateralOffset={lateralOffset   + dragOffsetX}
+          verticalOffset={verticalOffset + dragOffsetY}
+          anteriorOffset={anteriorOffset + dragOffsetZ}
+          angleTilt={angleTilt}
+          angleTiltZ={angleTiltZ}
+        />
+      </group>
     </TransformControls>
   );
 }
