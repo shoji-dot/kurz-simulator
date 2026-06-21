@@ -467,7 +467,6 @@ function PlacementStep() {
           </button>
         </div>
 
-        {/
         {/* 3D 表示切替 */}
         <div className="card">
           <div className="section-title">3D 表示切替</div>
@@ -611,37 +610,4 @@ function ScoreStep() {
   );
 }
 
-// ─── メインコンポーネント ────────────────────────────────────────────────────
-export function SimulationMode() {
-  const simStep = useSimStore((s) => s.simStep);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', overflowY: 'auto' }}>
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 0, alignItems: 'center' }}>
-        {(['case-select', 'product-select', 'placement', 'score'] as const).map((step, i, arr) => {
-          const labels = ['1. 症例選択', '2. 製品選択', '3. 配置', '4. 評価'];
-          const active = step === simStep;
-          const done = arr.indexOf(simStep) > i;
-          return (
-            <div key={step} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{
-                padding: '4px 14px', borderRadius: 999, fontSize: 11, fontWeight: active ? 700 : 400,
-                background: active ? 'var(--accent)' : done ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.05)',
-                color: active ? '#001a20' : done ? 'var(--accent)' : 'var(--text-muted)',
-                transition: 'all .2s',
-              }}>
-                {done ? '✓ ' : ''}{labels[i]}
-              </div>
-              {i < arr.length - 1 && <div style={{ width: 20, height: 1, background: 'var(--border)' }} />}
-            </div>
-          );
-        })}
-      </div>
-
-      {simStep === 'case-select'    && <CaseSelect />}
-      {simStep === 'product-select' && <ProductSelect />}
-      {simStep === 'placement'      && <PlacementStep />}
-      {simStep === 'score'          && <ScoreStep />}
-    </div>
-  );
-}
+// ─── メインコンポーネント ───────────────────────�
