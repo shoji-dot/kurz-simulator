@@ -49,7 +49,7 @@ const GLB_OFFSET: [number, number, number] = [
 
 // SimScene デフォルト表示設定
 export const SIM_DEFAULT_VIS: VisibilityMap = {
-  bone:          'ghost',
+  bone:          'solid',
   auricle:       'hidden',
   ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング（旧キー）
   malleus:       'solid',    // 個別制御：サイドバー既定は実体

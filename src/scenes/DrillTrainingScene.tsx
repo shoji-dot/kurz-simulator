@@ -29,7 +29,7 @@ import { kurzProducts } from '../data/products';
 
 // ── Props ─────────────────────────────────────────────────────────
 export interface DrillTrainingSceneProps {
-  scenario: 's1' | 's2' | 's3';
+  scenario: 's1' | 's2' | 's3' | 's4' | 's5';
   selectedZoneId: string | null;
   onZoneSelect: (id: string | null) => void;
   // S3 animation control
@@ -449,6 +449,34 @@ export function DrillTrainingScene({
             isPlaying={s3IsPlaying}
             controlsRef={controlsRef}
           />
+        )}
+
+        {/* S4: 推奨削開範囲 — 骨実体 + 危険部位グロー球で限界壁を可視化 */}
+        {scenario === 's4' && (
+          <>
+            <RealAnatomy vis={{ bone: 'solid', eac: 'ghost', tympanic: 'ghost',
+              malleus: 'ghost', incus: 'ghost', stapes: 'ghost',
+              facialNerve: 'solid', chordaTympani: 'hidden',
+              innerEar: 'hidden', roundWindow: 'hidden', auricle: 'hidden' }} />
+            <S2Content selectedZoneId={null} onZoneSelect={() => {}} />
+          </>
+        )}
+
+        {/* S5: 削開完了後ビュー — 骨を半透明にして内部構造を露出 */}
+        {scenario === 's5' && (
+          <RealAnatomy vis={{
+            bone:          'ghost',
+            eac:           'ghost',
+            auricle:       'hidden',
+            tympanic:      'ghost',
+            malleus:       'solid',
+            incus:         'solid',
+            stapes:        'solid',
+            facialNerve:   'solid',
+            chordaTympani: 'solid',
+            innerEar:      'solid',
+            roundWindow:   'solid',
+          }} />
         )}
       </Suspense>
 

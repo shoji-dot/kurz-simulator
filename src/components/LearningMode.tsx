@@ -217,7 +217,7 @@ export function LearningMode() {
   const [zoomLevel, setZoomLevel] = useState(0);
 
   // 削開タブ状態
-  const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3'>('s1');
+  const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5'>('s1');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
   // ── S3 アニメーション状態 ─────────────────────────────────────
@@ -508,6 +508,10 @@ export function LearningMode() {
                 ? '球をクリック: 危険部位を選択 ｜ ドラッグ: 回転'
                 : learningTab === 'drilling' && drillScenario === 's3'
                 ? '▶ 再生で自動進行 ｜ ドラッグ: 自由回転'
+                : learningTab === 'drilling' && drillScenario === 's4'
+                ? '限界壁確認モード ｜ 骨 solid + 危険部位グロー表示 ｜ ドラッグ: 回転'
+                : learningTab === 'drilling' && drillScenario === 's5'
+                ? '削開完了後ビュー ｜ 骨 ghost で内部露出 ｜ ドラッグ: 回転'
                 : 'ドラッグ: 回転 ｜ ホイール: ズーム'}
             </div>
           </div>
@@ -1005,9 +1009,11 @@ export function LearningMode() {
                 <div className="section-title">シナリオ選択</div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                   {([
-                    { key: 's1', label: 'S1: 解剖探索', desc: '自由に観察' },
-                    { key: 's2', label: 'S2: 危険部位', desc: 'クリックで確認' },
-                    { key: 's3', label: 'S3: 削開動画', desc: '5ステップ手術' },
+                    { key: 's1', label: 'S1: 解剖探索',   desc: '自由に観察' },
+                    { key: 's2', label: 'S2: 危険部位',   desc: 'クリックで確認' },
+                    { key: 's3', label: 'S3: 削開動画',   desc: '5ステップ手術' },
+                    { key: 's4', label: 'S4: 削開範囲',   desc: '推奨限界壁' },
+                    { key: 's5', label: 'S5: 削開完了後', desc: '確認ビュー' },
                   ] as const).map(({ key, label, desc }) => (
                     <button
                       key={key}
@@ -1274,6 +1280,161 @@ export function LearningMode() {
                         }}>
                           {step.title}
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── S4: 推奨削開範囲 ── */}
+              {drillScenario === 's4' && (
+                <>
+                  <div className="card">
+                    <div className="section-title" style={{ color: '#ffd166' }}>🗺 Mastoidectomy 推奨削開範囲</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                      側頭骨削開の限界壁（限界構造）を理解することが安全な乳突腔削開の基本です。
+                      慈恵医大テキスト準拠の5限界壁を確認してください。
+                    </div>
+
+                    {[
+                      {
+                        label: '① Tegmen（天蓋）',
+                        en: 'Middle fossa dura',
+                        dir: '上方限界',
+                        color: '#ff9060',
+                        desc: '中頭蓋窩硬膜。この壁を越えると硬膜損傷・髄液漏のリスク。削開中に骨の色が黄白色に変わったら天蓋近傍のサイン。',
+                        check: '骨面がやや黄色に変わったら削開を止める',
+                      },
+                      {
+                        label: '② Sigmoid sinus（S状静脈洞）',
+                        en: 'Sigmoid sinus',
+                        dir: '後方限界',
+                        color: '#4477ff',
+                        desc: '後乳突部を走行する大静脈洞。損傷すると大量出血。骨面が青みがかった紺色のエッグシェルになったら直前のサイン。',
+                        check: '青みがかった骨面（エッグシェル）を確認したら止める',
+                      },
+                      {
+                        label: '③ Sinodural angle（乙状静脈洞—天蓋角）',
+                        en: 'Sinodural angle',
+                        dir: '後上方限界',
+                        color: '#a060ff',
+                        desc: 'Tegmenと Sigmoid sinusが交差する角。乳突腔削開の基準点であり、この角を明視野に確保することで方向感が得られる。',
+                        check: 'Sino-dural angleを明視野に露出させる（Check List必須）',
+                      },
+                      {
+                        label: '④ Digastric ridge（顎二腹筋稜）',
+                        en: 'Digastric ridge',
+                        dir: '下方限界',
+                        color: '#4ade80',
+                        desc: '乳突切痕内側の骨稜。顎二腹筋の付着部。この稜の深部に顔面神経乳突部が走行するため、稜を超えての削開は禁止。',
+                        check: '顎二腹筋稜を超えて削開しない',
+                      },
+                      {
+                        label: '⑤ Posterior canal wall（外耳道後壁）',
+                        en: 'Posterior canal wall',
+                        dir: '前方限界（保存）',
+                        color: '#60b8e0',
+                        desc: '外耳道後壁は基本的に保存する（canal wall up法）。壁を薄くしすぎると外耳道穿孔や鼓膜穿孔の原因になる。Canal wall down法では意図的に削除するが慎重な操作が必要。',
+                        check: '外耳道後壁の厚みを意識して削開する',
+                      },
+                    ].map(({ label, en, dir, color, desc, check }) => (
+                      <div key={label} style={{
+                        padding: '10px 12px', marginBottom: 8, borderRadius: 8,
+                        border: `1px solid ${color}44`,
+                        background: `${color}08`,
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${color}22`, color, border: `1px solid ${color}44` }}>{dir}</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>{en}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 6 }}>{desc}</div>
+                        <div style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 5, color: '#ffd166' }}>
+                          ✓ {check}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,209,102,0.06)', border: '1px solid rgba(255,209,102,0.2)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                      💡 3Dビューでは顔面神経（黄）と血管系（青）のグロー球が限界壁位置を示しています。
+                      骨を solid 表示にして位置関係を把握してください。
+                    </div>
+                  </div>
+
+                  {/* Körner's septum 補足 */}
+                  <div className="card">
+                    <div className="section-title">Körner's septum（ペトロ鱗骨縫合）</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                      削開を進めると Antrum に入る手前で密な蜂巣構造が認められます。
+                      これが Körner's septum（中頭蓋窩とS状静脈洞の境界骨片）です。
+                      この隔壁を確認したら、より深部の乳突洞（Antrum）に向かって削開します。
+                    </div>
+                    <div style={{ marginTop: 8, padding: '5px 8px', borderRadius: 5, background: 'rgba(255,100,100,0.07)', border: '1px solid rgba(255,100,100,0.2)', fontSize: 11, color: '#dd8080' }}>
+                      ⚠ Körner's septumを確認せずに深く削開すると迷路を損傷するリスクあり
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── S5: 削開完了後ビュー ── */}
+              {drillScenario === 's5' && (
+                <>
+                  <div className="card">
+                    <div className="section-title" style={{ color: '#4ade80' }}>✅ 削開完了後チェックリスト</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                      Mastoidectomy完了時に3Dビューで確認できる構造です。
+                      慈恵医大テキストのCheck Listに基づいて確認してください。
+                    </div>
+
+                    {[
+                      { item: 'Körner\'s septumの確認・通過', note: '密な蜂巣を確認後、乳突洞（Antrum）に到達したことを確認' },
+                      { item: '中頭蓋窩（Tegmen）の限界壁確認', note: '天蓋を明視野に露出。黄白色の骨面が目安' },
+                      { item: 'S状静脈洞（Sigmoid sinus）の限界壁確認', note: '青みがかったエッグシェル様骨面を確認' },
+                      { item: 'Sino-dural angle（乙状静脈洞—天蓋角）の露出', note: '乳突腔削開の最重要ランドマーク' },
+                      { item: '外耳道後壁をできる限り薄く削除', note: 'Canal wall up法では外耳道後壁を保存しつつ薄くする' },
+                      { item: '鼓探輪（外耳道輪）の高さを確認', note: '外耳道後壁削開の深さ制限の指標' },
+                      { item: '外側半規管（Horizontal SC）を同定', note: '3Dビューで青い構造として表示。方向感の基準になる' },
+                      { item: 'キヌタ骨短脚（Incus short process）を確認', note: 'Fossa incudisの目視確認。砧骨窩が明視野に入ったら上鼓室開放の指標' },
+                      { item: 'Fossa incudis（砧骨窩）の確認', note: '上鼓室と乳突腔の境界部位。Incus short processが見えれば上鼓室開放の準備完了' },
+                      { item: '顔面神経（水平部）の同定', note: '外側半規管の直下に走行。アブミ骨手術・後鼓室開放の際に必須の同定' },
+                    ].map(({ item, note }, i) => (
+                      <div key={i} style={{
+                        display: 'flex', gap: 10, padding: '8px 10px', marginBottom: 6,
+                        borderRadius: 7, border: '1px solid rgba(74,222,128,0.18)',
+                        background: 'rgba(74,222,128,0.05)',
+                      }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                          background: 'rgba(74,222,128,0.2)', border: '1px solid #4ade8055',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10, fontWeight: 700, color: '#4ade80',
+                        }}>
+                          {i + 1}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#4ade80', marginBottom: 2 }}>{item}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>{note}</div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 7, background: 'rgba(0,180,216,0.06)', border: '1px solid rgba(0,180,216,0.2)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                      💡 3Dビューは骨を半透明（ghost）にして内部構造を露出した状態です。
+                      顔面神経（黄）・耳小骨（金）・内耳（青）の立体的位置関係を確認してください。
+                    </div>
+                  </div>
+
+                  {/* 顔面神経走行の要約 */}
+                  <div className="card">
+                    <div className="section-title">顔面神経の走行（乳突腔内）</div>
+                    {[
+                      { seg: '迷路部（Labyrinthine）', note: '内耳道底〜膝神経節。最短・最狭窄部。血流が乏しく麻痺が起きやすい。' },
+                      { seg: '水平部（Tympanic）', note: '膝神経節〜錐体隆起。アブミ骨直上を走行。鼓室形成・アブミ骨手術の最重要危険部位。' },
+                      { seg: '乳突部（Mastoid）', note: '錐体隆起〜茎乳突孔。外側半規管直下・顎二腹筋稜内側を走行。Mastoidectomyの危険部位。' },
+                    ].map(({ seg, note }) => (
+                      <div key={seg} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#f5d820', marginBottom: 3 }}>{seg}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{note}</div>
                       </div>
                     ))}
                   </div>
