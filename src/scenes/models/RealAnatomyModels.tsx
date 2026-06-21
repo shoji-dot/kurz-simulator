@@ -116,6 +116,17 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride, highlighted 
     c.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const m = child as THREE.Mesh;
+
+        // ── 法線スムージング ──────────────────────────────────────────
+        // 医療CTセグメンテーション由来のメッシュはフラット法線が多く、
+        // 継ぎ接ぎ感の原因になる。ジオメトリをクローンして頂点法線を
+        // 再計算することで、ジオメトリを変えずに滑らかな見た目にする。
+        const geo = m.geometry.clone();
+        geo.deleteAttribute('normal');   // 既存の面法線を削除
+        geo.computeVertexNormals();      // 隣接面を平均した頂点法線を生成
+        m.geometry = geo;
+        // ────────────────────────────────────────────────────────────
+
         m.material      = mat;
         m.castShadow    = castShadow;
         m.receiveShadow = true;
