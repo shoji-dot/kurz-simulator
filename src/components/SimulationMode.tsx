@@ -1,4 +1,36 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import React, { useState, useEffect, type CSSProperties } from 'react';
+
+// ─── Error Boundary ────────────────────────────────────────────────────────
+interface EBState { hasError: boolean; message: string }
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+  static getDerivedStateFromError(error: Error): EBState {
+    return { hasError: true, message: error?.message ?? String(error) };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          height: '100%', padding: 32, color: '#ff8080', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>描画エラーが発生しました</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,128,128,0.7)', maxWidth: 400, marginBottom: 20 }}>
+            {this.state.message}
+          </div>
+          <button className="btn btn-ghost" onClick={() => this.setState({ hasError: false, message: '' })}>
+            再試行
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { useSimStore } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
@@ -132,7 +164,7 @@ function AdjRow({
   onStep: (d: number) => void;
   steps: { label: string; d: number }[];
 }) {
-  const btnStyle = (i: number): React.CSSProperties => ({
+  const btnStyle = (i: number): CSSProperties => ({
     flex: 1,
     padding: '6px 2px',
     borderRadius: 5,
@@ -342,17 +374,32 @@ function PlacementStep() {
     setSimVis((prev) => ({ ...prev, [key]: next }));
   };
 
+  // 防御的な placement フィールド取得（undefined が混入しても NaN クラッシュしない）
+  const safeP = {
+    selectedLength: placement.selectedLength ?? 2.5,
+    lateralOffset:  placement.lateralOffset  ?? 0,
+    anteriorOffset: placement.anteriorOffset ?? 0,
+    verticalOffset: placement.verticalOffset ?? 0,
+    angleTilt:      placement.angleTilt      ?? 0,
+    angleTiltZ:     placement.angleTiltZ     ?? 0,
+    dragOffsetX:    placement.dragOffsetX    ?? 0,
+    dragOffsetY:    placement.dragOffsetY    ?? 0,
+    dragOffsetZ:    placement.dragOffsetZ    ?? 0,
+  };
+
   return (
     <div className="layout-split">
       {/* 3D Scene */}
       <div className="canvas-wrapper">
+        <ErrorBoundary>
         <SimScene
           surgicalCase={selectedCase}
           product={selectedProduct}
-          placement={placement}
+          placement={safeP}
           showIdeal={showIdeal}
           vis={simVis}
         />
+        </ErrorBoundary>
         <div className="canvas-overlay top-left">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* コンテキストタグ */}
@@ -413,10 +460,10 @@ function PlacementStep() {
           {/* ── シャフト長 ── */}
           <AdjRow
             label="シャフト長"
-            value={`${placement.selectedLength.toFixed(1)} mm`}
+            value={`${safeP.selectedLength.toFixed(1)} mm`}
             onStep={(d) => {
               const lengths = selectedProduct.shaftLengths;
-              const cur = placement.selectedLength;
+              const cur = safeP.selectedLength;
               const next = parseFloat((cur + d).toFixed(1));
               if (next >= lengths[0] && next <= lengths[lengths.length - 1])
                 updatePlacement({ selectedLength: next });
@@ -434,7 +481,7 @@ function PlacementStep() {
             { key: 'anteriorOffset' as const, label: '前後',   neg: '後', pos: '前', dragKey: 'dragOffsetZ' as const },
             { key: 'verticalOffset' as const, label: '上下',   neg: '下', pos: '上', dragKey: 'dragOffsetY' as const },
           ]).map(({ key, label, neg, pos, dragKey }) => {
-            const total = (placement[key] as number) + (placement[dragKey] as number);
+            const total = safeP[key] + safeP[dragKey];
             return (
               <AdjRow
                 key={key}
@@ -443,7 +490,7 @@ function PlacementStep() {
                   total > 0.005 ? `${pos} ${total.toFixed(2)}` :
                   total < -0.005 ? `${neg} ${(-total).toFixed(2)}` : '0.00'
                 }
-                onStep={(d) => updatePlacement({ [key]: Math.max(-3, Math.min(3, (placement[key] as number) + d)) })}
+                onStep={(d) => updatePlacement({ [key]: Math.max(-3, Math.min(3, safeP[key] + d)) })}
                 steps={[
                   { label: `${neg}0.5`, d: -0.5 },
                   { label: `${neg}0.1`, d: -0.1 },
@@ -463,13 +510,13 @@ function PlacementStep() {
             { key: 'angleTilt'  as const, label: '前後傾斜', neg: '後', pos: '前' },
             { key: 'angleTiltZ' as const, label: '左右傾斜', neg: '左', pos: '右' },
           ]).map(({ key, label, neg, pos }) => {
-            const val = placement[key] as number;
+            const val = safeP[key];
             return (
               <AdjRow
                 key={key}
                 label={label}
                 value={val === 0 ? '0°' : val > 0 ? `${pos} ${val}°` : `${neg} ${-val}°`}
-                onStep={(d) => updatePlacement({ [key]: Math.max(-180, Math.min(180, (placement[key] as number) + d)) })}
+                onStep={(d) => updatePlacement({ [key]: Math.max(-180, Math.min(180, safeP[key] + d)) })}
                 steps={[
                   { label: `${neg}15°`, d: -15 },
                   { label: `${neg}5°`,  d:  -5 },
@@ -481,13 +528,13 @@ function PlacementStep() {
           })}
 
           {/* 3Dドラッグ座標（補助表示） */}
-          {(placement.dragOffsetX !== 0 || placement.dragOffsetY !== 0 || placement.dragOffsetZ !== 0) && (
+          {(safeP.dragOffsetX !== 0 || safeP.dragOffsetY !== 0 || safeP.dragOffsetZ !== 0) && (
             <div style={{ marginTop: 8, background: 'rgba(0,180,216,.07)', border: '1px solid rgba(0,180,216,.2)', borderRadius: 6, padding: '6px 10px', fontSize: 10 }}>
               <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>🖱 3Dドラッグ中</div>
               <div style={{ display: 'flex', gap: 8, fontFamily: 'monospace' }}>
-                <span>X:{placement.dragOffsetX.toFixed(2)}</span>
-                <span>Y:{placement.dragOffsetY.toFixed(2)}</span>
-                <span>Z:{placement.dragOffsetZ.toFixed(2)}</span>
+                <span>X:{safeP.dragOffsetX.toFixed(2)}</span>
+                <span>Y:{safeP.dragOffsetY.toFixed(2)}</span>
+                <span>Z:{safeP.dragOffsetZ.toFixed(2)}</span>
               </div>
               <button className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: 6, fontSize: 10 }}
                 onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}>
