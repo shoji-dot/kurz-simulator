@@ -94,7 +94,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   setSimStep: (s) => set({ simStep: s }),
   setSelectedCase: (c) => set({
     selectedCase: c,
-    placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
+    placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
     scoreResult: null,
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
