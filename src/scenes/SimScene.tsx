@@ -95,21 +95,25 @@ function PlacementMarker({ pos }: { pos: THREE.Vector3 }) {
 
 // ── ドラッグ可能プロテーゼ（TransformControls） ──────────────────────
 interface DraggableProsthesisProps {
-  product:       KurzProduct;
+  product:        KurzProduct;
   selectedLength: number;
-  basePos:       THREE.Vector3;
-  lateralOffset: number;
+  basePos:        THREE.Vector3;
+  lateralOffset:  number;
   anteriorOffset: number;
-  angleTilt:     number;
-  dragOffsetX:   number;
-  dragOffsetZ:   number;
-  orbitRef:      React.RefObject<any>;
+  verticalOffset: number;
+  angleTilt:      number;
+  angleTiltZ:     number;
+  dragOffsetX:    number;
+  dragOffsetY:    number;
+  dragOffsetZ:    number;
+  orbitRef:       React.RefObject<any>;
 }
 
 function DraggableProsthesis({
   product, selectedLength, basePos,
-  lateralOffset, anteriorOffset, angleTilt,
-  dragOffsetX, dragOffsetZ,
+  lateralOffset, anteriorOffset, verticalOffset,
+  angleTilt, angleTiltZ,
+  dragOffsetX, dragOffsetY, dragOffsetZ,
   orbitRef,
 }: DraggableProsthesisProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -121,27 +125,24 @@ function DraggableProsthesis({
     if (!tc) return;
 
     const handleDraggingChanged = (e: { value: boolean }) => {
-      // ドラッグ開始 → OrbitControls 無効
       if (e.value) {
         if (orbitRef.current) orbitRef.current.enabled = false;
         return;
       }
-      // ドラッグ終了 → OrbitControls 有効・位置を store に焼き込み
       if (orbitRef.current) orbitRef.current.enabled = true;
       const g = groupRef.current;
       if (!g) return;
       const { placement } = useSimStore.getState();
       useSimStore.getState().updatePlacement({
         dragOffsetX: clamp3(placement.dragOffsetX + g.position.x),
+        dragOffsetY: clamp3(placement.dragOffsetY + g.position.y),
         dragOffsetZ: clamp3(placement.dragOffsetZ + g.position.z),
       });
-      // グループ位置をリセット（store の値で ProsthesisModel が再描画される）
       g.position.set(0, 0, 0);
     };
 
     tc.addEventListener('dragging-changed', handleDraggingChanged);
     return () => tc.removeEventListener('dragging-changed', handleDraggingChanged);
-  // orbitRef は ref なので依存なし。意図的に空 dep
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -149,7 +150,7 @@ function DraggableProsthesis({
     <TransformControls
       ref={tcRef}
       mode="translate"
-      showY={false}
+      showX showY showZ
       size={0.65}
     >
       <group ref={groupRef}>
@@ -157,9 +158,11 @@ function DraggableProsthesis({
           product={product}
           shaftLength={selectedLength}
           basePos={basePos.clone()}
-          lateralOffset={lateralOffset + dragOffsetX}
+          lateralOffset={lateralOffset   + dragOffsetX}
+          verticalOffset={verticalOffset + dragOffsetY}
           anteriorOffset={anteriorOffset + dragOffsetZ}
           angleTilt={angleTilt}
+          angleTiltZ={angleTiltZ}
         />
       </group>
     </TransformControls>
@@ -177,7 +180,7 @@ function clamp3(v: number): number {
 export function SimScene({
   surgicalCase, product, placement, showIdeal = false, vis = {},
 }: SimSceneProps) {
-  const { selectedLength, lateralOffset, anteriorOffset, angleTilt, dragOffsetX, dragOffsetZ } = placement;
+  const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
   const isTotal = product.footType === 'FLAT';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
@@ -258,6 +261,7 @@ export function SimScene({
             product={product}
             length={surgicalCase.recommendedLength}
             idealLateralOffset={surgicalCase.idealLateralOffset}
+            idealAngle={surgicalCase.idealAngle}
           />
         )}
 
@@ -271,8 +275,11 @@ export function SimScene({
           basePos={basePos.clone()}
           lateralOffset={lateralOffset}
           anteriorOffset={anteriorOffset}
+          verticalOffset={verticalOffset}
           angleTilt={angleTilt}
+          angleTiltZ={angleTiltZ}
           dragOffsetX={dragOffsetX}
+          dragOffsetY={dragOffsetY}
           dragOffsetZ={dragOffsetZ}
           orbitRef={orbitRef}
         />

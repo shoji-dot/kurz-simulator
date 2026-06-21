@@ -360,30 +360,27 @@ function PlacementStep() {
               🖱 3D ドラッグ配置
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: 8 }}>
-              プロテーゼの矢印ハンドルをドラッグして位置を調整。<br />
-              赤=X軸（内外側）　青=Z軸（前後）
+              プロテーゼの矢印ハンドルをドラッグして位置を自由に調整。<br />
+              赤=X（内外側）　緑=Y（上下）　青=Z（前後）
             </div>
             {/* リアルタイム座標表示 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 11 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, fontSize: 11 }}>
               {[
-                ['X (内外側)', (placement.lateralOffset + placement.dragOffsetX).toFixed(2)],
-                ['Z (前後)',   (placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)],
+                ['X 内外側', (placement.lateralOffset  + placement.dragOffsetX).toFixed(2)],
+                ['Y 上下',   (placement.verticalOffset + placement.dragOffsetY).toFixed(2)],
+                ['Z 前後',   (placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)],
               ].map(([label, val]) => (
-                <div key={label} style={{
-                  background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '3px 7px',
-                }}>
+                <div key={label} style={{ background: 'rgba(0,0,0,.25)', borderRadius: 4, padding: '3px 7px' }}>
                   <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>{label}</div>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                    {val} mm
-                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{val} mm</div>
                 </div>
               ))}
             </div>
-            {(placement.dragOffsetX !== 0 || placement.dragOffsetZ !== 0) && (
+            {(placement.dragOffsetX !== 0 || placement.dragOffsetY !== 0 || placement.dragOffsetZ !== 0) && (
               <button
                 className="btn btn-ghost btn-sm"
                 style={{ width: '100%', marginTop: 8, fontSize: 11 }}
-                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetZ: 0 })}
+                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}
               >
                 ↺ ドラッグをリセット
               </button>
@@ -410,58 +407,61 @@ function PlacementStep() {
             </div>
           </div>
 
-          {/* Lateral offset (補助スライダー) */}
-          <div className="slider-group" style={{ marginBottom: 14 }}>
-            <div className="slider-label">
-              <span style={{ fontSize: 11 }}>微調整: 内外側</span>
-              <strong style={{ fontSize: 11 }}>
-                {placement.lateralOffset > 0 ? `外 ${placement.lateralOffset.toFixed(2)}mm` : placement.lateralOffset < 0 ? `内 ${(-placement.lateralOffset).toFixed(2)}mm` : '中央'}
-              </strong>
-            </div>
-            <input
-              type="range" min={-1} max={1} step={0.05}
-              value={placement.lateralOffset}
-              onChange={(e) => updatePlacement({ lateralOffset: parseFloat(e.target.value) })}
-            />
-          </div>
+          {/* 位置スライダー（3軸） */}
+          {([
+            { key: 'lateralOffset'  as const, label: '位置: 内外側', unit: ['内', '外'] },
+            { key: 'anteriorOffset' as const, label: '位置: 前後',   unit: ['後', '前'] },
+            { key: 'verticalOffset' as const, label: '位置: 上下',   unit: ['下', '上'] },
+          ]).map(({ key, label, unit }) => {
+            const val = placement[key] as number;
+            return (
+              <div key={key} className="slider-group" style={{ marginBottom: 14 }}>
+                <div className="slider-label">
+                  <span style={{ fontSize: 11 }}>{label}</span>
+                  <strong style={{ fontSize: 11 }}>
+                    {val > 0 ? `${unit[1]} ${val.toFixed(2)}mm` : val < 0 ? `${unit[0]} ${(-val).toFixed(2)}mm` : '中央'}
+                  </strong>
+                </div>
+                <input
+                  type="range" min={-3} max={3} step={0.05}
+                  value={val}
+                  onChange={(e) => updatePlacement({ [key]: parseFloat(e.target.value) })}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span>-3mm</span><span>0</span><span>+3mm</span>
+                </div>
+              </div>
+            );
+          })}
 
-          {/* Anterior offset (補助スライダー) */}
-          <div className="slider-group" style={{ marginBottom: 14 }}>
-            <div className="slider-label">
-              <span style={{ fontSize: 11 }}>微調整: 前後</span>
-              <strong style={{ fontSize: 11 }}>
-                {placement.anteriorOffset > 0 ? `前 ${placement.anteriorOffset.toFixed(2)}mm` : placement.anteriorOffset < 0 ? `後 ${(-placement.anteriorOffset).toFixed(2)}mm` : '中央'}
-              </strong>
-            </div>
-            <input
-              type="range" min={-1} max={1} step={0.05}
-              value={placement.anteriorOffset}
-              onChange={(e) => updatePlacement({ anteriorOffset: parseFloat(e.target.value) })}
-            />
-          </div>
-
-          {/* Angle tilt */}
-          <div className="slider-group" style={{ marginBottom: 16 }}>
-            <div className="slider-label">
-              <span>傾斜角 (Tilt)</span>
-              <strong>{placement.angleTilt > 0 ? `+${placement.angleTilt}°` : `${placement.angleTilt}°`}</strong>
-            </div>
-            <input
-              type="range" min={-15} max={15} step={1}
-              value={placement.angleTilt}
-              onChange={(e) => updatePlacement({ angleTilt: parseInt(e.target.value) })}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
-              <span>-15°</span>
-              <span>0° (垂直)</span>
-              <span>+15°</span>
-            </div>
-          </div>
+          {/* 傾斜角スライダー（2軸） */}
+          {([
+            { key: 'angleTilt'  as const, label: '傾斜: 前後 (Tilt)' },
+            { key: 'angleTiltZ' as const, label: '傾斜: 左右 (Roll)' },
+          ]).map(({ key, label }) => {
+            const val = placement[key] as number;
+            return (
+              <div key={key} className="slider-group" style={{ marginBottom: 14 }}>
+                <div className="slider-label">
+                  <span style={{ fontSize: 11 }}>{label}</span>
+                  <strong>{val > 0 ? `+${val}°` : `${val}°`}</strong>
+                </div>
+                <input
+                  type="range" min={-180} max={180} step={1}
+                  value={val}
+                  onChange={(e) => updatePlacement({ [key]: parseInt(e.target.value) })}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)' }}>
+                  <span>-180°</span><span>0°</span><span>+180°</span>
+                </div>
+              </div>
+            );
+          })}
 
           <button
             className="btn btn-ghost btn-sm"
             style={{ width: '100%', marginBottom: 8 }}
-            onClick={() => updatePlacement({ lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 })}
+            onClick={() => updatePlacement({ lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}
           >
             ↺ すべてリセット
           </button>

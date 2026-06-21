@@ -10,11 +10,14 @@ export const ALL_PATIENT_IDS: PatientId[] = ['A','B','C','D','E','F','G','H','I'
 
 export interface PlacementState {
   selectedLength: number;
-  lateralOffset: number;  // slider: -1 to +1 mm
-  anteriorOffset: number; // slider: -1 to +1 mm
-  angleTilt: number;      // degrees, -15 to +15
-  dragOffsetX: number;    // 3D TransformControls drag accumulated X (mm)
-  dragOffsetZ: number;    // 3D TransformControls drag accumulated Z (mm)
+  lateralOffset: number;   // slider: -3 to +3 mm (内外側)
+  anteriorOffset: number;  // slider: -3 to +3 mm (前後)
+  verticalOffset: number;  // slider: -3 to +3 mm (上下 Y軸)
+  angleTilt: number;       // degrees, -180 to +180 (前後傾斜)
+  angleTiltZ: number;      // degrees, -180 to +180 (左右傾斜)
+  dragOffsetX: number;     // 3D TransformControls drag accumulated X (mm)
+  dragOffsetY: number;     // 3D TransformControls drag accumulated Y (mm)
+  dragOffsetZ: number;     // 3D TransformControls drag accumulated Z (mm)
 }
 
 export interface ABGPrediction {
@@ -82,7 +85,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   simStep: 'case-select',
   selectedCase: null,
   selectedProduct: null,
-  placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
+  placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
   scoreResult: null,
   highlightedStructure: null,
 
@@ -103,16 +106,18 @@ export const useSimStore = create<SimStore>((set, get) => ({
     const { selectedCase, placement } = get();
     if (!selectedCase) return;
 
-    const { selectedLength, lateralOffset, anteriorOffset, angleTilt, dragOffsetX, dragOffsetZ } = placement;
+    const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
     const { recommendedLength, idealAngle, idealLateralOffset } = selectedCase;
 
     // 合計オフセット（スライダー + 3Dドラッグ）
-    const totalLateral  = lateralOffset + dragOffsetX;
-    const totalAnterior = anteriorOffset + dragOffsetZ;
+    const totalLateral   = lateralOffset   + dragOffsetX;
+    const totalAnterior  = anteriorOffset  + dragOffsetZ;
+    const totalVertical  = verticalOffset  + dragOffsetY;
 
     // 症例別理想位置からの偏差で評価（理想が0でない症例を正しく採点）
-    const lateralDeviation  = totalLateral  - idealLateralOffset;
-    const anteriorDeviation = totalAnterior; // 前後の理想は全症例0
+    const lateralDeviation   = totalLateral  - idealLateralOffset;
+    const anteriorDeviation  = totalAnterior; // 前後の理想は全症例0
+    const verticalDeviation  = totalVertical; // 上下の理想は全症例0（底板・アブミ骨頭基準）
 
     // Size score (25pts)
     const lengthDiff = Math.abs(selectedLength - recommendedLength);
@@ -122,12 +127,14 @@ export const useSimStore = create<SimStore>((set, get) => ({
     else if (lengthDiff <= 1.5) sizeScore = 5;
     else sizeScore = 0;
 
-    // Position score (25pts) — 症例別 idealLateralOffset 基準
-    const posMag = Math.sqrt(lateralDeviation ** 2 + anteriorDeviation ** 2);
+    // Position score (25pts) — 症例別 idealLateralOffset 基準（3軸）
+    const posMag = Math.sqrt(lateralDeviation ** 2 + anteriorDeviation ** 2 + verticalDeviation ** 2);
     let positionScore = Math.round(25 * Math.max(0, 1 - posMag * 1.5));
 
-    // Angle score (25pts)
-    const angleDiff = Math.abs(angleTilt - idealAngle);
+    // Angle score (25pts) — 前後傾斜 + 左右傾斜の合成
+    const angleDiffX = Math.abs(angleTilt  - idealAngle);
+    const angleDiffZ = Math.abs(angleTiltZ); // 左右傾斜の理想は全症例0°
+    const angleDiff  = Math.sqrt(angleDiffX ** 2 + angleDiffZ ** 2);
     let angleScore = 0;
     if (angleDiff <= 3) angleScore = 25;
     else if (angleDiff <= 7) angleScore = 18;
@@ -144,7 +151,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     const feedback: string[] = [];
     if (sizeScore < 25) feedback.push(`シャフト長：${selectedLength}mm → 推奨は${recommendedLength}mm（差${lengthDiff.toFixed(1)}mm）`);
     if (positionScore < 20) feedback.push(`配置位置：理想位置から${posMag.toFixed(2)}mmのずれ（内外側理想: ${idealLateralOffset > 0 ? '+' : ''}${idealLateralOffset.toFixed(1)}mm）。`);
-    if (angleScore < 20) feedback.push(`傾斜角：${angleTilt}° → 理想は${idealAngle}°。`);
+    if (angleScore < 20) feedback.push(`傾斜角：前後${angleTilt}° 左右${angleTiltZ}° → 理想は前後${idealAngle}° 左右0°。`);
     if (stabilityScore < 20) feedback.push('安定性：位置または角度を最適化して安定性を改善。');
     if (total >= 90) feedback.push('✓ 優秀な設置です。臨床でそのまま使用できるレベルです。');
     else if (total >= 75) feedback.push('✓ 良好な設置です。微調整でさらに改善できます。');
@@ -201,7 +208,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     simStep: 'case-select',
     selectedCase: null,
     selectedProduct: null,
-    placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, angleTilt: 0, dragOffsetX: 0, dragOffsetZ: 0 },
+    placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
     scoreResult: null,
   }),
 

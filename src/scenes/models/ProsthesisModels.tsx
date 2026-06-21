@@ -276,14 +276,16 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
 // ProsthesisModel  -- assembles shaft + head plate + foot
 // ================================================================
 interface ProsthesisProps {
-  product:         KurzProduct;
-  shaftLength:     number;
-  basePos?:        THREE.Vector3;
-  direction?:      THREE.Vector3;
-  lateralOffset?:  number;
-  anteriorOffset?: number;
-  angleTilt?:      number;
-  ghost?:          boolean;
+  product:          KurzProduct;
+  shaftLength:      number;
+  basePos?:         THREE.Vector3;
+  direction?:       THREE.Vector3;
+  lateralOffset?:   number;
+  anteriorOffset?:  number;
+  verticalOffset?:  number;  // Y軸オフセット（上下）
+  angleTilt?:       number;  // 前後傾斜 degrees（-180〜+180）
+  angleTiltZ?:      number;  // 左右傾斜 degrees（-180〜+180）
+  ghost?:           boolean;
 }
 
 export function ProsthesisModel({
@@ -293,12 +295,15 @@ export function ProsthesisModel({
   direction,
   lateralOffset  = 0,
   anteriorOffset = 0,
+  verticalOffset = 0,
   angleTilt      = 0,
+  angleTiltZ     = 0,
   ghost          = false,
 }: ProsthesisProps) {
 
   const base = (basePos ?? (product.footType === 'FLAT' ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
   base.x += lateralOffset;
+  base.y += verticalOffset;
   base.z += anteriorOffset;
 
   const dir = direction
@@ -312,14 +317,15 @@ export function ProsthesisModel({
   const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   const euler = new THREE.Euler().setFromQuaternion(quat);
 
-  const tiltRad = (angleTilt * Math.PI) / 180;
+  const tiltXRad = (angleTilt  * Math.PI) / 180;  // 前後傾斜
+  const tiltZRad = (angleTiltZ * Math.PI) / 180;  // 左右傾斜
   const headOff = len / 2 + 0.15;
   const footOff = -(len / 2);   // foot connects flush to shaft bottom
 
   return (
     <group
       position={[mid.x, mid.y, mid.z]}
-      rotation={[euler.x + tiltRad, euler.y, euler.z]}
+      rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
     >
       {/* Head plate  3.6 mm diam, fenestrated */}
       <group position={[0, headOff, 0]}>
@@ -347,16 +353,19 @@ export function IdealGhostProsthesis({
   product,
   length,
   idealLateralOffset = 0,
+  idealAngle = 0,
 }: {
   product: KurzProduct;
   length:  number;
   idealLateralOffset?: number;
+  idealAngle?: number;
 }) {
   return (
     <ProsthesisModel
       product={product}
       shaftLength={length}
       lateralOffset={idealLateralOffset}
+      angleTilt={idealAngle}
       ghost={true}
     />
   );
