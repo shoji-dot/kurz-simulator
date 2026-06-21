@@ -79,6 +79,68 @@ const procedures = [
   },
 ];
 
+// ── 解剖学習コース定義（4レベル）────────────────────────────────────
+const ANATOMY_COURSES = [
+  {
+    level: 1,
+    title: 'Level 1：外耳道・鼓膜・中耳腔',
+    goal: '外耳道から鼓室への空間的連続性を理解する',
+    vis: { bone: 'ghost', eac: 'solid', tympanic: 'solid', auricle: 'hidden',
+           malleus: 'ghost', incus: 'hidden', stapes: 'hidden',
+           facialNerve: 'hidden', chordaTympani: 'hidden', innerEar: 'hidden', roundWindow: 'hidden' } as VisibilityMap,
+    quiz: {
+      question: '鼓膜は外耳道の長軸に対してほぼ垂直（90°）に位置しているか？',
+      options: ['はい（ほぼ垂直）', 'いいえ（約55°の傾斜がある）'],
+      correct: 1,
+      explanation: '鼓膜は外耳道の長軸に対して約55°傾いています。この傾きにより後上方が「ツチ骨臍」として最深部となります。内視鏡や顕微鏡の挿入角度に影響します。',
+    },
+  },
+  {
+    level: 2,
+    title: 'Level 2：耳小骨連鎖と音伝達',
+    goal: '3骨の配置関係と音響伝達経路を立体的に把握する',
+    vis: { bone: 'ghost', eac: 'ghost', tympanic: 'ghost', auricle: 'hidden',
+           malleus: 'solid', incus: 'solid', stapes: 'solid',
+           facialNerve: 'hidden', chordaTympani: 'hidden', innerEar: 'ghost', roundWindow: 'hidden' } as VisibilityMap,
+    quiz: {
+      question: '慢性中耳炎でキヌタ骨長突起が欠損した場合、最も音伝達が途絶えやすい部位はどこか？',
+      options: ['ツチ骨柄〜鼓膜接合部', 'キヌタ骨長突起〜アブミ骨頭部の間', 'アブミ骨底板〜卵円窓の間'],
+      correct: 1,
+      explanation: 'キヌタ骨長突起尖端（レンズ状突起）とアブミ骨頭部の接合部（砧鐙関節）が最も壊死しやすい部位です。この部位の断絶がPORPの主な適応となります。',
+    },
+  },
+  {
+    level: 3,
+    title: 'Level 3：顔面神経・鼓索神経',
+    goal: 'プロテーゼ設置経路と危険構造の立体的位置関係を学ぶ',
+    vis: { bone: 'ghost', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
+           malleus: 'ghost', incus: 'hidden', stapes: 'ghost',
+           facialNerve: 'solid', chordaTympani: 'solid', innerEar: 'hidden', roundWindow: 'hidden' } as VisibilityMap,
+    quiz: {
+      question: '顔面神経水平部（鼓室部）はアブミ骨に対してどの方向に走行するか？',
+      options: ['アブミ骨の前方', 'アブミ骨の直上（上方）', 'アブミ骨の内側（蝸牛側）'],
+      correct: 1,
+      explanation: '顔面神経水平部はアブミ骨の直上を走行します。TORPやアブミ骨手術では顔面神経との距離確認が最重要ステップです。顔面神経骨管が薄い症例では特に注意が必要です。',
+    },
+  },
+  {
+    level: 4,
+    title: 'Level 4：内耳・卵円窓・正円窓',
+    goal: 'アブミ骨底板から内耳への振動伝達経路と正円窓の役割を理解する',
+    vis: { bone: 'ghost', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
+           malleus: 'hidden', incus: 'hidden', stapes: 'ghost',
+           facialNerve: 'ghost', chordaTympani: 'hidden', innerEar: 'solid', roundWindow: 'solid' } as VisibilityMap,
+    quiz: {
+      question: 'TORPフット部が卵円窓中央から偏心して設置された場合の主なリスクは？',
+      options: ['鼓膜穿孔', '術後めまい・内耳障害（外リンパ瘻）', 'プロテーゼの腐食'],
+      correct: 1,
+      explanation: 'TORPフット部の偏心は卵円窓縁への機械的刺激を引き起こし、外リンパ瘻や感音難聴のリスクとなります。フット部は底板の中央に設置することが鉄則です。',
+    },
+  },
+] as const;
+
+type CourseLevel = 0 | 1 | 2 | 3 | 4;
+
 // ── ビューモード定義 ──────────────────────────────────────────────
 const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[] = [
   { mode: 'normal',     icon: '👁',  label: '通常',   desc: '標準3Dビュー' },
@@ -97,6 +159,25 @@ export function LearningMode() {
     const curr = vis[key] ?? DEFAULT_MODES[key];
     const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
     setVis(v => ({ ...v, [key]: next }));
+  };
+
+  // ── 解剖学習コース状態 ──────────────────────────────────────────
+  const [courseLevel, setCourseLevel] = useState<CourseLevel>(0);
+  const [courseQuizSelected, setCourseQuizSelected] = useState<number | null>(null);
+  const [courseQuizSubmitted, setCourseQuizSubmitted] = useState(false);
+
+  const activateCourse = (level: CourseLevel) => {
+    if (level === 0) {
+      setCourseLevel(0);
+      setCourseQuizSelected(null);
+      setCourseQuizSubmitted(false);
+      return;
+    }
+    const course = ANATOMY_COURSES[level - 1];
+    setCourseLevel(level);
+    setCourseQuizSelected(null);
+    setCourseQuizSubmitted(false);
+    setVis({ ...course.vis });
   };
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
 
@@ -559,6 +640,121 @@ export function LearningMode() {
                   </p>
                 </div>
               )}
+
+              {/* ── 解剖学習コース ── */}
+              <div className="card">
+                <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>📚 解剖学習コース</span>
+                  {courseLevel > 0 && (
+                    <button
+                      onClick={() => activateCourse(0)}
+                      style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    >
+                      自由探索に戻る
+                    </button>
+                  )}
+                </div>
+
+                {/* レベル選択ボタン */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: courseLevel > 0 ? 12 : 0 }}>
+                  {ANATOMY_COURSES.map((c) => {
+                    const isActive = courseLevel === c.level;
+                    return (
+                      <button
+                        key={c.level}
+                        onClick={() => activateCourse(isActive ? 0 : c.level as CourseLevel)}
+                        style={{
+                          padding: '8px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                          border: `1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
+                          background: isActive ? 'rgba(0,180,216,0.12)' : 'rgba(255,255,255,0.03)',
+                          color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                          fontSize: 12, fontWeight: isActive ? 700 : 400,
+                          transition: 'all .15s',
+                        }}
+                      >
+                        <div>{c.title}</div>
+                        {isActive && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>🎯 {c.goal}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* アクティブコースのクイズ */}
+                {courseLevel > 0 && (() => {
+                  const course = ANATOMY_COURSES[courseLevel - 1];
+                  const quiz = course.quiz;
+                  const isCorrect = courseQuizSelected === quiz.correct;
+                  return (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
+                      <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700, marginBottom: 8 }}>
+                        🧠 確認クイズ
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 10, lineHeight: 1.5 }}>
+                        {quiz.question}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {quiz.options.map((opt, i) => {
+                          const isSelected = courseQuizSelected === i;
+                          const showResult = courseQuizSubmitted;
+                          const isCorrectOpt = i === quiz.correct;
+                          let bg = 'rgba(255,255,255,0.04)';
+                          let border = 'rgba(255,255,255,0.12)';
+                          let color = 'var(--text-secondary)';
+                          if (showResult && isCorrectOpt) { bg = 'rgba(74,222,128,0.12)'; border = '#4ade80'; color = '#4ade80'; }
+                          else if (showResult && isSelected && !isCorrectOpt) { bg = 'rgba(255,100,100,0.1)'; border = '#ff8080'; color = '#ff8080'; }
+                          else if (!showResult && isSelected) { bg = 'rgba(0,180,216,0.15)'; border = 'var(--accent)'; color = 'var(--accent)'; }
+                          return (
+                            <div
+                              key={i}
+                              onClick={() => !courseQuizSubmitted && setCourseQuizSelected(i)}
+                              style={{ padding: '8px 12px', borderRadius: 6, cursor: courseQuizSubmitted ? 'default' : 'pointer',
+                                border: `1px solid ${border}`, background: bg, color, fontSize: 12, transition: 'all .15s' }}
+                            >
+                              {opt}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!courseQuizSubmitted ? (
+                        <button
+                          className="btn btn-primary"
+                          disabled={courseQuizSelected === null}
+                          style={{ width: '100%', marginTop: 10, opacity: courseQuizSelected !== null ? 1 : 0.4 }}
+                          onClick={() => setCourseQuizSubmitted(true)}
+                        >
+                          回答する
+                        </button>
+                      ) : (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#4ade80' : '#ff8080', marginBottom: 6 }}>
+                            {isCorrect ? '✅ 正解！' : '❌ 不正解'}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+                            {quiz.explanation}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button
+                              style={{ flex: 1, padding: '6px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}
+                              onClick={() => { setCourseQuizSelected(null); setCourseQuizSubmitted(false); }}
+                            >
+                              もう一度
+                            </button>
+                            {courseLevel < 4 && (
+                              <button
+                                className="btn btn-primary"
+                                style={{ flex: 1, fontSize: 11 }}
+                                onClick={() => activateCourse((courseLevel + 1) as CourseLevel)}
+                              >
+                                次のレベルへ →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
 
               <div className="card">
                 <div className="section-title">構造を選択してハイライト</div>

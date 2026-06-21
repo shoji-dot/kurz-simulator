@@ -3,7 +3,7 @@ import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
 
 export type Screen = 'home' | 'learning' | 'simulation' | 'surgical' | 'stepflow';
-export type SimStep = 'case-select' | 'product-select' | 'placement' | 'score';
+export type SimStep = 'case-select' | 'judgment' | 'product-select' | 'shaft-estimate' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
 export type PatientId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T';
 export const ALL_PATIENT_IDS: PatientId[] = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
@@ -31,6 +31,13 @@ export interface ABGPrediction {
   clinicalInterpretation: string;
 }
 
+export interface JudgmentResult {
+  typeAnswer: string;
+  typeCorrect: boolean;
+  productAnswer: string;
+  productCorrect: boolean;
+}
+
 export interface ScoreResult {
   sizeScore: number;
   positionScore: number;
@@ -51,6 +58,7 @@ interface SimStore {
   selectedProduct: KurzProduct | null;
   placement: PlacementState;
   scoreResult: ScoreResult | null;
+  judgmentResult: JudgmentResult | null;
   highlightedStructure: string | null;
   drillStep: number;
   /** 選択中の患者ID（耳介バリエーション） */
@@ -62,6 +70,7 @@ interface SimStore {
   setSelectedCase: (c: SurgicalCase) => void;
   setSelectedProduct: (p: KurzProduct) => void;
   updatePlacement: (p: Partial<PlacementState>) => void;
+  setJudgmentResult: (r: JudgmentResult) => void;
   computeScore: () => void;
   resetSimulation: () => void;
   setHighlightedStructure: (s: string | null) => void;
@@ -87,6 +96,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   selectedProduct: null,
   placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
   scoreResult: null,
+  judgmentResult: null,
   highlightedStructure: null,
 
   setScreen: (s) => set({ screen: s }),
@@ -99,6 +109,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
+  setJudgmentResult: (r) => set({ judgmentResult: r }),
   setHighlightedStructure: (s) => set({ highlightedStructure: s }),
   setDrillStep: (n) => set({ drillStep: n }),
 
@@ -210,6 +221,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     selectedProduct: null,
     placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
     scoreResult: null,
+    judgmentResult: null,
   }),
 
   setSelectedPatientId: (id) => set({ selectedPatientId: id }),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, type CSSProperties } from 'react';
+import React, { useState, useEffect, useMemo, type CSSProperties } from 'react';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; message: string }
@@ -31,8 +31,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
     return this.props.children;
   }
 }
-import { useSimStore } from '../store/useSimStore';
-import { surgicalCases } from '../data/cases';
+import { useSimStore, type JudgmentResult } from '../store/useSimStore';
+import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode } from '../scenes/SimScene';
 import {
@@ -257,9 +257,259 @@ function CaseSelect() {
         <button
           className="btn btn-primary"
           disabled={!selectedCase}
-          onClick={() => setSimStep('product-select')}
+          onClick={() => setSimStep('judgment')}
         >
           次へ: 製品選択 →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 1.5: Judgment (適応判断クイズ) ────────────────────────────────────
+
+/** 症例タグから鼓室形成型を導出 */
+function deriveSurgicalType(sc: SurgicalCase): string {
+  const procs = sc.tags.procedure;
+  if (procs.some(p => p.includes('IV型'))) return 'IV型';
+  if (procs.some(p => p.includes('III型'))) return 'III型';
+  if (procs.some(p => p.includes('II型'))) return 'II型';
+  if (procs.some(p => p.includes('アブミ骨') || p.includes('Stapedotomy'))) return 'アブミ骨手術';
+  return 'その他';
+}
+
+/** recommendedProductId からプロテーゼ種別を導出 */
+function deriveProsthesisType(productId: string): string {
+  if (productId.includes('torp')) return 'TORP';
+  if (productId.includes('clip')) return 'Clip PORP';
+  return 'PORP';
+}
+
+/** 症例の ossicularStatus から確認すべき解剖構造を導出 */
+function deriveFocusStructures(sc: SurgicalCase): { key: string; label: string; reason: string }[] {
+  const structures: { key: string; label: string; reason: string }[] = [
+    { key: 'facialNerve', label: '顔面神経', reason: 'プロテーゼ設置の最重要危険構造。水平部はアブミ骨直上を走行。' },
+    { key: 'chordaTympani', label: '鼓索神経', reason: 'ツチ骨柄内側を通過。PORP設置経路と交差することがある。' },
+  ];
+  if (sc.ossicularStatus.stapes === 'footplate-only') {
+    structures.push({ key: 'stapes', label: 'アブミ骨底板', reason: 'TORPフット部の設置目標。底板中央への設置が必須。' });
+    structures.push({ key: 'innerEar', label: '卵円窓・内耳', reason: '底板偏心で内耳障害のリスクあり。' });
+  } else if (sc.ossicularStatus.stapes === 'suprastructure') {
+    structures.push({ key: 'stapes', label: 'アブミ骨上部構造', reason: 'PORPのベル型フット設置目標。頭部の可動性を確認。' });
+  }
+  return structures;
+}
+
+/** 選択肢をシャッフル（Fisher-Yates） */
+function shuffled<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+type JudgmentPhase = 'anatomy-guide' | 'quiz' | 'result';
+
+function JudgmentStep() {
+  const { selectedCase, setSimStep, setJudgmentResult } = useSimStore();
+  const [phase, setPhase] = useState<JudgmentPhase>('anatomy-guide');
+
+  // クイズ状態
+  const [typeSelected,    setTypeSelected]    = useState<string | null>(null);
+  const [productSelected, setProductSelected] = useState<string | null>(null);
+
+  // useMemo は早期 return の前に呼ぶ（Rules of Hooks）
+  const caseId         = selectedCase?.id ?? '';
+  const typeOptions    = useMemo(() => shuffled(['II型', 'III型', 'IV型', 'アブミ骨手術']), [caseId]);
+  const productOptions = useMemo(() => shuffled(['PORP', 'TORP', 'Clip PORP']),            [caseId]);
+
+  if (!selectedCase) return null;
+
+  const correctType     = deriveSurgicalType(selectedCase);
+  const correctProduct  = deriveProsthesisType(selectedCase.recommendedProductId);
+  const focusStructures = deriveFocusStructures(selectedCase);
+
+  const typeCorrect    = typeSelected === correctType;
+  const productCorrect = productSelected === correctProduct;
+  const canSubmit      = typeSelected !== null && productSelected !== null;
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    const result: JudgmentResult = {
+      typeAnswer: typeSelected!,
+      typeCorrect,
+      productAnswer: productSelected!,
+      productCorrect,
+    };
+    setJudgmentResult(result);
+    setPhase('result');
+  }
+
+  // ── 解剖確認ガイド画面 ──
+  if (phase === 'anatomy-guide') {
+    return (
+      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+        <div className="card">
+          <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
+            🔬 術前解剖確認
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            {selectedCase.title}に進む前に、以下の解剖構造を3Dビューで確認してください。
+          </div>
+          {focusStructures.map(s => (
+            <div key={s.key} style={{
+              padding: '10px 14px', marginBottom: 8, borderRadius: 8,
+              background: 'rgba(0,180,216,0.08)', border: '1px solid rgba(0,180,216,0.25)',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                {s.reason}
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            💡 解剖タブで各構造を solid / ghost / hidden に切り替えて立体位置を確認してから次に進むことを推奨します。
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('case-select')}>← 戻る</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setPhase('quiz')}>
+            確認完了 → 判断クイズへ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 判断クイズ画面 ──
+  if (phase === 'quiz') {
+    const optionStyle = (opt: string, selected: string | null): CSSProperties => ({
+      padding: '10px 16px', marginBottom: 8, borderRadius: 8, cursor: 'pointer',
+      border: `1px solid ${selected === opt ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
+      background: selected === opt ? 'rgba(0,180,216,0.15)' : 'rgba(255,255,255,0.04)',
+      color: selected === opt ? 'var(--accent)' : 'var(--text-secondary)',
+      fontSize: 13, fontWeight: selected === opt ? 700 : 400,
+      transition: 'all .15s',
+    });
+
+    return (
+      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+        {/* 症例サマリ */}
+        <div className="card" style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>症例情報</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {selectedCase.description}
+          </div>
+          <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {(['malleus', 'incus', 'stapes'] as const).map(bone => {
+              const status = selectedCase.ossicularStatus[bone];
+              const labels: Record<string, string> = { malleus: 'ツチ骨', incus: 'キヌタ骨', stapes: 'アブミ骨' };
+              const statusLabel: Record<string, string> = {
+                intact: '正常', partial: '部分', absent: '欠損',
+                suprastructure: '上部構造あり', 'footplate-only': '底板のみ',
+              };
+              const color = status === 'intact' ? '#4ade80' : status === 'absent' || status === 'footplate-only' ? '#ff6666' : '#ffd166';
+              return (
+                <div key={bone} style={{
+                  padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                  background: `${color}18`, border: `1px solid ${color}55`, color,
+                }}>
+                  {labels[bone]}：{statusLabel[status] ?? status}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Q1: 鼓室形成型 */}
+        <div className="card">
+          <div className="section-title">Q1. この症例の鼓室形成型は？</div>
+          {typeOptions.map(opt => (
+            <div key={opt} style={optionStyle(opt, typeSelected)} onClick={() => setTypeSelected(opt)}>
+              {opt}
+            </div>
+          ))}
+        </div>
+
+        {/* Q2: プロテーゼ種別 */}
+        <div className="card">
+          <div className="section-title">Q2. 適切なプロテーゼ種類は？</div>
+          {productOptions.map(opt => (
+            <div key={opt} style={optionStyle(opt, productSelected)} onClick={() => setProductSelected(opt)}>
+              {opt}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setPhase('anatomy-guide')}>← 解剖確認に戻る</button>
+          <button
+            className="btn btn-primary" style={{ flex: 1, opacity: canSubmit ? 1 : 0.4 }}
+            disabled={!canSubmit}
+            onClick={handleSubmit}
+          >
+            回答する
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 結果フィードバック画面 ──
+  const ResultBadge = ({ correct, label, answer, correct_answer }: { correct: boolean; label: string; answer: string; correct_answer: string }) => (
+    <div style={{
+      padding: '12px 16px', marginBottom: 12, borderRadius: 8,
+      background: correct ? 'rgba(74,222,128,0.08)' : 'rgba(255,100,100,0.08)',
+      border: `1px solid ${correct ? 'rgba(74,222,128,0.35)' : 'rgba(255,100,100,0.35)'}`,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 16 }}>{correct ? '✅' : '❌'}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: correct ? '#4ade80' : '#ff8080' }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        あなたの回答：<span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{answer}</span>
+        {!correct && (
+          <span> → 正解：<span style={{ color: '#4ade80', fontWeight: 700 }}>{correct_answer}</span></span>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+      <div className="card">
+        <div className="section-title" style={{ marginBottom: 16 }}>
+          {typeCorrect && productCorrect ? '🎉 完全正解！' : typeCorrect || productCorrect ? '⚡ 部分正解' : '📚 要復習'}
+        </div>
+        <ResultBadge
+          correct={typeCorrect}
+          label="Q1. 鼓室形成型"
+          answer={typeSelected!}
+          correct_answer={correctType}
+        />
+        <ResultBadge
+          correct={productCorrect}
+          label="Q2. プロテーゼ種別"
+          answer={productSelected!}
+          correct_answer={correctProduct}
+        />
+        {/* Teaching point（最初の1件だけ表示） */}
+        {selectedCase.teachingPoints[0] && (
+          <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            💡 {selectedCase.teachingPoints[0]}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setPhase('quiz'); setSubmitted(false); setTypeSelected(null); setProductSelected(null); }}>
+          やり直す
+        </button>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>
+          プロテーゼ選択へ →
         </button>
       </div>
     </div>
@@ -346,10 +596,133 @@ function ProductSelect() {
         <button
           className="btn btn-primary"
           disabled={!selectedProduct || selectedLength === null}
-          onClick={() => setSimStep('placement')}
+          onClick={() => setSimStep('shaft-estimate')}
         >
-          次へ: 配置調整 →
+          次へ: サイズ確認 →
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 2.5: Shaft Length Estimation ────────────────────────────────────
+function ShaftEstimateStep() {
+  const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep } = useSimStore();
+  const [estimated, setEstimated] = useState<number | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!selectedCase || !selectedProduct) return null;
+
+  const recommended = selectedCase.recommendedLength;
+  const selected    = placement.selectedLength;
+  const diff        = estimated !== null ? Math.abs(estimated - recommended) : null;
+
+  // 推定精度評価
+  const getEstimateGrade = (d: number) => {
+    if (d <= 0.5) return { label: '優秀', color: '#4ade80', comment: '臨床的に許容範囲内の推定です。' };
+    if (d <= 1.0) return { label: '良好', color: '#60b8e0', comment: '1mm以内の誤差。術中サイザーで微調整できます。' };
+    if (d <= 1.5) return { label: '要改善', color: '#ffd166', comment: '1.5mm以上の誤差。術前CT計測を再確認してください。' };
+    return { label: '不十分', color: '#ff6666', comment: '2mm以上の誤差。音伝達効率に影響します。シャフト長の計測方法を復習してください。' };
+  };
+
+  // 長さ候補（選択製品のshaftLengthsを使用）
+  const lengthOptions = selectedProduct.shaftLengths;
+
+  return (
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+      <div className="card">
+        <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
+          📏 シャフト長 推定トレーニング
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
+          術中サイザーを使う前に、CT所見と症例情報から<strong style={{ color: 'var(--text-primary)' }}>何mmが最適か</strong>を推定してください。
+        </div>
+
+        {/* 症例参考情報 */}
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>症例参考情報</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+            {selectedCase.clinicalNotes}
+          </div>
+        </div>
+
+        {/* 推定入力（まだ未回答の場合） */}
+        {!submitted ? (
+          <>
+            <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 10 }}>
+              あなたの推定サイズを選択してください：
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {lengthOptions.map(l => (
+                <button
+                  key={l}
+                  onClick={() => setEstimated(l)}
+                  style={{
+                    padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                    border: `2px solid ${estimated === l ? 'var(--accent)' : 'rgba(255,255,255,0.15)'}`,
+                    background: estimated === l ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.04)',
+                    color: estimated === l ? 'var(--accent)' : 'var(--text-secondary)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {l} mm
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={estimated === null}
+              style={{ width: '100%', opacity: estimated !== null ? 1 : 0.4 }}
+              onClick={() => setSubmitted(true)}
+            >
+              推定を確定する
+            </button>
+          </>
+        ) : (
+          /* 推定後フィードバック */
+          <>
+            {diff !== null && (() => {
+              const grade = getEstimateGrade(diff);
+              return (
+                <div style={{ padding: '14px 16px', borderRadius: 8, background: `${grade.color}10`, border: `1px solid ${grade.color}40`, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>あなたの推定</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: grade.color }}>{estimated} mm</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>術中実測値（正解）</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: '#4ade80' }}>{recommended} mm</div>
+                    </div>
+                    <div style={{ padding: '4px 12px', borderRadius: 999, background: `${grade.color}22`, border: `1px solid ${grade.color}55`, fontSize: 12, fontWeight: 700, color: grade.color }}>
+                      {grade.label}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    誤差：<strong style={{ color: grade.color }}>{diff === 0 ? '±0 mm（完全一致）' : `${diff.toFixed(1)} mm`}</strong>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {grade.comment}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 8 }}>
+              💡 実際に選択したサイズ（<strong style={{ color: 'var(--text-secondary)' }}>{selected} mm</strong>）で配置を行います。
+              推定と異なる場合は「プロテーゼ選択に戻る」で変更できます。
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>← プロテーゼ選択に戻る</button>
+        {submitted && (
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>
+            配置調整へ →
+          </button>
+        )}
       </div>
     </div>
   );
@@ -630,7 +1003,7 @@ function PlacementStep() {
 
 // ─── Step 4: Score ────────────────────────────────────────────────────────
 function ScoreStep() {
-  const { selectedCase, selectedProduct, placement, scoreResult, resetSimulation, setSimStep, setScreen } = useSimStore();
+  const { selectedCase, selectedProduct, placement, scoreResult, judgmentResult, resetSimulation, setSimStep, setScreen } = useSimStore();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   useEffect(() => {
@@ -736,6 +1109,24 @@ function ScoreStep() {
         </div>
       )}
 
+      {judgmentResult && (
+        <div className="card">
+          <div className="section-title">適応判断 結果</div>
+          {[
+            { label: '鼓室形成型', correct: judgmentResult.typeCorrect, answer: judgmentResult.typeAnswer },
+            { label: 'プロテーゼ', correct: judgmentResult.productCorrect, answer: judgmentResult.productAnswer },
+          ].map(({ label, correct, answer }) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: correct ? '#4ade80' : '#ff8080' }}>{correct ? '✅ 正解' : '❌ 不正解'}</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>（{answer}）</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {history.length > 1 && (
         <div className="card">
           <div className="section-title">スコア履歴（直近{Math.min(history.length, 5)}件）</div>
@@ -765,10 +1156,12 @@ function ScoreStep() {
 export function SimulationMode() {
   const { simStep } = useSimStore();
   switch (simStep) {
-    case 'case-select':    return <CaseSelect />;
-    case 'product-select': return <ProductSelect />;
-    case 'placement':      return <PlacementStep />;
-    case 'score':          return <ScoreStep />;
-    default:               return <CaseSelect />;
+    case 'case-select':     return <CaseSelect />;
+    case 'judgment':        return <JudgmentStep />;
+    case 'product-select':  return <ProductSelect />;
+    case 'shaft-estimate':  return <ShaftEstimateStep />;
+    case 'placement':       return <PlacementStep />;
+    case 'score':           return <ScoreStep />;
+    default:                return <CaseSelect />;
   }
 }
