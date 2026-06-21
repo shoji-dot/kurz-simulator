@@ -5,7 +5,8 @@ import type { SurgicalCase } from '../data/cases';
 export type Screen = 'home' | 'learning' | 'simulation' | 'surgical' | 'stepflow';
 export type SimStep = 'case-select' | 'product-select' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
-export type PatientId = 'J' | 'T' | 'A' | 'H' | 'E';
+export type PatientId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T';
+export const ALL_PATIENT_IDS: PatientId[] = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
 export interface PlacementState {
   selectedLength: number;

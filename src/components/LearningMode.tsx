@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
-import { useSimStore } from '../store/useSimStore';
+import { useSimStore, ALL_PATIENT_IDS } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
 import type { ViewMode } from '../scenes/AnatomyScene';
@@ -88,7 +88,7 @@ const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[
 
 // ══════════════════════════════════════════════════════════════════
 export function LearningMode() {
-  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
+  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId, setSelectedPatientId } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 3D表示モード
@@ -238,8 +238,8 @@ export function LearningMode() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
-      {/* Tabs */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center' }}>
+      {/* Tabs + Patient selector */}
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div className="tabs">
           {TAB_LIST.map(({ key, label }) => (
             <button
@@ -253,6 +253,28 @@ export function LearningMode() {
               {label}
             </button>
           ))}
+        </div>
+
+        {/* 患者プロファイル選択 */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>👤 患者</span>
+          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {ALL_PATIENT_IDS.map(id => (
+              <button
+                key={id}
+                onClick={() => setSelectedPatientId(id)}
+                style={{
+                  width: 26, height: 26, borderRadius: 5, fontSize: 11, fontWeight: selectedPatientId === id ? 700 : 400,
+                  border: `1px solid ${selectedPatientId === id ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
+                  background: selectedPatientId === id ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.04)',
+                  color: selectedPatientId === id ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer', transition: 'all .12s',
+                }}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
