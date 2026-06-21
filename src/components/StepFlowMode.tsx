@@ -399,8 +399,10 @@ function SummaryPanel({
   onHome: () => void;
 }) {
   const { scoreResult } = useSimStore();
-  const abgValue = scoreResult ? Math.round(8 + (scoreResult.total / 100) * 22) : null;
   const rankColor: Record<string, string> = { S: '#f0c040', A: '#4ade80', B: '#60b8e0', C: '#ffd166', D: '#f87171' };
+  const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
+  const abg = scoreResult?.abgPrediction;
+  const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
 
   return (
     <div className="sidebar" style={{ overflowY: 'auto' }}>
@@ -415,9 +417,14 @@ function SummaryPanel({
           <div style={{ fontSize: 28, fontWeight: 900, color: rankColor[scoreResult.rank] ?? '#fff', margin: '8px 0' }}>
             ランク {scoreResult.rank} — {scoreResult.total}点
           </div>
-          {abgValue && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              術後 ABG 改善予測: <strong style={{ color: '#4ade80' }}>約 {abgValue} dB</strong>
+          {abg && (
+            <div style={{ marginTop: 10, padding: '10px 14px', background: `${abgColor}12`, border: `1px solid ${abgColor}40`, borderRadius: 8, textAlign: 'left' }}>
+              <div style={{ fontSize: 10, color: abgColor, fontWeight: 700, marginBottom: 4 }}>📈 術後ABG改善予測</div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
+                <span style={{ fontSize: 13 }}>改善: <strong style={{ color: abgColor }}>+{abg.improvementDb} dB</strong></span>
+                <span style={{ fontSize: 13 }}>術後ABG目安: <strong style={{ color: abgColor }}>{abg.postOpAbg} dB</strong></span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{abg.clinicalInterpretation}</div>
             </div>
           )}
         </div>

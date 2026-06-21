@@ -17,6 +17,17 @@ export interface PlacementState {
   dragOffsetZ: number;    // 3D TransformControls drag accumulated Z (mm)
 }
 
+export interface ABGPrediction {
+  /** 予測ABG改善量 (dB) — 術後ABGの改善見込み */
+  improvementDb: number;
+  /** 予測術後ABG (dB) — 術前ABG 30dB想定 */
+  postOpAbg: number;
+  /** Glasgow Benefit Plot 分類 */
+  successCategory: 'excellent' | 'good' | 'fair' | 'poor';
+  /** 臨床的解釈 */
+  clinicalInterpretation: string;
+}
+
 export interface ScoreResult {
   sizeScore: number;
   positionScore: number;
@@ -25,6 +36,8 @@ export interface ScoreResult {
   total: number;
   rank: 'S' | 'A' | 'B' | 'C' | 'D';
   feedback: string[];
+  /** 術後ABG改善予測 */
+  abgPrediction: ABGPrediction;
 }
 
 interface SimStore {
@@ -132,7 +145,52 @@ export const useSimStore = create<SimStore>((set, get) => ({
     if (total >= 90) feedback.push('✓ 優秀な設置です。臨床でそのまま使用できるレベルです。');
     else if (total >= 75) feedback.push('✓ 良好な設置です。微調整でさらに改善できます。');
 
-    set({ scoreResult: { sizeScore, positionScore, angleScore, stabilityScore, total, rank, feedback } });
+    // ── ABG改善予測（文献根拠ベース）────────────────────────────────
+    // 参考: Austin (1994), Yung (2003), Merchant (2003) らの鼓室形成術成績
+    // PORP/TORP 術後ABG: 理想例で0〜10dB、平均15〜20dB残存
+    // 術前ABG想定: 30dB（慢性中耳炎の典型値）
+    //
+    // モデル:
+    //   サイズ精度がABGに最も寄与（1mm誤差 ≒ 5〜10dB悪化）
+    //   位置偏心がABGに次いで寄与（0.5mm偏心 ≒ 5dB悪化）
+    //   角度は安定性を介して寄与
+    const PRE_OP_ABG = 30; // dB (術前ABG想定値)
+    const IDEAL_IMPROVEMENT = 25; // dB (理想的設置での改善上限)
+
+    // サイズ誤差による改善阻害（最大15dB減点）
+    const sizeImpact   = (sizeScore / 25) * 15;
+    // 位置誤差による改善阻害（最大7dB減点）
+    const posImpact    = (positionScore / 25) * 7;
+    // 角度・安定性による改善（最大3dB）
+    const stabImpact   = ((angleScore + stabilityScore) / 50) * 3;
+
+    const improvementDb = Math.round(sizeImpact + posImpact + stabImpact);
+    const postOpAbg     = Math.max(0, PRE_OP_ABG - improvementDb);
+
+    let successCategory: ABGPrediction['successCategory'];
+    let clinicalInterpretation: string;
+    if (postOpAbg <= 10) {
+      successCategory = 'excellent';
+      clinicalInterpretation = '術後ABG ≤ 10dB。社会的聴力として十分な改善が期待できます。';
+    } else if (postOpAbg <= 20) {
+      successCategory = 'good';
+      clinicalInterpretation = '術後ABG 11〜20dB。日常会話は可能なレベル。補聴器不要の可能性が高い。';
+    } else if (postOpAbg <= 30) {
+      successCategory = 'fair';
+      clinicalInterpretation = '術後ABG 21〜30dB。軽度難聴が残存。サイズ・位置の最適化で改善余地あり。';
+    } else {
+      successCategory = 'poor';
+      clinicalInterpretation = '術後ABG > 30dB。改善不十分。特にシャフト長の再評価が必要。';
+    }
+
+    const abgPrediction: ABGPrediction = {
+      improvementDb,
+      postOpAbg,
+      successCategory,
+      clinicalInterpretation,
+    };
+
+    set({ scoreResult: { sizeScore, positionScore, angleScore, stabilityScore, total, rank, feedback, abgPrediction } });
   },
 
   resetSimulation: () => set({

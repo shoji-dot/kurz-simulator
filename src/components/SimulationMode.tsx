@@ -531,7 +531,9 @@ function ScoreStep() {
 
   const RANK_COLOR: Record<string, string> = { S: '#ffd700', A: '#00e5ff', B: '#69ff69', C: '#ffaa44', D: '#ff6666' };
   const rankColor = RANK_COLOR[scoreResult.rank] ?? '#aaa';
-  const abgImprovement = Math.round(8 + (scoreResult.total / 100) * 22);
+  const abg = scoreResult.abgPrediction;
+  const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
+  const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
 
   const SCORE_ITEMS = [
     { label: 'サイズ選択',  score: scoreResult.sizeScore,      max: 25, color: '#60b8e0' },
@@ -553,11 +555,32 @@ function ScoreStep() {
         <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
           {selectedCase.title}　|　{selectedProduct.name} {placement.selectedLength}mm
         </div>
-        <div style={{ marginTop: 16, padding: '10px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8 }}>
-          <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 700, marginBottom: 2 }}>📈 術後 ABG 改善予測（Merchant 1998）</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>約 {abgImprovement} dB 改善</div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>理想配置での期待改善量：約 30 dB</div>
-        </div>
+        {abg && (
+          <div style={{ marginTop: 16, padding: '12px 16px', background: `${abgColor}12`, border: `1px solid ${abgColor}40`, borderRadius: 8 }}>
+            <div style={{ fontSize: 11, color: abgColor, fontWeight: 700, marginBottom: 6 }}>
+              📈 術後ABG改善予測
+            </div>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>予測改善量</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: abgColor, lineHeight: 1 }}>+{abg.improvementDb} dB</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>術後ABG目安</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: abgColor, lineHeight: 1 }}>{abg.postOpAbg} dB</div>
+              </div>
+              <div style={{ padding: '3px 10px', borderRadius: 999, background: `${abgColor}22`, border: `1px solid ${abgColor}60`, fontSize: 11, fontWeight: 700, color: abgColor, marginBottom: 4 }}>
+                {{ excellent: '優秀', good: '良好', fair: '可', poor: '要改善' }[abg.successCategory]}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              {abg.clinicalInterpretation}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+              ※ 術前ABG 30dB想定 / Austin (1994), Merchant (2003) 文献値ベース
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
