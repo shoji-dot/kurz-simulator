@@ -11,9 +11,28 @@ import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
 import { SimScene } from '../scenes/SimScene';
-import type { VisibilityMap } from '../scenes/models/RealAnatomyModels';
+import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
+
+// ── 症例別耳小骨visマップ生成 ────────────────────────────────────
+/**
+ * 症例の ossicularStatus から耳小骨の表示モードを生成する。
+ * absent → hidden, partial → ghost, intact/suprastructure → solid
+ * ステップのvis定義とマージして使用する。
+ */
+function ossicleVisFromCase(c: SurgicalCase): VisibilityMap {
+  const toMode = (s: string): OpacityMode =>
+    s === 'absent' ? 'hidden' : s === 'partial' ? 'ghost' : 'solid';
+  const stapesToMode = (s: string): OpacityMode =>
+    s === 'absent' ? 'hidden' : s === 'footplate-only' ? 'ghost' : 'solid';
+
+  return {
+    malleus: toMode(c.ossicularStatus.malleus),
+    incus:   toMode(c.ossicularStatus.incus),
+    stapes:  stapesToMode(c.ossicularStatus.stapes),
+  };
+}
 
 // ── ステップ定義 ──────────────────────────────────────────────────
 interface StepDef {
@@ -499,7 +518,27 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
                 <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.25)' }}>{t}</span>
               ))}
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55 }}>{c.description}</p>
+            {/* 耳小骨状態インジケーター */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              {([
+                { key: 'malleus', label: 'ツ', status: c.ossicularStatus.malleus },
+                { key: 'incus',   label: 'キ', status: c.ossicularStatus.incus },
+                { key: 'stapes',  label: 'ア', status: c.ossicularStatus.stapes },
+              ] as const).map(({ key, label, status }) => {
+                const absent = status === 'absent';
+                const partial = status === 'partial' || status === 'footplate-only';
+                const color = absent ? '#f87171' : partial ? '#ffd166' : '#4ade80';
+                const bg = absent ? 'rgba(248,113,113,0.12)' : partial ? 'rgba(255,209,102,0.12)' : 'rgba(74,222,128,0.12)';
+                const statusLabel = absent ? '欠損' : partial ? '部分' : '温存';
+                return (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 5, background: bg, border: `1px solid ${color}44` }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color }}>{label}</span>
+                    <span style={{ fontSize: 9, color, opacity: 0.85 }}>{statusLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, marginTop: 6 }}>{c.description}</p>
           </div>
         ))}
       </div>
@@ -585,11 +624,23 @@ export function StepFlowMode() {
     if (flowCase && flowProduct) handleStart(flowCase, flowProduct);
   };
 
-  // AnatomyScene の vis 設定
-  const visForScene: VisibilityMap = useMemo(
-    () => step.vis ?? { bone: 'ghost', tympanic: 'solid', malleus: 'solid', incus: 'solid', stapes: 'solid' },
-    [step]
+  // AnatomyScene の vis 設定（症例別耳小骨状態をマージ）
+  const ossicleVis = useMemo(
+    () => flowCase ? ossicleVisFromCase(flowCase) : {},
+    [flowCase]
   );
+  const visForScene: VisibilityMap = useMemo(() => {
+    const base = step.vis ?? { bone: 'ghost', tympanic: 'solid', malleus: 'solid', incus: 'solid', stapes: 'solid' };
+    // ステップvis内で solid 指定されている耳小骨だけ症例状態で上書き
+    // (ghost/hidden 指定のステップは意図的な非表示なので維持)
+    const merged: VisibilityMap = { ...base };
+    (['malleus', 'incus', 'stapes'] as const).forEach((key) => {
+      if (base[key] === 'solid' && ossicleVis[key]) {
+        merged[key] = ossicleVis[key];
+      }
+    });
+    return merged;
+  }, [step, ossicleVis]);
 
   if (phase === 'setup') {
     return (
