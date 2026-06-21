@@ -36,6 +36,8 @@ export interface DrillTrainingSceneProps {
   s3StepIndex: number;
   s3IsPlaying: boolean;
   onS3StepComplete: () => void;
+  /** S1 側頭骨表示モード（デフォルト: solid） */
+  s1BoneVis?: 'solid' | 'ghost' | 'hidden';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -65,7 +67,7 @@ export const DRILL_STEPS: DrillStep[] = [
     clinicalNote: '経外耳道アプローチでは耳道後上壁の削開が術野確保の鍵となる',
     cameraPos:    [10, 6, 26],
     cameraTarget: [0, 0, 2],
-    boneOpacity:  0.82,
+    boneOpacity:  1.0,
     showDrill: false,
     showProsthesis: false,
     ossicleOpacity: 0.7,
@@ -257,7 +259,7 @@ function S3AnimationScene({ stepIndex, isPlaying, controlsRef }: S3AnimationScen
 
   return (
     <group>
-      <S3CameraController stepIndex={stepIndex} controlsRef={controlsRef} />
+      {/* S3CameraController は削除 — ユーザーの現在視野を維持 */}
 
       {/* 側頭骨: 削開ステップごとに透明化 */}
       <RealTemporalBone opacityOverride={step.boneOpacity} />
@@ -411,6 +413,7 @@ export function DrillTrainingScene({
   onZoneSelect,
   s3StepIndex,
   s3IsPlaying,
+  s1BoneVis = 'solid',
 }: DrillTrainingSceneProps) {
   const controlsRef = useRef<any>(null);
 
@@ -434,7 +437,7 @@ export function DrillTrainingScene({
       <pointLight position={[1, 3, 4]}   intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {scenario === 's1' && <RealAnatomy vis={{}} />}
+        {scenario === 's1' && <RealAnatomy vis={{ bone: s1BoneVis }} />}
 
         {scenario === 's2' && (
           <S2Content

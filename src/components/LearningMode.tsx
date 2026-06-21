@@ -219,6 +219,8 @@ export function LearningMode() {
   // 削開タブ状態
   const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5'>('s1');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  // S1 側頭骨表示モード
+  const [drillBoneVis, setDrillBoneVis] = useState<OpacityMode>('solid');
 
   // ── S3 アニメーション状態 ─────────────────────────────────────
   const [s3StepIndex, setS3StepIndex] = useState(0);
@@ -370,6 +372,7 @@ export function LearningMode() {
               s3StepIndex={s3StepIndex}
               s3IsPlaying={s3IsPlaying}
               onS3StepComplete={handleS3StepComplete}
+              s1BoneVis={drillBoneVis}
             />
           ) : (
             <AnatomyScene
@@ -1021,6 +1024,8 @@ export function LearningMode() {
                         setDrillScenario(key);
                         setSelectedZoneId(null);
                         if (key === 's3') { setS3StepIndex(0); setS3IsPlaying(false); }
+                        // S3以降は側頭骨を実体にリセット
+                        if (key !== 's1') setDrillBoneVis('solid');
                       }}
                       style={{
                         flex: '1 1 80px', padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
@@ -1044,6 +1049,27 @@ export function LearningMode() {
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
                     側頭骨と中耳構造を自由に観察してください。ドラッグで回転、ホイールでズームができます。
                   </p>
+                  {/* 側頭骨 表示切替 */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>側頭骨 表示</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {(['solid', 'ghost', 'hidden'] as OpacityMode[]).map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => setDrillBoneVis(mode)}
+                          style={{
+                            flex: 1, padding: '6px 0', borderRadius: 6, cursor: 'pointer', fontSize: 11,
+                            border: `1px solid ${drillBoneVis === mode ? 'var(--accent)' : 'var(--border)'}`,
+                            background: drillBoneVis === mode ? MODE_BG[mode] : 'rgba(255,255,255,.03)',
+                            color: drillBoneVis === mode ? (mode === 'solid' ? '#001a20' : 'var(--accent)') : 'var(--text-secondary)',
+                            transition: 'all .15s',
+                          }}
+                        >
+                          {MODE_LABEL[mode]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>学習チェックポイント</div>
                     {[
