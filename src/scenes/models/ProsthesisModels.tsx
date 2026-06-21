@@ -346,11 +346,18 @@ export function ProsthesisModel({
 export function IdealGhostProsthesis({
   product,
   length,
+  idealLateralOffset = 0,
 }: {
   product: KurzProduct;
   length:  number;
+  idealLateralOffset?: number;
 }) {
   return (
-    <ProsthesisModel product={product} shaftLength={length} ghost={true} />
+    <ProsthesisModel
+      product={product}
+      shaftLength={length}
+      lateralOffset={idealLateralOffset}
+      ghost={true}
+    />
   );
 }

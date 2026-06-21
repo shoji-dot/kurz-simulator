@@ -71,7 +71,7 @@ interface SimSceneProps {
   vis?:          VisibilityMap;
 }
 
-// ── 配置ターゲットマーカー（理想位置 = 常にアブミ骨頭中央）───────────
+// ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
 function PlacementMarker({ pos }: { pos: THREE.Vector3 }) {
   return (
     <group position={[pos.x, pos.y, pos.z]}>
@@ -252,16 +252,17 @@ export function SimScene({
           {showStapes  && <RealStapes  opacityOverride={stapOpacity} />}
         </group>
 
-        {/* ── 理想配置ゴースト ── */}
+        {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映） ── */}
         {showIdeal && (
           <IdealGhostProsthesis
             product={product}
             length={surgicalCase.recommendedLength}
+            idealLateralOffset={surgicalCase.idealLateralOffset}
           />
         )}
 
-        {/* ── ターゲットマーカー（理想位置 = アブミ骨頭中央） ── */}
-        <PlacementMarker pos={basePos} />
+        {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
+        <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
 
         {/* ── ドラッグ可能プロテーゼ ── */}
         <DraggableProsthesis

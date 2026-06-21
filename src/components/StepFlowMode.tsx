@@ -381,9 +381,9 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
         <div className="section-title" style={{ marginBottom: 8 }}>あなたの設置</div>
         {[
           ['シャフト長', `${placement.selectedLength} mm`, `（推奨: ${surgicalCase.recommendedLength} mm）`],
-          ['内外側', `${(placement.lateralOffset + placement.dragOffsetX).toFixed(2)} mm`, '（理想: 0mm）'],
-          ['前後', `${(placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)} mm`, '（理想: 0mm）'],
-          ['傾斜角', `${placement.angleTilt}°`, '（理想: 0°）'],
+          ['内外側', `${(placement.lateralOffset + placement.dragOffsetX).toFixed(2)} mm`, `（理想: ${surgicalCase.idealLateralOffset > 0 ? '+' : ''}${surgicalCase.idealLateralOffset.toFixed(1)}mm）`],
+          ['前後', `${(placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)} mm`, '（理想: 0.0mm）'],
+          ['傾斜角', `${placement.angleTilt}°`, `（理想: ${surgicalCase.idealAngle}°）`],
         ].map(([k, v, hint]) => (
           <div key={k} className="info-row">
             <span className="label">{k}</span>
