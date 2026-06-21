@@ -36,8 +36,8 @@ export interface DrillTrainingSceneProps {
   s3StepIndex: number;
   s3IsPlaying: boolean;
   onS3StepComplete: () => void;
-  /** S1 側頭骨表示モード（デフォルト: solid） */
-  s1BoneVis?: 'solid' | 'ghost' | 'hidden';
+  /** 側頭骨表示モード S1〜S5 共通（デフォルト: solid） */
+  boneVis?: 'solid' | 'ghost' | 'hidden';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -250,19 +250,25 @@ interface S3AnimationSceneProps {
   stepIndex:   number;
   isPlaying:   boolean;
   controlsRef: React.RefObject<any>;
+  boneVis?:    'solid' | 'ghost' | 'hidden';
 }
 
-function S3AnimationScene({ stepIndex, isPlaying, controlsRef }: S3AnimationSceneProps) {
+function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid' }: S3AnimationSceneProps) {
   const step = DRILL_STEPS[stepIndex];
   // PORP (BELLフット)を使用
   const porpProduct = kurzProducts.find((p) => p.footType === 'BELL') ?? kurzProducts[0];
+
+  // 削開アニメーション boneOpacity にユーザー選択を重ねる
+  const boneOpacity = boneVis === 'hidden' ? 0
+    : boneVis === 'ghost' ? Math.min(step.boneOpacity, 0.25)
+    : step.boneOpacity;
 
   return (
     <group>
       {/* S3CameraController は削除 — ユーザーの現在視野を維持 */}
 
-      {/* 側頭骨: 削開ステップごとに透明化 */}
-      <RealTemporalBone opacityOverride={step.boneOpacity} />
+      {/* 側頭骨: 削開ステップごとに透明化（boneVis で上書き可） */}
+      <RealTemporalBone opacityOverride={boneOpacity} />
 
       {/* 顔面神経: 常時警告表示 */}
       <RealFacialNerve opacityOverride={0.85} />
@@ -380,13 +386,16 @@ function ZoneMarker({
 function S2Content({
   selectedZoneId,
   onZoneSelect,
+  boneVis = 'ghost',
 }: {
   selectedZoneId: string | null;
   onZoneSelect: (id: string | null) => void;
+  boneVis?: 'solid' | 'ghost' | 'hidden';
 }) {
+  const boneOpacity = boneVis === 'hidden' ? 0 : boneVis === 'solid' ? 0.55 : 0.07;
   return (
     <group>
-      <RealTemporalBone opacityOverride={0.07} />
+      <RealTemporalBone opacityOverride={boneOpacity} />
       <RealFacialNerve />
       <RealChordaTympani opacityOverride={0.55} />
       <RealInnerEar opacityOverride={0.55} />
@@ -413,7 +422,7 @@ export function DrillTrainingScene({
   onZoneSelect,
   s3StepIndex,
   s3IsPlaying,
-  s1BoneVis = 'solid',
+  boneVis = 'solid',
 }: DrillTrainingSceneProps) {
   const controlsRef = useRef<any>(null);
 
@@ -437,12 +446,13 @@ export function DrillTrainingScene({
       <pointLight position={[1, 3, 4]}   intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {scenario === 's1' && <RealAnatomy vis={{ bone: s1BoneVis }} />}
+        {scenario === 's1' && <RealAnatomy vis={{ bone: boneVis }} />}
 
         {scenario === 's2' && (
           <S2Content
             selectedZoneId={selectedZoneId}
             onZoneSelect={onZoneSelect}
+            boneVis={boneVis}
           />
         )}
 
@@ -451,24 +461,25 @@ export function DrillTrainingScene({
             stepIndex={s3StepIndex}
             isPlaying={s3IsPlaying}
             controlsRef={controlsRef}
+            boneVis={boneVis}
           />
         )}
 
-        {/* S4: 推奨削開範囲 — 骨実体 + 危険部位グロー球で限界壁を可視化 */}
+        {/* S4: 推奨削開範囲 — 骨 + 危険部位グロー球で限界壁を可視化 */}
         {scenario === 's4' && (
           <>
-            <RealAnatomy vis={{ bone: 'solid', eac: 'ghost', tympanic: 'ghost',
+            <RealAnatomy vis={{ bone: boneVis, eac: 'ghost', tympanic: 'ghost',
               malleus: 'ghost', incus: 'ghost', stapes: 'ghost',
               facialNerve: 'solid', chordaTympani: 'hidden',
               innerEar: 'hidden', roundWindow: 'hidden', auricle: 'hidden' }} />
-            <S2Content selectedZoneId={null} onZoneSelect={() => {}} />
+            <S2Content selectedZoneId={null} onZoneSelect={() => {}} boneVis="hidden" />
           </>
         )}
 
-        {/* S5: 削開完了後ビュー — 骨を半透明にして内部構造を露出 */}
+        {/* S5: 削開完了後ビュー — 骨を boneVis に従い表示、内部構造を露出 */}
         {scenario === 's5' && (
           <RealAnatomy vis={{
-            bone:          'ghost',
+            bone:          boneVis,
             eac:           'ghost',
             auricle:       'hidden',
             tympanic:      'ghost',

@@ -646,7 +646,7 @@ export function StepFlowMode() {
 
   if (phase === 'setup') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
         <FlowSetup onStart={handleStart} />
       </div>
     );
@@ -655,7 +655,7 @@ export function StepFlowMode() {
   if (!flowCase || !flowProduct) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
       {/* 患者プロファイル選択バー */}
       <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>👤 患者</span>
