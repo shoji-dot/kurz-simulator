@@ -27,13 +27,12 @@ export interface AuricleTransform {
 }
 
 export const DEFAULT_AURICLE_TRANSFORM: AuricleTransform = {
-  // Auricle_aligned.glb はトランスフォーム焼き込み済み
-  // subj_T を scale/rotation/translation/flip を適用してエクスポート
-  // React側では identity transform でそのまま表示
-  position: [0, 0, 0],
-  rotation: [0, 0, 0],
-  scale: [1, 1, 1],
-  flip: false,
+  // 正規化済みGLB（XY centroid=0, Zmin=0）を Bone.glb 座標に合わせる確定値
+  // scale/rotation/position は Auricle_aligned.glb の焼き込みパラメータと同一
+  position: [-4, 16, 18],
+  rotation: [-0.8378, -0.2094, -3.1416],
+  scale: [0.910, 1.440, 0.300],
+  flip: true,
 };
 
 export type StructureKey =
@@ -242,21 +241,34 @@ export function RealTemporalBone({ opacityOverride, highlighted }: StructureProp
 }
 
 /**
- * Auricle (Pinna) — Bone.glb座標系に焼き込み済みGLB版
+ * Auricle (Pinna) — 患者別GLB版
  *
- * Auricle_aligned.glb:
- *   subj_T の STL に対して確定トランスフォームを Python で適用してエクスポート。
- *   position/rotation/scale/flip をメッシュ自体に焼き込み済み。
- *   React側では identity transform でそのまま Bone.glb と重なる。
+ * Auricle_aligned.glb は subj_T に確定トランスフォームを焼き込み済み（identity表示）。
+ * 他の患者GLBは正規化のみ（XY centroid=0, Zmin=0）なので、
+ * React側で同じトランスフォームを適用して Bone.glb 座標系に合わせる。
  *
- * 焼き込んだパラメータ:
+ * 焼き込みパラメータ（subj_T 実測確定値）:
  *   scale    [0.910 * -1(flip), 1.440, 0.300]
  *   rotation [-0.8378, -0.2094, -3.1416] (XYZ Euler rad)
  *   position [-4, 16, 18]
  */
-function scanGlbUrl(_patientId?: string): string {
-  // 現在は確定済みの aligned GLB を使用
-  return '/models/ears/Auricle_aligned.glb';
+
+/** 正規化済みGLB（XY centroid=0, Zmin=0）を Bone.glb 座標に合わせるトランスフォーム */
+const SCAN_ALIGN_TRANSFORM: AuricleTransform = {
+  position: [-4, 16, 18],
+  rotation: [-0.8378, -0.2094, -3.1416],
+  scale:    [0.910, 1.440, 0.300],
+  flip:     true,
+};
+
+const ALL_PATIENT_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'] as const;
+
+function scanGlbUrl(patientId?: string): string {
+  const id = patientId?.toUpperCase() ?? 'T';
+  const valid = (ALL_PATIENT_LETTERS as readonly string[]).includes(id);
+  return valid
+    ? `/models/ears/Auricle_${id}.glb`
+    : '/models/ears/Auricle_aligned.glb';
 }
 
 interface AuricleProps extends StructureProps {
@@ -264,8 +276,9 @@ interface AuricleProps extends StructureProps {
   patientId?: string;
 }
 export function RealAuricle({ opacityOverride, transform, patientId }: AuricleProps) {
-  const t   = transform ?? DEFAULT_AURICLE_TRANSFORM;
   const url = scanGlbUrl(patientId);
+  // デバッグ用 transform が渡されていればそれを優先、なければアライン済みトランスフォームを使用
+  const t   = transform ?? SCAN_ALIGN_TRANSFORM;
   const sc  = t.scale ?? [1, 1, 1];
   const flipX = t.flip ? -1 : 1;
   return (
