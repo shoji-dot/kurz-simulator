@@ -54,10 +54,10 @@ export const surgicalCases: SurgicalCase[] = [
     title: '症例2: ツチ骨・キヌタ骨欠損（III型）— PORP',
     description: '47歳女性。真珠腫性中耳炎（アティコトミー後再発）。ツチ骨・キヌタ骨は真珠腫により破壊・摘出。アブミ骨上部構造（頭部・前後脚）は温存、可動性良好。鼓室形成III型の典型例。PORP適応。',
     difficulty: 'intermediate',
-    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
+    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
     recommendedProductId: 'porp-duesseldorf',
     recommendedLength: 2.0,
-    // ツチ骨なしでアブミ骨頭部に直置き。頭部中央(offset 0)が理想。
+    // ツチ骨なしでアブミ骨底板上に設置。底板中央(offset 0)が理想。
     // 上方に鼓膜再建軟骨があるため傾きは最小限(5°以内)。
     idealLateralOffset: 0.0,
     idealAngle: 5,

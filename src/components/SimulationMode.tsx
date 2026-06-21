@@ -359,7 +359,18 @@ function ProductSelect() {
 function PlacementStep() {
   const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore } = useSimStore();
   const [showIdeal, setShowIdeal] = useState(false);
-  const [simVis, setSimVis] = useState<VisibilityMap>({});
+  // 症例の耳小骨欠損ステータスに基づいて初期表示を設定
+  const [simVis, setSimVis] = useState<VisibilityMap>(() => {
+    const sc = useSimStore.getState().selectedCase;
+    if (!sc) return {};
+    const init: VisibilityMap = {};
+    const { malleus, incus, stapes } = sc.ossicularStatus;
+    if (malleus === 'absent')  init.malleus = 'hidden';
+    if (incus   === 'absent')  init.incus   = 'hidden';
+    // footplate-only / absent → GLBは非表示（底板ハイライトが別途表示される）
+    if (stapes === 'footplate-only' || stapes === 'absent') init.stapes = 'hidden';
+    return init;
+  });
   const [dragMode, setDragMode] = useState<DragMode>('view');
 
   if (!selectedCase || !selectedProduct) return null;

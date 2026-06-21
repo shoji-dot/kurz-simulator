@@ -30,6 +30,7 @@ import {
   RealMalleus,
   RealIncus,
   RealStapes,
+  StapesFootplateHighlight,
   GHOST_OPACITY,
   type OpacityMode,
   type VisibilityMap,
@@ -212,15 +213,21 @@ export function SimScene({
   const ossMode = (key: 'malleus' | 'incus' | 'stapes'): OpacityMode =>
     vis[key] ?? vis.ossicles ?? 'solid';
 
-  // 症例ステータスによる基本不透明度（partial=菲薄化, footplate-only=底板のみ）
+  // 症例ステータスによる基本不透明度（partial=菲薄化）
   const caseOpacity = (status: string): number | undefined =>
-    status === 'partial' ? 0.45 : status === 'footplate-only' ? 0.35 : undefined;
+    status === 'partial' ? 0.45 : undefined;
 
-  // 表示判定：症例で absent でなく、かつユーザーが hidden にしていない場合のみ表示
-  // 不透明度：ghost モードなら GHOST_OPACITY、それ以外は症例ステータス由来の値
+  // 表示判定
   const showMalleus = malStatus  !== 'absent' && ossMode('malleus') !== 'hidden';
   const showIncus   = incStatus  !== 'absent' && ossMode('incus')   !== 'hidden';
-  const showStapes  = stapStatus !== 'absent' && ossMode('stapes')  !== 'hidden';
+
+  // アブミ骨: footplate-only の場合は GLB は非表示（底板ハイライトで代替）
+  const showStapesGLB = stapStatus !== 'absent'
+    && stapStatus !== 'footplate-only'
+    && ossMode('stapes') !== 'hidden';
+  // 底板ハイライトは footplate-only または absent 時に表示
+  const showFootplateHighlight = stapStatus === 'footplate-only' || stapStatus === 'absent';
+
   const malOpacity  = ossMode('malleus') === 'ghost' ? GHOST_OPACITY : caseOpacity(malStatus);
   const incOpacity  = ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
   const stapOpacity = ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
@@ -256,9 +263,11 @@ export function SimScene({
         {/* ── GLBリアルモデル ── */}
         <group position={GLB_OFFSET}>
           <RealAnatomy vis={mergedVis} />
-          {showMalleus && <RealMalleus opacityOverride={malOpacity}  />}
-          {showIncus   && <RealIncus   opacityOverride={incOpacity}  />}
-          {showStapes  && <RealStapes  opacityOverride={stapOpacity} />}
+          {showMalleus    && <RealMalleus opacityOverride={malOpacity}  />}
+          {showIncus      && <RealIncus   opacityOverride={incOpacity}  />}
+          {showStapesGLB  && <RealStapes  opacityOverride={stapOpacity} />}
+          {/* 底板ハイライト: footplate-only / absent 時に発光ディスク表示 */}
+          {showFootplateHighlight && <StapesFootplateHighlight />}
         </group>
 
         {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映） ── */}

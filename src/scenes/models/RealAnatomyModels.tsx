@@ -7,8 +7,8 @@
  *   Y+ = up
  */
 
-import { useMemo, useEffect, useRef } from 'react';
-import { useGLTF } from '@react-three/drei';
+import { useMemo, useEffect, useRef, useState } from 'react';
+import { useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 // -- Display mode types --
@@ -226,6 +226,88 @@ export function RealEAC({ opacityOverride, highlighted }: StructureProps) {
 
 export function RealRoundWindow({ opacityOverride, highlighted }: StructureProps) {
   return <GLBMesh url="/models/Round_Window.glb" matKey="roundWin" opacityOverride={opacityOverride} highlighted={highlighted} />;
+}
+
+/**
+ * StapesFootplateHighlight
+ *
+ * アブミ骨底板（footplate）が残存する症例（footplate-only / absent など）で
+ * 底板位置を視覚的に強調するオーバーレイ。
+ * GLB_OFFSETグループ内に配置 → 世界座標でアブミ骨底板上に現れる。
+ *
+ * 底板解剖:  ~3.0mm × 1.4mm の楕円形プレート
+ * GLB座標系: 底板は原点 (0,0,0) 付近、アブミ骨は Z+ 方向に伸びる
+ * → XY平面 (rotation無し) に楕円ディスクを配置
+ */
+export function StapesFootplateHighlight() {
+  // パルスアニメーション用
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let id: number;
+    const animate = () => {
+      setT((prev) => prev + 0.04);
+      id = requestAnimationFrame(animate);
+    };
+    id = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const pulse = 0.55 + 0.45 * Math.sin(t);
+
+  // 楕円シェイプ: 長軸 3.0mm (X), 短軸 1.4mm (Y)
+  const ellipseShape = useMemo(() => {
+    const s = new THREE.Shape();
+    s.ellipse(0, 0, 1.5, 0.7, 0, Math.PI * 2, false, 0);
+    return s;
+  }, []);
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* メイン底板ディスク（シアン発光） */}
+      <mesh renderOrder={2}>
+        <shapeGeometry args={[ellipseShape]} />
+        <meshStandardMaterial
+          color="#00e5ff"
+          emissive="#00e5ff"
+          emissiveIntensity={1.2 * pulse}
+          transparent
+          opacity={0.82}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* 外縁グローリング */}
+      <mesh renderOrder={1}>
+        <ringGeometry args={[1.6, 2.4, 48]} />
+        <meshStandardMaterial
+          color="#00b4d8"
+          emissive="#00b4d8"
+          emissiveIntensity={0.7 * pulse}
+          transparent
+          opacity={0.35 * pulse}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* ラベル */}
+      <Html position={[0, 2.2, 0]} center distanceFactor={20} zIndexRange={[10, 20]}>
+        <div style={{
+          background: 'rgba(0,30,50,.85)',
+          border: '1px solid #00e5ff',
+          borderRadius: 4,
+          padding: '2px 8px',
+          fontSize: 10,
+          color: '#00e5ff',
+          fontWeight: 700,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          fontFamily: 'sans-serif',
+          letterSpacing: '0.05em',
+        }}>
+          🔵 底板 (Footplate)
+        </div>
+      </Html>
+    </group>
+  );
 }
 
 export function RealTemporalBone({ opacityOverride, highlighted }: StructureProps) {
