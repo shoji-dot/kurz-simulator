@@ -610,4 +610,15 @@ function ScoreStep() {
   );
 }
 
-// ─── メインコンポーネント ───────────────────────�
+// ─── メインコンポーネント ───────────────────────────────────────────────────
+export function SimulationMode() {
+  const { simStep } = useSimStore();
+
+  switch (simStep) {
+    case 'case-select':    return <CaseSelect />;
+    case 'product-select': return <ProductSelect />;
+    case 'placement':      return <PlacementStep />;
+    case 'score':          return <ScoreStep />;
+    default:               return <CaseSelect />;
+  }
+}�
