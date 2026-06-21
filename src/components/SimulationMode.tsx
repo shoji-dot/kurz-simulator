@@ -437,7 +437,198 @@ function PlacementStep() {
           </button>
         </div>
 
-        {/* Teaching points */}
+        {/
+        {/* 3D 表示切替 */}
+        <div className="card">
+          <div className="section-title">3D 表示切替</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+            クリックで 実体 → 半透明 → 非表示 を切替
+          </div>
+          {SIM_VIS_ITEMS.map(({ key, label, color }) => {
+            const mode: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
+                </div>
+                <button
+                  onClick={() => cycleVis(key)}
+                  style={{ padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 48 }}
+                >
+                  {MODE_LABEL[mode]}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
+          <button className="btn btn-ghost" onClick={() => setSimStep('product-select')}>← 戻る</button>
+          <button className="btn btn-primary" onClick={handleConfirm}>評価する →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: Score ────────────────────────────────────────────────────────
+function ScoreStep() {
+  const { selectedCase, selectedProduct, placement, scoreResult, resetSimulation, setSimStep, setScreen } = useSimStore();
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  useEffect(() => {
+    if (scoreResult && selectedCase && selectedProduct) {
+      const entry: HistoryEntry = {
+        date: new Date().toISOString(),
+        caseTitle: selectedCase.title,
+        productName: selectedProduct.name,
+        total: scoreResult.total,
+        rank: scoreResult.rank,
+        sizeScore: scoreResult.sizeScore,
+        positionScore: scoreResult.positionScore,
+        angleScore: scoreResult.angleScore,
+        stabilityScore: scoreResult.stabilityScore,
+      };
+      const updated = pushHistory(entry);
+      setHistory(updated);
+    } else {
+      setHistory(loadHistory());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!scoreResult || !selectedCase || !selectedProduct) return null;
+
+  const RANK_COLOR: Record<string, string> = { S: '#ffd700', A: '#00e5ff', B: '#69ff69', C: '#ffaa44', D: '#ff6666' };
+  const rankColor = RANK_COLOR[scoreResult.rank] ?? '#aaa';
+  const abgImprovement = Math.round(8 + (scoreResult.total / 100) * 22);
+
+  const SCORE_ITEMS = [
+    { label: 'サイズ選択',  score: scoreResult.sizeScore,      max: 25, color: '#60b8e0' },
+    { label: '設置位置',    score: scoreResult.positionScore,  max: 25, color: '#4ade80' },
+    { label: '設置角度',    score: scoreResult.angleScore,     max: 25, color: '#ffd166' },
+    { label: '安定性',      score: scoreResult.stabilityScore, max: 25, color: '#f08050' },
+  ];
+
+  return (
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+      <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '.1em' }}>SCORE</div>
+        <div style={{ fontSize: 72, fontWeight: 900, color: rankColor, lineHeight: 1, textShadow: `0 0 30px ${rankColor}88` }}>
+          {scoreResult.rank}
+        </div>
+        <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>
+          {scoreResult.total} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>/ 100</span>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
+          {selectedCase.title}　|　{selectedProduct.name} {placement.selectedLength}mm
+        </div>
+        <div style={{ marginTop: 16, padding: '10px 16px', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 8 }}>
+          <div style={{ fontSize: 11, color: '#4ade80', fontWeight: 700, marginBottom: 2 }}>📈 術後 ABG 改善予測（Merchant 1998）</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>約 {abgImprovement} dB 改善</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>理想配置での期待改善量：約 30 dB</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="section-title">評価詳細</div>
+        {SCORE_ITEMS.map(({ label, score, max, color }) => (
+          <div key={label} style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+              <span style={{ fontWeight: 700, color }}>{score} / {max}</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${(score / max) * 100}%`, background: color, borderRadius: 3, transition: 'width .6s ease' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {scoreResult.feedback.length > 0 && (
+        <div className="card">
+          <div className="section-title">フィードバック</div>
+          {scoreResult.feedback.map((fb, i) => (
+            <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', lineHeight: 1.6 }}>
+              ⚠ {fb}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {history.length > 1 && (
+        <div className="card">
+          <div className="section-title">スコア履歴（直近{Math.min(history.length, 5)}件）</div>
+          {history.slice(0, 5).map((h, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11 }}>
+              <div>
+                <span style={{ color: RANK_COLOR[h.rank] ?? '#aaa', fontWeight: 700, marginRight: 8 }}>{h.rank}</span>
+                <span style={{ color: 'var(--text-muted)' }}>{h.caseTitle.slice(0, 20)}</span>
+              </div>
+              <span style={{ fontWeight: 700 }}>{h.total}点</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>← やり直す</button>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => resetSimulation()}>別の症例へ</button>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setScreen('stepflow')}>🎬 手術フローへ</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── メインコンポーネント ────────────────────────────────────────────────────
+export function SimulationMode() {
+  const simStep = useSimStore((s) => s.simStep);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', overflowY: 'auto' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 0, alignItems: 'center' }}>
+        {(['case-select', 'product-select', 'placement', 'score'] as const).map((step, i, arr) => {
+          const labels = ['1. 症例選択', '2. 製品選択', '3. 配置', '4. 評価'];
+          const active = step === simStep;
+          const done = arr.indexOf(simStep) > i;
+          return (
+            <div key={step} style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{
+                padding: '4px 14px', borderRadius: 999, fontSize: 11, fontWeight: active ? 700 : 400,
+                background: active ? 'var(--accent)' : done ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.05)',
+                color: active ? '#001a20' : done ? 'var(--accent)' : 'var(--text-muted)',
+                transition: 'all .2s',
+              }}>
+                {done ? '✓ ' : ''}{labels[i]}
+              </div>
+              {i < arr.length - 1 && <div style={{ width: 20, height: 1, background: 'var(--border)' }} />}
+            </div>
+          );
+        })}
+      </div>
+
+      {simStep === 'case-select'    && <CaseSelect />}
+      {simStep === 'product-select' && <ProductSelect />}
+      {simStep === 'placement'      && <PlacementStep />}
+      {simStep === 'score'          && <ScoreStep />}
+    </div>
+  );
+}
+ 20, height: 1, background: 'var(--border)' }} />}
+            </div>
+          );
+        })}
+      </div>
+
+      {simStep === 'case-select'    && <CaseSelect />}
+      {simStep === 'product-select' && <ProductSelect />}
+      {simStep === 'placement'      && <PlacementStep />}
+      {simStep === 'score'          && <ScoreStep />}
+    </div>
+  );
+}
+* Teaching points */}
         <div className="card">
           <div className="section-title">ティーチングポイント</div>
           {selectedCase.teachingPoints.map((tp, i) => (
