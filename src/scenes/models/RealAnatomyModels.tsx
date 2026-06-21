@@ -20,7 +20,9 @@ export interface AuricleTransform {
   position: [number, number, number];
   /** 回転角度 [x, y, z] (ラジアン) */
   rotation: [number, number, number];
-  /** 表裏反転（X軸スケール -1） */
+  /** スケール（傾き） [x, y, z] — 1.0が等倍 */
+  scale: [number, number, number];
+  /** 表裏反転（X軸スケール符号反転） */
   flip: boolean;
 }
 
@@ -30,6 +32,7 @@ export const DEFAULT_AURICLE_TRANSFORM: AuricleTransform = {
   // concha深さ≈8mm → base position Z = 14.4 - 8 = ~6
   position: [-2, 6, 6],
   rotation: [0, 0, 0],
+  scale: [1, 1, 1],
   flip: false,
 };
 
@@ -270,11 +273,13 @@ interface AuricleProps extends StructureProps {
 export function RealAuricle({ opacityOverride, transform, patientId }: AuricleProps) {
   const t   = transform ?? DEFAULT_AURICLE_TRANSFORM;
   const url = scanGlbUrl(patientId);
+  const sc  = t.scale ?? [1, 1, 1];
+  const flipX = t.flip ? -1 : 1;
   return (
     <group
       position={t.position}
       rotation={t.rotation}
-      scale={t.flip ? [-1, 1, 1] : [1, 1, 1]}
+      scale={[sc[0] * flipX, sc[1], sc[2]]}
     >
       <GLBMesh url={url} matKey="auricle" opacityOverride={opacityOverride} />
     </group>

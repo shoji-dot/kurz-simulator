@@ -162,6 +162,14 @@ export function LearningMode() {
     });
   const getAuricleRotDeg = (axis: 0 | 1 | 2) =>
     Math.round((auricleTransform.rotation[axis] * 180) / Math.PI);
+  const setAuricleScale = (axis: 0 | 1 | 2, val: number) =>
+    setAuricleTransform(t => {
+      const s = [...(t.scale ?? [1, 1, 1])] as [number, number, number];
+      s[axis] = val;
+      return { ...t, scale: s };
+    });
+  const getAuricleScale = (axis: 0 | 1 | 2) =>
+    (auricleTransform.scale ?? [1, 1, 1])[axis];
 
   // ── ビューモード（解剖タブ用）───────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
@@ -329,6 +337,19 @@ export function LearningMode() {
                   <span style={{ width: 36, textAlign: 'right', opacity: 0.9 }}>{getAuricleRotDeg(i as 0|1|2)}°</span>
                 </div>
               ))}
+              {/* 傾き（スケール） */}
+              <div style={{ borderTop: '1px solid rgba(230,169,58,0.2)', margin: '6px 0 4px' }} />
+              {(['X','Y','Z'] as const).map((ax, i) => (
+                <div key={`sc${ax}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ width: 42, opacity: 0.7 }}>傾き{ax}</span>
+                  <input type="range" min={0.3} max={2.0} step={0.01}
+                    value={getAuricleScale(i as 0|1|2)}
+                    onChange={e => setAuricleScale(i as 0|1|2, parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: '#60c8b0' }}
+                  />
+                  <span style={{ width: 36, textAlign: 'right', opacity: 0.9 }}>{getAuricleScale(i as 0|1|2).toFixed(2)}</span>
+                </div>
+              ))}
               {/* 表裏反転 */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                 <span style={{ opacity: 0.7 }}>表裏反転（X軸）</span>
@@ -342,7 +363,8 @@ export function LearningMode() {
                 onClick={() => {
                   const p = auricleTransform.position.map(v => v.toFixed(2)).join(', ');
                   const r = auricleTransform.rotation.map(v => v.toFixed(4)).join(', ');
-                  const text = `position: [${p}]\nrotation: [${r}]\nflip: ${auricleTransform.flip}`;
+                  const s = (auricleTransform.scale ?? [1,1,1]).map(v => v.toFixed(3)).join(', ');
+                  const text = `position: [${p}]\nrotation: [${r}]\nscale: [${s}]\nflip: ${auricleTransform.flip}`;
                   navigator.clipboard.writeText(text);
                 }}
                 style={{ marginTop: 8, width: '100%', fontSize: 10, padding: '4px 0',
