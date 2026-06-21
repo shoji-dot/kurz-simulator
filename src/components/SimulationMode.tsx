@@ -126,14 +126,43 @@ const ossicleLabel: Record<string, string> = {
 // ─── Step 1: Case selection ───────────────────────────────────────────────
 function CaseSelect() {
   const { selectedCase, setSelectedCase, setSimStep } = useSimStore();
+  const [diffFilter, setDiffFilter] = useState<string>('all');
+
+  const filtered = diffFilter === 'all' ? surgicalCases : surgicalCases.filter(c => c.difficulty === diffFilter);
+
   return (
     <div style={{ padding: 20, maxWidth: 800, margin: '0 auto' }}>
       <h2 style={{ marginBottom: 6, fontSize: 20 }}>症例選択</h2>
-      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
+      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 14 }}>
         練習する手術症例を選んでください。実際の耳小骨連鎖の状態が3Dで示されます。
       </p>
+
+      {/* 難易度フィルター */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        {[
+          { key: 'all',          label: 'すべて', count: surgicalCases.length },
+          { key: 'beginner',     label: '初級',   count: surgicalCases.filter(c => c.difficulty === 'beginner').length },
+          { key: 'intermediate', label: '中級',   count: surgicalCases.filter(c => c.difficulty === 'intermediate').length },
+          { key: 'advanced',     label: '上級',   count: surgicalCases.filter(c => c.difficulty === 'advanced').length },
+        ].map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => setDiffFilter(key)}
+            style={{
+              padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: diffFilter === key ? 700 : 400,
+              border: `1px solid ${diffFilter === key ? 'var(--accent)' : 'var(--border)'}`,
+              background: diffFilter === key ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.04)',
+              color: diffFilter === key ? 'var(--accent)' : 'var(--text-muted)',
+              cursor: 'pointer', transition: 'all .15s',
+            }}
+          >
+            {label} <span style={{ opacity: 0.6 }}>({count})</span>
+          </button>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {surgicalCases.map((c) => (
+        {filtered.map((c) => (
           <div
             key={c.id}
             className={`selectable-card ${selectedCase?.id === c.id ? 'selected' : ''}`}
@@ -170,8 +199,9 @@ function CaseSelect() {
 
 // ─── Step 2: Product selection ─────────────────────────────────────────────
 function ProductSelect() {
-  const { selectedCase, selectedProduct, setSelectedProduct, setSimStep } = useSimStore();
-  const [selectedLength, setSelectedLength] = useState<number | null>(null);
+  const { selectedCase, selectedProduct, placement, setSelectedProduct, setSimStep, updatePlacement } = useSimStore();
+  // 症例選択時にsetSelectedCaseがrecommendedLengthをplacementにセット済み → それを初期値に使う
+  const [selectedLength, setSelectedLength] = useState<number | null>(placement.selectedLength ?? null);
 
 
   return (
@@ -196,7 +226,7 @@ function ProductSelect() {
             <div key={p.id}>
               <div
                 className={`selectable-card ${isSelected ? 'selected' : ''}`}
-                onClick={() => { setSelectedProduct(p); setSelectedLength(null); }}
+                onClick={() => { setSelectedProduct(p); setSelectedLength(placement.selectedLength); }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <span style={{ fontWeight: 700 }}>{p.name}</span>
@@ -218,7 +248,7 @@ function ProductSelect() {
                     {p.shaftLengths.map((l) => (
                       <button
                         key={l}
-                        onClick={(e) => { e.stopPropagation(); setSelectedLength(l); useSimStore.getState().updatePlacement({ selectedLength: l }); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedLength(l); updatePlacement({ selectedLength: l }); }}
                         style={{
                           padding: '6px 14px',
                           borderRadius: 6,

@@ -321,8 +321,8 @@ export function LearningMode() {
             </div>
           )}
 
-          {/* ── 耳介フリームーブ デバッグパネル ── */}
-          {showPinna && learningTab === 'anatomy' && (
+          {/* ── 耳介フリームーブ デバッグパネル（開発環境のみ） ── */}
+          {import.meta.env.DEV && showPinna && learningTab === 'anatomy' && (
             <div style={{
               position: 'absolute', bottom: 12, left: 12, zIndex: 20,
               background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(8px)',

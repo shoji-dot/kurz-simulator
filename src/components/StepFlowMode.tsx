@@ -450,8 +450,11 @@ function SummaryPanel({
 
 // ── 症例・製品選択（フロー開始） ──────────────────────────────────
 function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => void }) {
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  // シミュレーションモードから遷移した場合、既選択症例を引き継ぐ
+  const storeCase    = useSimStore(s => s.selectedCase);
+  const storeProduct = useSimStore(s => s.selectedProduct);
+  const [selectedCaseId,    setSelectedCaseId]    = useState<string | null>(storeCase?.id ?? null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(storeProduct?.id ?? null);
   const selectedCase    = surgicalCases.find(c => c.id === selectedCaseId) ?? null;
   const selectedProduct = kurzProducts.find(p => p.id === selectedProductId) ?? null;
 
