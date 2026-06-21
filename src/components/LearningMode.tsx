@@ -665,6 +665,70 @@ export function LearningMode() {
           {/* ── 製品タブ ── */}
           {learningTab === 'products' && (
             <>
+              {/* ── プロテーゼ選択ガイド ── */}
+              <div className="card" style={{ padding: '14px' }}>
+                <div className="section-title">プロテーゼ選択ガイド</div>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  術中所見から適切なプロテーゼを選択する臨床フロー
+                </p>
+
+                {/* Step 1: アブミ骨上部構造 */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                    ① アブミ骨上部構造の確認
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(0,180,216,0.10)', border: '1px solid rgba(0,180,216,0.30)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#7dd8e8', marginBottom: 3 }}>温存あり ✓</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>頭部・前後弓が残存<br />可動性を必ず確認</div>
+                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: '#60b8e0' }}>→ PORP 適応</div>
+                    </div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', marginBottom: 3 }}>底板のみ ✗</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>上部構造欠損<br />底板可動性を確認</div>
+                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: '#f87171' }}>→ TORP 適応</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 2: ツチ骨柄の有無（PORP選択時） */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                    ② ツチ骨柄の残存確認（PORP選択時）
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', marginBottom: 3 }}>柄あり</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>II型変法<br />柄下にPORPを設置</div>
+                    </div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.25)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#ffd166', marginBottom: 3 }}>柄なし</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>III型<br />鼓膜直下にPORP</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: フット選択 */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                    ③ フット形状の選択
+                  </div>
+                  {[
+                    { type: 'BELL', label: 'ベル型', color: '#60b8e0', desc: '標準PORP。アブミ骨頭部を包む形状。軟骨片を頭板下に追加。' },
+                    { type: 'CLIP', label: 'クリップ型', color: '#a78bfa', desc: 'アブミ骨頭部にクリッピング固定。軟骨不要。Dresden型。' },
+                    { type: 'FLAT', label: 'フラット型', color: '#f87171', desc: 'TORP専用。底板中央に設置。偏心厳禁。' },
+                  ].map(({ type, label, color, desc }) => (
+                    <div key={type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6, padding: '6px 8px', borderRadius: 6, background: `${color}10` }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color, minWidth: 50, marginTop: 1 }}>{type}</span>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 1 }}>{label}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="card" style={{ padding: '12px' }}>
                 <div className="section-title">製品を選択</div>
                 {kurzProducts.map((p) => (

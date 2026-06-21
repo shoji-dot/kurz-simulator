@@ -42,7 +42,7 @@ function AppHeader() {
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>
-        v0.1.0 プロトタイプ
+        v0.2.0 プロトタイプ
       </div>
     </header>
   );

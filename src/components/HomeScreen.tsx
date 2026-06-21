@@ -45,9 +45,9 @@ const SIMULATOR_FEATURES = [
 
 const STATS = [
   { value: '10', unit: '症例', label: '難易度別シナリオ' },
+  { value: '20', unit: '患者', label: '実スキャン耳介バリエーション' },
   { value: '4', unit: '指標', label: 'スコアリング評価軸' },
-  { value: '14', unit: 'GLB', label: '実 CT 由来 3D モデル' },
-  { value: '7.0T', unit: 'MRI', label: 'チタン安全グレード' },
+  { value: 'ABG', unit: '予測', label: '術後気骨導差改善予測' },
 ];
 
 const specs = [
