@@ -82,6 +82,8 @@ interface AnatomySceneProps {
   highlightedKey?:    string | null;
   /** 側頭骨ghost時不透明度（0–1） */
   boneGhostOpacity?:  number;
+  /** OrbitControls最小距離（内視鏡貫通防止に使用） */
+  minDistance?:       number;
 }
 
 export function AnatomyScene({
@@ -95,6 +97,7 @@ export function AnatomyScene({
   auricleTransform,
   highlightedKey,
   boneGhostOpacity,
+  minDistance = 4,
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -105,7 +108,7 @@ export function AnatomyScene({
   const mergedVis: VisibilityMap = { ...vis, auricle: auricleMode };
   return (
     <Canvas
-      camera={{ position: [6, 8, 45], fov: 42 }}
+      camera={{ position: [6, 8, 70], fov: 42 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -140,7 +143,7 @@ export function AnatomyScene({
         makeDefault
         target={[0, 0, 0]}
         enablePan={true}
-        minDistance={4}
+        minDistance={minDistance}
         maxDistance={90}
         autoRotate={false}
       />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
-import { useSimStore, ALL_PATIENT_IDS } from '../store/useSimStore';
+import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
 import type { ViewMode } from '../scenes/AnatomyScene';
@@ -150,7 +150,7 @@ const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[
 
 // ══════════════════════════════════════════════════════════════════
 export function LearningMode() {
-  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId, setSelectedPatientId } = useSimStore();
+  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 3D表示モード
@@ -311,14 +311,21 @@ export function LearningMode() {
       background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
     } : null;
 
-  // 内視鏡ビュー: 円形クリップ用
-  const canvasWrapperStyle: CSSProperties = {
-    position: 'relative',
-    ...(viewMode === 'endoscope' ? {
-      clipPath: 'circle(43% at center)',
-      background: 'black',
-    } : {}),
-  };
+  // 内視鏡ビュー: 円形クリップは3Dコンテンツ専用divに適用（UIボタンへの影響を防ぐ）
+  const canvasWrapperStyle: CSSProperties = { position: 'relative' };
+  const endoscopeClipStyle: CSSProperties = viewMode === 'endoscope' ? {
+    position: 'absolute', inset: 0,
+    clipPath: 'circle(43% at center)',
+    background: 'black',
+  } : { position: 'absolute', inset: 0 };
+
+  // 内視鏡貫通防止: 側頭骨・耳小骨・鼓膜が表示されている場合はminDistanceを大きくする
+  const hasBlocker = viewMode === 'endoscope' && (
+    getMode('bone')     !== 'hidden' ||
+    getMode('malleus')  !== 'hidden' ||
+    getMode('tympanic') !== 'hidden'
+  );
+  const endoscopeMinDist = hasBlocker ? 14 : 4;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
@@ -339,70 +346,53 @@ export function LearningMode() {
           ))}
         </div>
 
-        {/* 患者プロファイル選択 */}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>👤 患者</span>
-          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-            {ALL_PATIENT_IDS.map(id => (
-              <button
-                key={id}
-                onClick={() => setSelectedPatientId(id)}
-                style={{
-                  width: 26, height: 26, borderRadius: 5, fontSize: 11, fontWeight: selectedPatientId === id ? 700 : 400,
-                  border: `1px solid ${selectedPatientId === id ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
-                  background: selectedPatientId === id ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.04)',
-                  color: selectedPatientId === id ? 'var(--accent)' : 'var(--text-muted)',
-                  cursor: 'pointer', transition: 'all .12s',
-                }}
-              >
-                {id}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
         <div className="canvas-wrapper" style={canvasWrapperStyle}>
-          {learningTab === 'drilling' ? (
-            <DrillTrainingScene
-              scenario={drillScenario}
-              selectedZoneId={selectedZoneId}
-              onZoneSelect={setSelectedZoneId}
-              s3StepIndex={s3StepIndex}
-              s3IsPlaying={s3IsPlaying}
-              onS3StepComplete={handleS3StepComplete}
-              boneVis={drillBoneVis}
-              boneGhostOpacity={boneGhostOpacity}
-            />
-          ) : (
-            <AnatomyScene
-              vis={visForScene}
-              zoomLevel={zoomLevel}
-              showTympanoCavity={showTympanoCavity}
-              showPinna={showPinna}
-              pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
-              patientId={selectedPatientId}
-              viewMode={viewMode}
-              auricleTransform={auricleTransform}
-              highlightedKey={highlightedStructure}
-              boneGhostOpacity={boneGhostOpacity}
-            />
-          )}
+          {/* 3Dコンテンツ + 視覚エフェクト（内視鏡時はここだけclipPath適用） */}
+          <div style={endoscopeClipStyle}>
+            {learningTab === 'drilling' ? (
+              <DrillTrainingScene
+                scenario={drillScenario}
+                selectedZoneId={selectedZoneId}
+                onZoneSelect={setSelectedZoneId}
+                s3StepIndex={s3StepIndex}
+                s3IsPlaying={s3IsPlaying}
+                onS3StepComplete={handleS3StepComplete}
+                boneVis={drillBoneVis}
+                boneGhostOpacity={boneGhostOpacity}
+              />
+            ) : (
+              <AnatomyScene
+                vis={visForScene}
+                zoomLevel={zoomLevel}
+                showTympanoCavity={showTympanoCavity}
+                showPinna={showPinna}
+                pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
+                patientId={selectedPatientId}
+                viewMode={viewMode}
+                auricleTransform={auricleTransform}
+                highlightedKey={highlightedStructure}
+                boneGhostOpacity={boneGhostOpacity}
+                minDistance={endoscopeMinDist}
+              />
+            )}
 
-          {/* CSS ビネット/内視鏡オーバーレイ */}
-          {vignetteStyle && <div style={vignetteStyle} />}
+            {/* CSS ビネット/内視鏡オーバーレイ */}
+            {vignetteStyle && <div style={vignetteStyle} />}
 
-          {/* 内視鏡: 青みフィルター */}
-          {viewMode === 'endoscope' && (
-            <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
-              background: 'rgba(10, 25, 60, 0.08)',
-            }} />
-          )}
+            {/* 内視鏡: 青みフィルター */}
+            {viewMode === 'endoscope' && (
+              <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+                background: 'rgba(10, 25, 60, 0.08)',
+              }} />
+            )}
+          </div>
 
-          {/* ── ビューモードトグル（解剖タブ）── */}
+          {/* ── ビューモードトグル（UIボタンはclipPath外 → 常時クリック可能）── */}
           {learningTab === 'anatomy' && (
             <div style={{
               position: 'absolute', top: 12, right: 16, zIndex: 15,

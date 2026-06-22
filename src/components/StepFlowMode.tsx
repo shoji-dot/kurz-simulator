@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useSimStore, ALL_PATIENT_IDS } from '../store/useSimStore';
+import { useSimStore } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
@@ -580,7 +580,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
 // ── メインコンポーネント ───────────────────────────────────────────
 export function StepFlowMode() {
-  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, selectedPatientId, setSelectedPatientId } = useSimStore();
+  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, selectedPatientId } = useSimStore();
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
@@ -659,27 +659,7 @@ export function StepFlowMode() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
-      {/* 患者プロファイル選択バー */}
-      <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>👤 患者</span>
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {ALL_PATIENT_IDS.map(id => (
-            <button
-              key={id}
-              onClick={() => setSelectedPatientId(id)}
-              style={{
-                width: 24, height: 24, borderRadius: 5, fontSize: 11, fontWeight: selectedPatientId === id ? 700 : 400,
-                border: `1px solid ${selectedPatientId === id ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
-                background: selectedPatientId === id ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.04)',
-                color: selectedPatientId === id ? 'var(--accent)' : 'var(--text-muted)',
-                cursor: 'pointer', transition: 'all .12s',
-              }}
-            >
-              {id}
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       {/* 進行バー */}
       <StepProgressBar currentStep={stepIndex + 1} totalSteps={STEPS.length} onStepClick={setStepIndex} />
