@@ -34,8 +34,8 @@ function ZoomHandler({ level }: { level: number }) {
     if (diff === 0) return;
     const oc = controls as any;
     for (let i = 0; i < Math.abs(diff); i++) {
-      if (diff > 0) oc.dollyIn?.(1.35);
-      else oc.dollyOut?.(1.35);
+      if (diff > 0) oc.dollyOut?.(1.35);
+      else oc.dollyIn?.(1.35);
     }
     oc.update?.();
     prevLevel.current = level;

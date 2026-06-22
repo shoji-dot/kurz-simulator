@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import {
   STAPES_HEAD,
   STAPES_FOOTPLATE,
+  UMBO_POS,
 } from './models/OssicleModels';
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
 import {
@@ -65,15 +66,77 @@ export const SIM_DEFAULT_VIS: VisibilityMap = {
 
 export type DragMode = 'move' | 'view';
 
+// ── 軟骨スライス（ヘッドプレートと鼓膜の間に挟む 2mm 厚カーリッジ）──────────
+interface CartilageSliceProps {
+  product:        KurzProduct;
+  shaftLength:    number;
+  basePos:        THREE.Vector3;
+  lateralOffset:  number;
+  anteriorOffset: number;
+  verticalOffset: number;
+  angleTilt:      number;
+  angleTiltZ:     number;
+  dragOffsetX:    number;
+  dragOffsetY:    number;
+  dragOffsetZ:    number;
+}
+
+function CartilageSlice({
+  product, shaftLength, basePos,
+  lateralOffset, anteriorOffset, verticalOffset,
+  angleTilt, angleTiltZ,
+  dragOffsetX, dragOffsetY, dragOffsetZ,
+}: CartilageSliceProps) {
+  const base = basePos.clone();
+  base.x += lateralOffset   + dragOffsetX;
+  base.y += verticalOffset  + dragOffsetY;
+  base.z += anteriorOffset  + dragOffsetZ;
+
+  const dir = new THREE.Vector3().subVectors(UMBO_POS, base).normalize();
+
+  // ヘッドプレート中心 ≒ base + (len + 0.15) * dir
+  // 軟骨スライス中心 = ヘッドプレートから 1.5mm 上（鼓膜側）
+  const center = base.clone().addScaledVector(dir, shaftLength + 1.65);
+
+  const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const euler = new THREE.Euler().setFromQuaternion(quat);
+  const tiltXRad = (angleTilt  * Math.PI) / 180;
+  const tiltZRad = (angleTiltZ * Math.PI) / 180;
+  const r = (product.headPlateDiameter ?? 3.0) / 2;
+
+  return (
+    <group
+      position={[center.x, center.y, center.z]}
+      rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
+    >
+      {/* 軟骨本体（2mm 厚） */}
+      <mesh>
+        <cylinderGeometry args={[r, r, 2.0, 32]} />
+        <meshStandardMaterial color="#e8d5a0" transparent opacity={0.82} roughness={0.65} metalness={0} />
+      </mesh>
+      {/* 上面・下面の輪郭を強調 */}
+      <mesh position={[0,  1.0, 0]}>
+        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.08, 32]} />
+        <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
+      </mesh>
+      <mesh position={[0, -1.0, 0]}>
+        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.08, 32]} />
+        <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 interface SimSceneProps {
-  surgicalCase:  SurgicalCase;
-  product:       KurzProduct;
-  placement:     PlacementState;
-  showIdeal?:    boolean;
+  surgicalCase:   SurgicalCase;
+  product:        KurzProduct;
+  placement:      PlacementState;
+  showIdeal?:     boolean;
+  showCartilage?: boolean;
   /** 表示切替（学習モードと同一形式） */
-  vis?:          VisibilityMap;
+  vis?:           VisibilityMap;
   /** 操作モード: 'move'=プロテーゼ移動, 'view'=ビュー操作 */
-  dragMode?:     DragMode;
+  dragMode?:      DragMode;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -186,7 +249,7 @@ function clamp3(v: number): number {
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
-  surgicalCase, product, placement, showIdeal = false, vis = {}, dragMode = 'view',
+  surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view',
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -284,6 +347,23 @@ export function SimScene({
 
           {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
           <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
+
+          {/* ── 軟骨スライス ── */}
+          {showCartilage && (
+            <CartilageSlice
+              product={product}
+              shaftLength={selectedLength}
+              basePos={basePos.clone()}
+              lateralOffset={lateralOffset}
+              anteriorOffset={anteriorOffset}
+              verticalOffset={verticalOffset}
+              angleTilt={angleTilt}
+              angleTiltZ={angleTiltZ}
+              dragOffsetX={dragOffsetX}
+              dragOffsetY={dragOffsetY}
+              dragOffsetZ={dragOffsetZ}
+            />
+          )}
 
           {/* ── ドラッグ可能プロテーゼ ── */}
           <DraggableProsthesis

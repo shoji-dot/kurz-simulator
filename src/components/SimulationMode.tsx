@@ -732,6 +732,7 @@ function ShaftEstimateStep() {
 function PlacementStep() {
   const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore } = useSimStore();
   const [showIdeal, setShowIdeal] = useState(false);
+  const [showCartilage, setShowCartilage] = useState(false);
   // 症例の耳小骨欠損ステータスに基づいて初期表示を設定
   const [simVis, setSimVis] = useState<VisibilityMap>(() => {
     const sc = useSimStore.getState().selectedCase;
@@ -782,6 +783,7 @@ function PlacementStep() {
           product={selectedProduct}
           placement={safeP}
           showIdeal={showIdeal}
+          showCartilage={showCartilage}
           vis={simVis}
           dragMode={dragMode}
         />
@@ -843,6 +845,13 @@ function PlacementStep() {
             onClick={() => setShowIdeal(!showIdeal)}
           >
             {showIdeal ? '👻 理想位置を非表示' : '👻 理想位置を表示'}
+          </button>
+          {/* 軟骨スライストグル */}
+          <button
+            className={`btn btn-sm ${showCartilage ? 'btn-secondary' : 'btn-ghost'}`}
+            onClick={() => setShowCartilage(!showCartilage)}
+          >
+            {showCartilage ? '🟡 軟骨スライスを非表示' : '🟡 軟骨スライスを表示'}
           </button>
         </div>
       </div>

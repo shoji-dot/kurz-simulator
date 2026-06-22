@@ -583,6 +583,7 @@ export function StepFlowMode() {
   const { setScreen, resetSimulation, updatePlacement, computeScore, placement, selectedPatientId, setSelectedPatientId } = useSimStore();
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
+  const [showCartilage, setShowCartilage] = useState(false);
 
   const [phase, setPhase] = useState<'setup' | 'flow'>('setup');
   const [flowCase, setFlowCase]       = useState<SurgicalCase | null>(null);
@@ -692,6 +693,7 @@ export function StepFlowMode() {
               product={flowProduct}
               placement={placement}
               showIdeal={true}
+              showCartilage={showCartilage}
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', eac: 'ghost' }}
             />
           ) : step.useScoreView || step.useSummaryView ? (
@@ -744,6 +746,19 @@ export function StepFlowMode() {
               <span key={t} style={{ padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,0,0,0.7)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)', backdropFilter: 'blur(4px)' }}>{t}</span>
             ))}
           </div>
+
+          {/* 軟骨スライストグル（SimScene表示時のみ） */}
+          {step.useSimScene && (
+            <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 10 }}>
+              <button
+                className={`btn btn-sm ${showCartilage ? 'btn-secondary' : 'btn-ghost'}`}
+                onClick={() => setShowCartilage(v => !v)}
+                style={{ backdropFilter: 'blur(6px)' }}
+              >
+                🟡 軟骨スライス
+              </button>
+            </div>
+          )}
 
           {/* 操作ヒント */}
           <div className="canvas-overlay bottom-left">
