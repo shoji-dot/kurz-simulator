@@ -671,7 +671,7 @@ export function StepFlowMode() {
                 border: `1px solid ${selectedPatientId === id ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
                 background: selectedPatientId === id ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.04)',
                 color: selectedPatientId === id ? 'var(--accent)' : 'var(--text-muted)',
-                cursor: 'p                cursor: 'pointer', transition: 'all .12s',
+                cursor: 'pointer', transition: 'all .12s',
               }}
             >
               {id}
@@ -770,12 +770,6 @@ export function StepFlowMode() {
             onPrev={handlePrev}
             onNext={handleNext}
           />
-        )}
-      </div>
-    </div>
-  );
-}
-    />
         )}
       </div>
     </div>
