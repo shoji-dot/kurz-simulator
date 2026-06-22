@@ -55,7 +55,7 @@ const STEPS: StepDef[] = [
     subtitle: '側頭骨・耳小骨の解剖を確認',
     guide: '鼓膜を透かして中耳腔の全体像を把握します。側頭骨（半透明）の中に耳小骨連鎖（ツチ骨・キヌタ骨・アブミ骨）が連続していることを確認してください。',
     clinicalNote: '手術開始前の解剖確認が合併症予防の第一歩。特に顔面神経と耳小骨の位置関係を術前CTで把握しておく。',
-    vis: { bone: 'ghost', tympanic: 'solid', malleus: 'solid', incus: 'solid', stapes: 'solid', facialNerve: 'solid', eac: 'ghost', roundWindow: 'solid' },
+    vis: { bone: 'solid', tympanic: 'solid', malleus: 'solid', incus: 'solid', stapes: 'solid', facialNerve: 'solid', eac: 'ghost', roundWindow: 'solid' },
   },
   {
     id: 2,

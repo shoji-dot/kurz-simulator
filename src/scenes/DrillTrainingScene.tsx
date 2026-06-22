@@ -268,7 +268,7 @@ function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid'
       {/* S3CameraController は削除 — ユーザーの現在視野を維持 */}
 
       {/* 側頭骨: 削開ステップごとに透明化（boneVis で上書き可） */}
-      <RealTemporalBone opacityOverride={boneOpacity} />
+      <RealTemporalBone opacityOverride={boneOpacity} outlineMode={boneVis === 'ghost'} />
 
       {/* 顔面神経: 常時警告表示 */}
       <RealFacialNerve opacityOverride={0.85} />
@@ -395,7 +395,7 @@ function S2Content({
   const boneOpacity = boneVis === 'hidden' ? 0 : boneVis === 'solid' ? 0.55 : 0.07;
   return (
     <group>
-      <RealTemporalBone opacityOverride={boneOpacity} />
+      <RealTemporalBone opacityOverride={boneOpacity} outlineMode={boneVis === 'ghost'} />
       <RealFacialNerve />
       <RealChordaTympani opacityOverride={0.55} />
       <RealInnerEar opacityOverride={0.55} />
