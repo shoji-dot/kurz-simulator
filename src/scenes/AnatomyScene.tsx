@@ -13,11 +13,82 @@
  */
 
 import { Suspense, useRef, useEffect } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap, type AuricleTransform } from './models/RealAnatomyModels';
+
+// ── 硬性内視鏡アラートゾーン定義 ────────────────────────────────────
+// 座標系: 世界空間（GLB Y-down を scale=[1,-1,1] で反転後）
+// GLB[x, y, z] → world[x, -y, z]
+export interface EndoscopeAlert {
+  id:       string;
+  nameJa:   string;
+  severity: 'warning' | 'danger';
+}
+
+const ENDO_ZONES: Array<{
+  id:        string;
+  nameJa:    string;
+  severity:  'warning' | 'danger';
+  visKey?:   string;            // vis が hidden なら skip
+  center:    [number,number,number]; // world space
+  radius:    number;            // mm
+}> = [
+  // 耳小骨クラスター（world: GLB stapes head Y-flip）
+  { id: 'ossicles',        nameJa: '耳小骨',          severity: 'warning', visKey: 'malleus',      center: [0.84,  2.65, 4.86], radius: 5.5 },
+  // 鼓膜・臍（umbo）
+  { id: 'tympanic',        nameJa: '鼓膜',             severity: 'warning', visKey: 'tympanic',     center: [0.0,   0.0,  5.5],  radius: 4.5 },
+  // 顔面神経 鼓室部（world: GLB[0, 2.8, -1.5] → [0, -2.8, -1.5]）
+  { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）', severity: 'danger', visKey: 'facialNerve',  center: [0.0,  -2.8, -1.5], radius: 5.5 },
+  // 顔面神経 第2膝部（world: GLB[-4, 1.5, -3] → [-4, -1.5, -3]）
+  { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: [-4.0, -1.5, -3.0], radius: 5.0 },
+  // 鼓索神経（ossicle間を走行、大まかな推定位置）
+  { id: 'chorda',          nameJa: '鼓索神経',          severity: 'danger', visKey: 'chordaTympani', center: [0.5,  2.0,  4.0],  radius: 4.5 },
+];
+
+// ── 硬性内視鏡近接モニター（Canvas内コンポーネント）─────────────────
+function EndoscopeMonitor({
+  enabled,
+  vis,
+  onAlert,
+}: {
+  enabled: boolean;
+  vis?: VisibilityMap;
+  onAlert: (alerts: EndoscopeAlert[]) => void;
+}) {
+  const { camera } = useThree();
+  const onAlertRef = useRef(onAlert);
+  useEffect(() => { onAlertRef.current = onAlert; }, [onAlert]);
+  const lastKey = useRef('');
+
+  useFrame(() => {
+    if (!enabled) return;
+    const pos = camera.position;
+    const active: EndoscopeAlert[] = [];
+
+    for (const z of ENDO_ZONES) {
+      // 対応する構造が hidden なら skip
+      if (z.visKey && vis) {
+        const mode = (vis as Record<string, string>)[z.visKey];
+        if (mode === 'hidden') continue;
+      }
+      const c = new THREE.Vector3(...z.center);
+      if (pos.distanceTo(c) < z.radius) {
+        active.push({ id: z.id, nameJa: z.nameJa, severity: z.severity });
+      }
+    }
+
+    const key = active.map(a => a.id).join(',');
+    if (key !== lastKey.current) {
+      lastKey.current = key;
+      onAlertRef.current(active);
+    }
+  });
+
+  return null;
+}
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
@@ -84,6 +155,8 @@ interface AnatomySceneProps {
   boneGhostOpacity?:  number;
   /** OrbitControls最小距離（内視鏡貫通防止に使用） */
   minDistance?:       number;
+  /** 内視鏡近接アラートコールバック */
+  onEndoscopeAlert?:  (alerts: EndoscopeAlert[]) => void;
 }
 
 export function AnatomyScene({
@@ -98,6 +171,7 @@ export function AnatomyScene({
   highlightedKey,
   boneGhostOpacity,
   minDistance = 4,
+  onEndoscopeAlert,
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -120,6 +194,15 @@ export function AnatomyScene({
 
       {/* ── ビューモードコントローラー ── */}
       <ViewModeController mode={viewMode} />
+
+      {/* ── 硬性内視鏡近接モニター ── */}
+      {viewMode === 'endoscope' && onEndoscopeAlert && (
+        <EndoscopeMonitor
+          enabled={true}
+          vis={vis}
+          onAlert={onEndoscopeAlert}
+        />
+      )}
 
       {/* ── ライティング ── */}
       <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />

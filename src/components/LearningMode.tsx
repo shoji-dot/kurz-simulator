@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
-import type { ViewMode } from '../scenes/AnatomyScene';
+import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
@@ -281,6 +281,15 @@ export function LearningMode() {
 
   // ── ビューモード（解剖タブ用）───────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
+  const [endoscopeAlerts, setEndoscopeAlerts] = useState<EndoscopeAlert[]>([]);
+  const handleEndoscopeAlert = useCallback((alerts: EndoscopeAlert[]) => {
+    setEndoscopeAlerts(alerts);
+  }, []);
+
+  // 内視鏡モード終了時にアラートをクリア
+  useEffect(() => {
+    if (viewMode !== 'endoscope') setEndoscopeAlerts([]);
+  }, [viewMode]);
 
   // タブ変更時にビューモードをリセット
   useEffect(() => {
@@ -325,7 +334,7 @@ export function LearningMode() {
     getMode('malleus')  !== 'hidden' ||
     getMode('tympanic') !== 'hidden'
   );
-  const endoscopeMinDist = hasBlocker ? 14 : 4;
+  const endoscopeMinDist = hasBlocker ? 8 : 4;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
@@ -377,6 +386,7 @@ export function LearningMode() {
                 highlightedKey={highlightedStructure}
                 boneGhostOpacity={boneGhostOpacity}
                 minDistance={endoscopeMinDist}
+                onEndoscopeAlert={handleEndoscopeAlert}
               />
             )}
 
@@ -391,6 +401,38 @@ export function LearningMode() {
               }} />
             )}
           </div>
+
+          {/* ── 硬性内視鏡 近接アラート ── */}
+          {viewMode === 'endoscope' && endoscopeAlerts.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              pointerEvents: 'none',
+            }}>
+              {/* 重大度が最も高いものを先に表示 */}
+              {[...endoscopeAlerts]
+                .sort((a, b) => (a.severity === 'danger' ? -1 : 1))
+                .map(alert => (
+                  <div key={alert.id} style={{
+                    padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    backdropFilter: 'blur(8px)',
+                    background: alert.severity === 'danger'
+                      ? 'rgba(248,65,65,0.88)'
+                      : 'rgba(255,180,0,0.88)',
+                    color: alert.severity === 'danger' ? '#fff' : '#1a0a00',
+                    border: `1px solid ${alert.severity === 'danger' ? '#ff6060' : '#ffcc00'}`,
+                    boxShadow: alert.severity === 'danger'
+                      ? '0 0 12px rgba(255,60,60,0.7)'
+                      : '0 0 10px rgba(255,180,0,0.5)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span>{alert.severity === 'danger' ? '⚠️ 危険' : '⚡ 注意'}</span>
+                    <span>{alert.nameJa} に接触</span>
+                  </div>
+                ))
+              }
+            </div>
+          )}
 
           {/* ── ビューモードトグル（UIボタンはclipPath外 → 常時クリック可能）── */}
           {learningTab === 'anatomy' && (
