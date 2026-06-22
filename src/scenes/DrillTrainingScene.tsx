@@ -447,7 +447,7 @@ export function DrillTrainingScene({
       <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[2, 3, 18]}   intensity={0.9}  color="#ffe8d0" />
       <directionalLight position={[-4, 2, -12]} intensity={0.6}  color="#c0d8ff" />
-      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="#d0e4ff" />
+      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="#d0e4ff" />
       <pointLight position={[0, -2, -8]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
       <pointLight position={[1, 3, 4]}   intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
@@ -513,11 +513,6 @@ export function DrillTrainingScene({
         enablePan
         minDistance={3}
         maxDistance={90}
-      />
-    </Canvas>
-  );
-}
-axDistance={90}
       />
     </Canvas>
   );
