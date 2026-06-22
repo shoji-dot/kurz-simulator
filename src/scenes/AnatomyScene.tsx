@@ -23,19 +23,23 @@ import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 export type ViewMode = 'normal' | 'microscope' | 'endoscope';
 
-// ── FOVベースのズームハンドラ（Canvas内に置く）─────────────────
+// ── 距離ベースのズームハンドラ（OrbitControlsのdollyと統一）─────
 function ZoomHandler({ level }: { level: number }) {
-  const { camera } = useThree();
+  const { controls } = useThree();
   const prevLevel = useRef(0);
 
   useEffect(() => {
+    if (!controls) return;
     const diff = level - prevLevel.current;
     if (diff === 0) return;
-    const cam = camera as THREE.PerspectiveCamera;
-    cam.fov = Math.max(8, Math.min(85, cam.fov - diff * 5));
-    cam.updateProjectionMatrix();
+    const oc = controls as any;
+    for (let i = 0; i < Math.abs(diff); i++) {
+      if (diff > 0) oc.dollyIn?.(1.35);
+      else oc.dollyOut?.(1.35);
+    }
+    oc.update?.();
     prevLevel.current = level;
-  }, [level, camera]);
+  }, [level, controls]);
 
   return null;
 }
@@ -76,6 +80,8 @@ interface AnatomySceneProps {
   auricleTransform?:  AuricleTransform;
   /** ハイライトする構造キー */
   highlightedKey?:    string | null;
+  /** 側頭骨ghost時不透明度（0–1） */
+  boneGhostOpacity?:  number;
 }
 
 export function AnatomyScene({
@@ -88,6 +94,7 @@ export function AnatomyScene({
   viewMode = 'normal',
   auricleTransform,
   highlightedKey,
+  boneGhostOpacity,
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -98,14 +105,14 @@ export function AnatomyScene({
   const mergedVis: VisibilityMap = { ...vis, auricle: auricleMode };
   return (
     <Canvas
-      camera={{ position: [8, 5, 22], fov: 46 }}
+      camera={{ position: [6, 8, 45], fov: 42 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
     >
       <color attach="background" args={['#0a0f1a']} />
 
-      {/* ── ズームハンドラ ── */}
+      {/* ── ズームハンドラ（OrbitControls距離ベース） ── */}
       <ZoomHandler level={zoomLevel} />
 
       {/* ── ビューモードコントローラー ── */}
@@ -120,21 +127,21 @@ export function AnatomyScene({
       <pointLight position={[1,  3,  4]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
-        <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} />
-        {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
-        {showTympanoCavity && <TympanoCavityEdu />}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
-          <planeGeometry args={[60, 60]} />
-          <shadowMaterial transparent opacity={0.15} />
-        </mesh>
+        {/* Y軸反転グループ（GLBがY-down座標系のため） */}
+        <group scale={[1, -1, 1]}>
+          {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
+          <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} boneGhostOpacity={boneGhostOpacity} />
+          {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
+          {showTympanoCavity && <TympanoCavityEdu />}
+        </group>
       </Suspense>
 
       <OrbitControls
+        makeDefault
         target={[0, 0, 0]}
         enablePan={true}
         minDistance={4}
-        maxDistance={55}
+        maxDistance={90}
         autoRotate={false}
       />
     </Canvas>

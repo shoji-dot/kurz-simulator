@@ -38,6 +38,8 @@ export interface DrillTrainingSceneProps {
   onS3StepComplete: () => void;
   /** 側頭骨表示モード S1〜S5 共通（デフォルト: solid） */
   boneVis?: 'solid' | 'ghost' | 'hidden';
+  /** ghost 時の側頭骨不透明度（0–1） */
+  boneGhostOpacity?: number;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -247,20 +249,21 @@ function S3CameraController({ stepIndex, controlsRef }: S3CameraControllerProps)
 // S3 シーンコンテンツ
 // ══════════════════════════════════════════════════════════════════
 interface S3AnimationSceneProps {
-  stepIndex:   number;
-  isPlaying:   boolean;
-  controlsRef: React.RefObject<any>;
-  boneVis?:    'solid' | 'ghost' | 'hidden';
+  stepIndex:        number;
+  isPlaying:        boolean;
+  controlsRef:      React.RefObject<any>;
+  boneVis?:         'solid' | 'ghost' | 'hidden';
+  boneGhostOpacity?: number;
 }
 
-function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid' }: S3AnimationSceneProps) {
+function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid', boneGhostOpacity = 0.18 }: S3AnimationSceneProps) {
   const step = DRILL_STEPS[stepIndex];
   // PORP (BELLフット)を使用
   const porpProduct = kurzProducts.find((p) => p.footType === 'BELL') ?? kurzProducts[0];
 
   // 削開アニメーション boneOpacity にユーザー選択を重ねる
   const boneOpacity = boneVis === 'hidden' ? 0
-    : boneVis === 'ghost' ? Math.min(step.boneOpacity, 0.25)
+    : boneVis === 'ghost' ? boneGhostOpacity
     : step.boneOpacity;
 
   return (
@@ -268,7 +271,7 @@ function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid'
       {/* S3CameraController は削除 — ユーザーの現在視野を維持 */}
 
       {/* 側頭骨: 削開ステップごとに透明化（boneVis で上書き可） */}
-      <RealTemporalBone opacityOverride={boneOpacity} outlineMode={boneVis === 'ghost'} />
+      <RealTemporalBone opacityOverride={boneOpacity} />
 
       {/* 顔面神経: 常時警告表示 */}
       <RealFacialNerve opacityOverride={0.85} />
@@ -387,15 +390,17 @@ function S2Content({
   selectedZoneId,
   onZoneSelect,
   boneVis = 'ghost',
+  boneGhostOpacity = 0.18,
 }: {
   selectedZoneId: string | null;
   onZoneSelect: (id: string | null) => void;
   boneVis?: 'solid' | 'ghost' | 'hidden';
+  boneGhostOpacity?: number;
 }) {
-  const boneOpacity = boneVis === 'hidden' ? 0 : boneVis === 'solid' ? 0.55 : 0.07;
+  const boneOpacity = boneVis === 'hidden' ? 0 : boneVis === 'solid' ? 1.0 : boneGhostOpacity;
   return (
     <group>
-      <RealTemporalBone opacityOverride={boneOpacity} outlineMode={boneVis === 'ghost'} />
+      <RealTemporalBone opacityOverride={boneOpacity} />
       <RealFacialNerve />
       <RealChordaTympani opacityOverride={0.55} />
       <RealInnerEar opacityOverride={0.55} />
@@ -423,12 +428,13 @@ export function DrillTrainingScene({
   s3StepIndex,
   s3IsPlaying,
   boneVis = 'solid',
+  boneGhostOpacity = 0.18,
 }: DrillTrainingSceneProps) {
   const controlsRef = useRef<any>(null);
 
   return (
     <Canvas
-      camera={{ position: [8, 5, 22], fov: 46 }}
+      camera={{ position: [6, 8, 45], fov: 42 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -441,65 +447,77 @@ export function DrillTrainingScene({
       <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[2, 3, 18]}   intensity={0.9}  color="#ffe8d0" />
       <directionalLight position={[-4, 2, -12]} intensity={0.6}  color="#c0d8ff" />
-      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="#d0e4ff" />
+      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="#d0e4ff" />
       <pointLight position={[0, -2, -8]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
       <pointLight position={[1, 3, 4]}   intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {scenario === 's1' && <RealAnatomy vis={{ bone: boneVis }} />}
+        {/* Y軸反転グループ（GLBがY-down座標系のため） */}
+        <group scale={[1, -1, 1]}>
+          {scenario === 's1' && <RealAnatomy vis={{ bone: boneVis }} boneGhostOpacity={boneGhostOpacity} />}
 
-        {scenario === 's2' && (
-          <S2Content
-            selectedZoneId={selectedZoneId}
-            onZoneSelect={onZoneSelect}
-            boneVis={boneVis}
-          />
-        )}
+          {scenario === 's2' && (
+            <S2Content
+              selectedZoneId={selectedZoneId}
+              onZoneSelect={onZoneSelect}
+              boneVis={boneVis}
+              boneGhostOpacity={boneGhostOpacity}
+            />
+          )}
 
-        {scenario === 's3' && (
-          <S3AnimationScene
-            stepIndex={s3StepIndex}
-            isPlaying={s3IsPlaying}
-            controlsRef={controlsRef}
-            boneVis={boneVis}
-          />
-        )}
+          {scenario === 's3' && (
+            <S3AnimationScene
+              stepIndex={s3StepIndex}
+              isPlaying={s3IsPlaying}
+              controlsRef={controlsRef}
+              boneVis={boneVis}
+              boneGhostOpacity={boneGhostOpacity}
+            />
+          )}
 
-        {/* S4: 推奨削開範囲 — 骨 + 危険部位グロー球で限界壁を可視化 */}
-        {scenario === 's4' && (
-          <>
-            <RealAnatomy vis={{ bone: boneVis, eac: 'ghost', tympanic: 'ghost',
-              malleus: 'ghost', incus: 'ghost', stapes: 'ghost',
-              facialNerve: 'solid', chordaTympani: 'hidden',
-              innerEar: 'hidden', roundWindow: 'hidden', auricle: 'hidden' }} />
-            <S2Content selectedZoneId={null} onZoneSelect={() => {}} boneVis="hidden" />
-          </>
-        )}
+          {/* S4: 推奨削開範囲 */}
+          {scenario === 's4' && (
+            <>
+              <RealAnatomy vis={{ bone: boneVis, eac: 'ghost', tympanic: 'ghost',
+                malleus: 'ghost', incus: 'ghost', stapes: 'ghost',
+                facialNerve: 'solid', chordaTympani: 'hidden',
+                innerEar: 'hidden', roundWindow: 'hidden', auricle: 'hidden' }}
+                boneGhostOpacity={boneGhostOpacity} />
+              <S2Content selectedZoneId={null} onZoneSelect={() => {}} boneVis="hidden" />
+            </>
+          )}
 
-        {/* S5: 削開完了後ビュー — 骨を boneVis に従い表示、内部構造を露出 */}
-        {scenario === 's5' && (
-          <RealAnatomy vis={{
-            bone:          boneVis,
-            eac:           'ghost',
-            auricle:       'hidden',
-            tympanic:      'ghost',
-            malleus:       'solid',
-            incus:         'solid',
-            stapes:        'solid',
-            facialNerve:   'solid',
-            chordaTympani: 'solid',
-            innerEar:      'solid',
-            roundWindow:   'solid',
-          }} />
-        )}
+          {/* S5: 削開完了後ビュー */}
+          {scenario === 's5' && (
+            <RealAnatomy vis={{
+              bone:          boneVis,
+              eac:           'ghost',
+              auricle:       'hidden',
+              tympanic:      'ghost',
+              malleus:       'solid',
+              incus:         'solid',
+              stapes:        'solid',
+              facialNerve:   'solid',
+              chordaTympani: 'solid',
+              innerEar:      'solid',
+              roundWindow:   'solid',
+            }} boneGhostOpacity={boneGhostOpacity} />
+          )}
+        </group>
       </Suspense>
 
       <OrbitControls
+        makeDefault
         ref={controlsRef}
         target={[0, 0, 0]}
         enablePan
         minDistance={3}
-        maxDistance={60}
+        maxDistance={90}
+      />
+    </Canvas>
+  );
+}
+axDistance={90}
       />
     </Canvas>
   );

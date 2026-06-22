@@ -215,6 +215,7 @@ export function LearningMode() {
 
   // ズームレベル
   const [zoomLevel, setZoomLevel] = useState(0);
+  const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
 
   // 削開タブ状態
   const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5'>('s1');
@@ -373,6 +374,7 @@ export function LearningMode() {
               s3IsPlaying={s3IsPlaying}
               onS3StepComplete={handleS3StepComplete}
               boneVis={drillBoneVis}
+              boneGhostOpacity={boneGhostOpacity}
             />
           ) : (
             <AnatomyScene
@@ -385,6 +387,7 @@ export function LearningMode() {
               viewMode={viewMode}
               auricleTransform={auricleTransform}
               highlightedKey={highlightedStructure}
+              boneGhostOpacity={boneGhostOpacity}
             />
           )}
 
@@ -625,6 +628,17 @@ export function LearningMode() {
                   {label}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* 側頭骨不透明度スライダー（骨が ghost の場合）*/}
+          {getMode('bone') === 'ghost' && (
+            <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
+              <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
+                onChange={e => setBoneGhostOpacity(Number(e.target.value))}
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as React.CSSProperties} />
+              <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}
         </div>

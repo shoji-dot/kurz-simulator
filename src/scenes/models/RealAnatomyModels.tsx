@@ -60,70 +60,7 @@ export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
   roundWindow:   'solid',
 };
 
-export const GHOST_OPACITY = 0.12;
-
-// -- Bone outline renderer (BackSide expansion technique) --
-// ghost モード時に側頭骨の外枠のみをアウトライン表示する
-// - 微細フィル（opacity 0.03）で奥行き情報を保持
-// - BackSide + 1.018倍スケールで輪郭線を生成（ノイズなし）
-function BoneOutlineRenderer() {
-  const { scene } = useGLTF('/models/Bone.glb');
-
-  const [fillMesh, outlineMesh] = useMemo(() => {
-    const fillClone = scene.clone(true);
-    const fillMat = new THREE.MeshStandardMaterial({
-      color: MAT.bone.color,
-      roughness: MAT.bone.roughness,
-      metalness: MAT.bone.metalness ?? 0.05,
-      transparent: true,
-      opacity: 0.03,
-      side: THREE.FrontSide,
-      depthWrite: false,
-    });
-    fillClone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const m = child as THREE.Mesh;
-        const geo = m.geometry.clone();
-        geo.deleteAttribute('normal');
-        geo.computeVertexNormals();
-        m.geometry = geo;
-        m.material = fillMat;
-        m.renderOrder = 1;
-      }
-    });
-
-    const outlineClone = scene.clone(true);
-    const outlineMat = new THREE.MeshBasicMaterial({
-      color: '#c8bc9e',
-      side: THREE.BackSide,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
-    });
-    outlineClone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const m = child as THREE.Mesh;
-        const geo = m.geometry.clone();
-        geo.deleteAttribute('normal');
-        geo.computeVertexNormals();
-        m.geometry = geo;
-        m.material = outlineMat;
-        m.renderOrder = 2;
-      }
-    });
-
-    return [fillClone, outlineClone];
-  }, [scene]);
-
-  return (
-    <group>
-      <primitive object={fillMesh} />
-      <group scale={[1.018, 1.018, 1.018]}>
-        <primitive object={outlineMesh} />
-      </group>
-    </group>
-  );
-}
+export const GHOST_OPACITY = 0.18;
 
 // -- Material config --
 const MAT: Record<string, { color: string; roughness: number; metalness?: number; opacity?: number }> = {
@@ -231,7 +168,7 @@ function GLBMesh({ url, matKey, castShadow = true, opacityOverride, highlighted 
 }
 
 // -- Individual structure components --
-interface StructureProps { opacityOverride?: number; highlighted?: boolean; outlineMode?: boolean }
+interface StructureProps { opacityOverride?: number; highlighted?: boolean }
 
 export function RealMalleus({ opacityOverride, highlighted }: StructureProps) {
   return <GLBMesh url="/models/Malleus.glb" matKey="malleus" opacityOverride={opacityOverride} highlighted={highlighted} />;
@@ -384,10 +321,7 @@ export function StapesFootplateHighlight() {
   );
 }
 
-export function RealTemporalBone({ opacityOverride, highlighted, outlineMode }: StructureProps) {
-  if (outlineMode) {
-    return <BoneOutlineRenderer />;
-  }
+export function RealTemporalBone({ opacityOverride, highlighted }: StructureProps) {
   return (
     <GLBMesh
       url="/models/Bone.glb"
@@ -459,12 +393,17 @@ interface RealAnatomyProps {
   highlightedKey?: string | null;
   /** 耳介スキャンID (T/J/A/H/E) */
   patientId?: string;
+  /** 側頭骨のghost時不透明度（0–1、デフォルト GHOST_OPACITY=0.18） */
+  boneGhostOpacity?: number;
 }
-export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patientId }: RealAnatomyProps) {
+export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patientId, boneGhostOpacity }: RealAnatomyProps) {
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
   const show    = (key: StructureKey) => getMode(key) !== 'hidden';
-  const opacity = (key: StructureKey): number | undefined =>
-    getMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
+  const opacity = (key: StructureKey): number | undefined => {
+    if (getMode(key) !== 'ghost') return undefined;
+    if (key === 'bone') return boneGhostOpacity ?? GHOST_OPACITY;
+    return GHOST_OPACITY;
+  };
   const hl      = (key: string) => highlightedKey === key;
 
   // 耳小骨の個別モード：個別キー → 旧 ossicles キー → デフォルト の順でフォールバック
@@ -476,7 +415,7 @@ export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patien
 
   return (
     <group>
-      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} outlineMode={getMode('bone') === 'ghost'} />}
+      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} />}
       {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       transform={auricleTransform} patientId={patientId} />}
       {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      highlighted={hl('tympanic') || hl('membrane')} />}
       {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} highlighted={hl('malleus')} />}

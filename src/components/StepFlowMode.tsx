@@ -581,6 +581,8 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 // ── メインコンポーネント ───────────────────────────────────────────
 export function StepFlowMode() {
   const { setScreen, resetSimulation, updatePlacement, computeScore, placement, selectedPatientId, setSelectedPatientId } = useSimStore();
+  const [zoomLevel, setZoomLevel] = useState(0);
+  const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
 
   const [phase, setPhase] = useState<'setup' | 'flow'>('setup');
   const [flowCase, setFlowCase]       = useState<SurgicalCase | null>(null);
@@ -669,7 +671,7 @@ export function StepFlowMode() {
                 border: `1px solid ${selectedPatientId === id ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
                 background: selectedPatientId === id ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.04)',
                 color: selectedPatientId === id ? 'var(--accent)' : 'var(--text-muted)',
-                cursor: 'pointer', transition: 'all .12s',
+                cursor: 'p                cursor: 'pointer', transition: 'all .12s',
               }}
             >
               {id}
@@ -693,18 +695,44 @@ export function StepFlowMode() {
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', eac: 'ghost' }}
             />
           ) : step.useScoreView || step.useSummaryView ? (
-            // スコア/サマリーはサイドパネルで表示、メインは解剖ビュー
             <AnatomyScene
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', innerEar: 'ghost' }}
               highlightedKey="stapes"
               patientId={selectedPatientId}
+              zoomLevel={zoomLevel}
+              boneGhostOpacity={boneGhostOpacity}
             />
           ) : (
             <AnatomyScene
               vis={visForScene}
               highlightedKey={step.highlightedKey}
               patientId={selectedPatientId}
+              zoomLevel={zoomLevel}
+              boneGhostOpacity={boneGhostOpacity}
             />
+          )}
+
+          {/* ズームボタン */}
+          {!step.useSimScene && (
+            <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10 }}>
+              {[{ label: '＋', delta: 1 }, { label: '－', delta: -1 }].map(({ label, delta }) => (
+                <button key={label} onClick={() => setZoomLevel(z => z + delta)}
+                  style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(10,15,26,0.80)', color: '#c0d8e8', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* 側頭骨不透明度スライダー（骨が ghost の場合） */}
+          {!step.useSimScene && visForScene.bone === 'ghost' && (
+            <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
+              <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
+                onChange={e => setBoneGhostOpacity(Number(e.target.value))}
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as React.CSSProperties} />
+              <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
+            </div>
           )}
 
           {/* キャンバスオーバーレイ: コンテキストタグ */}
@@ -742,6 +770,12 @@ export function StepFlowMode() {
             onPrev={handlePrev}
             onNext={handleNext}
           />
+        )}
+      </div>
+    </div>
+  );
+}
+    />
         )}
       </div>
     </div>

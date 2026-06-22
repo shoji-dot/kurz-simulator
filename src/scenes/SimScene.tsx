@@ -236,7 +236,7 @@ export function SimScene({
 
   return (
     <Canvas
-      camera={{ position: [8, 6, 26], fov: 38 }}
+      camera={{ position: [6, 8, 45], fov: 38 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -260,58 +260,56 @@ export function SimScene({
       <pointLight position={[3,  5, -5]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
 
       <Suspense fallback={null}>
-        {/* ── GLBリアルモデル ── */}
-        <group position={GLB_OFFSET}>
-          <RealAnatomy vis={mergedVis} />
-          {showMalleus    && <RealMalleus opacityOverride={malOpacity}  />}
-          {showIncus      && <RealIncus   opacityOverride={incOpacity}  />}
-          {showStapesGLB  && <RealStapes  opacityOverride={stapOpacity} />}
-          {/* 底板ハイライト: footplate-only / absent 時に発光ディスク表示 */}
-          {showFootplateHighlight && <StapesFootplateHighlight />}
-        </group>
+        {/* Y軸反転グループ（GLBがY-down座標系のため） */}
+        <group scale={[1, -1, 1]}>
+          {/* ── GLBリアルモデル ── */}
+          <group position={GLB_OFFSET}>
+            <RealAnatomy vis={mergedVis} />
+            {showMalleus    && <RealMalleus opacityOverride={malOpacity}  />}
+            {showIncus      && <RealIncus   opacityOverride={incOpacity}  />}
+            {showStapesGLB  && <RealStapes  opacityOverride={stapOpacity} />}
+            {/* 底板ハイライト: footplate-only / absent 時に発光ディスク表示 */}
+            {showFootplateHighlight && <StapesFootplateHighlight />}
+          </group>
 
-        {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映） ── */}
-        {showIdeal && (
-          <IdealGhostProsthesis
+          {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映） ── */}
+          {showIdeal && (
+            <IdealGhostProsthesis
+              product={product}
+              length={surgicalCase.recommendedLength}
+              idealLateralOffset={surgicalCase.idealLateralOffset}
+              idealAngle={surgicalCase.idealAngle}
+            />
+          )}
+
+          {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
+          <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
+
+          {/* ── ドラッグ可能プロテーゼ ── */}
+          <DraggableProsthesis
             product={product}
-            length={surgicalCase.recommendedLength}
-            idealLateralOffset={surgicalCase.idealLateralOffset}
-            idealAngle={surgicalCase.idealAngle}
+            selectedLength={selectedLength}
+            basePos={basePos.clone()}
+            lateralOffset={lateralOffset}
+            anteriorOffset={anteriorOffset}
+            verticalOffset={verticalOffset}
+            angleTilt={angleTilt}
+            angleTiltZ={angleTiltZ}
+            dragOffsetX={dragOffsetX}
+            dragOffsetY={dragOffsetY}
+            dragOffsetZ={dragOffsetZ}
+            dragMode={dragMode}
           />
-        )}
-
-        {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
-        <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
-
-        {/* ── ドラッグ可能プロテーゼ ── */}
-        <DraggableProsthesis
-          product={product}
-          selectedLength={selectedLength}
-          basePos={basePos.clone()}
-          lateralOffset={lateralOffset}
-          anteriorOffset={anteriorOffset}
-          verticalOffset={verticalOffset}
-          angleTilt={angleTilt}
-          angleTiltZ={angleTiltZ}
-          dragOffsetX={dragOffsetX}
-          dragOffsetY={dragOffsetY}
-          dragOffsetZ={dragOffsetZ}
-          dragMode={dragMode}
-        />
-
-        {/* 影受け面 */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -8, 0]} receiveShadow>
-          <planeGeometry args={[60, 60]} />
-          <shadowMaterial transparent opacity={0.12} />
-        </mesh>
+        </group>
       </Suspense>
 
       <OrbitControls
+        makeDefault
         ref={orbitRef}
-        target={[0.5, -0.5, 3]}
+        target={[0.5, 0.5, 3]}
         enablePan={true}
         minDistance={8}
-        maxDistance={40}
+        maxDistance={85}
         autoRotate={false}
         enabled={dragMode === 'view'}
       />
