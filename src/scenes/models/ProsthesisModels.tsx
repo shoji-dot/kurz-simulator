@@ -68,34 +68,49 @@ function HdpeMat({ ghost }: { ghost?: boolean }) {
 // ================================================================
 
 // ── 1. Fenestrated (Düsseldorf Type) ─────────────────────────────
-//   4-spoke + outer torus ring + inner hub
+//   Oval outer ring (A=1.80 long, B=1.35 short) + 4 spokes + hub.
+//   Head plate shape: egg-shaped oval (confirmed from 20x scale photos).
 // ================================================================
 function HeadPlateFenestrated({ ghost }: { ghost?: boolean }) {
-  const outerR     = 1.80;
+  const A          = 1.80;   // semi-major (long axis)
+  const B          = 1.35;   // semi-minor (short axis)
   const hubR       = 0.30;
   const plateThick = 0.22;
   const rimTubeR   = 0.14;
-  const rimCenterR = outerR - rimTubeR;
-  const spokeLen   = rimCenterR - hubR;
 
+  // Elliptical outer rim (TubeGeometry along ellipse path)
+  const outerTube = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 72; i++) {
+      const t = (i / 72) * Math.PI * 2;
+      pts.push(new THREE.Vector3(A * Math.cos(t), 0, B * Math.sin(t)));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts, true);
+    return new THREE.TubeGeometry(curve, 80, rimTubeR, 12, true);
+  }, []);
+
+  // 4 spokes reaching the elliptical rim
   const spokeGeometries = useMemo(() => {
     return [0, 90, 180, 270].map((deg) => {
       const rad  = (deg * Math.PI) / 180;
-      const from = new THREE.Vector3(Math.cos(rad) * hubR,       0, Math.sin(rad) * hubR);
-      const to   = new THREE.Vector3(Math.cos(rad) * rimCenterR, 0, Math.sin(rad) * rimCenterR);
-      const mid1 = new THREE.Vector3().lerpVectors(from, to, 0.33);
-      const mid2 = new THREE.Vector3().lerpVectors(from, to, 0.67);
-      const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);
-      return new THREE.TubeGeometry(curve, 8, 0.095, 5, false);
+      const endX = A * Math.cos(rad);
+      const endZ = B * Math.sin(rad);
+      const dist = Math.sqrt(endX * endX + endZ * endZ);
+      const sc   = (dist - rimTubeR) / dist;    // stop just before rim tube
+      const from = new THREE.Vector3(Math.cos(rad) * hubR, 0, Math.sin(rad) * hubR);
+      const to   = new THREE.Vector3(endX * sc, 0, endZ * sc);
+      const curve = new THREE.CatmullRomCurve3([from, to]);
+      return new THREE.TubeGeometry(curve, 6, 0.095, 5, false);
     });
   }, []);
 
   return (
     <group>
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[rimCenterR, rimTubeR, 14, 44]} />
+      {/* Elliptical outer rim */}
+      <mesh geometry={outerTube}>
         <TitaniumMat ghost={ghost} />
       </mesh>
+      {/* Central hub */}
       <mesh>
         <cylinderGeometry args={[hubR, hubR + 0.04, plateThick, 20]} />
         <TitaniumMat ghost={ghost} />
@@ -104,44 +119,41 @@ function HeadPlateFenestrated({ ghost }: { ghost?: boolean }) {
         <cylinderGeometry args={[hubR + 0.04, hubR, 0.05, 20]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
+      {/* 4 spokes */}
       {spokeGeometries.map((geo, i) => (
         <mesh key={i} geometry={geo}>
           <TitaniumMat ghost={ghost} />
         </mesh>
       ))}
-      {/* stapes-arch clearance slits */}
-      <mesh position={[0, 0, outerR - 0.05]}>
-        <boxGeometry args={[0.60, plateThick + 0.02, 0.22]} />
-        <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
-      </mesh>
-      <mesh position={[outerR * 0.5, 0, outerR * 0.866]}>
-        <boxGeometry args={[0.35, plateThick + 0.02, 0.18]} />
-        <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
-      </mesh>
     </group>
   );
 }
 
-// ── 2. Disc (PORP, simple flat disc) ─────────────────────────────
-//   Confirmed from photos: completely flat, circular, thin.
-//   Outer edge has a slight torus bead.
+// ── 2. Disc (oval flat disc) ──────────────────────────────────────
+//   Oval/egg-shaped flat disc (confirmed from 20x scale photos).
+//   Uses ExtrudeGeometry with ellipse shape for accurate oval profile.
 // ================================================================
 function HeadPlateDisc({ ghost }: { ghost?: boolean }) {
-  const R     = 1.80;
+  const A     = 1.80;   // semi-major
+  const B     = 1.35;   // semi-minor
   const THICK = 0.18;
+
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape();
+    shape.absellipse(0, 0, A, B, 0, Math.PI * 2, false, 0);
+    return new THREE.ExtrudeGeometry(shape, {
+      depth:          THICK,
+      bevelEnabled:   true,
+      bevelSize:      0.055,
+      bevelThickness: 0.055,
+      bevelSegments:  2,
+    });
+  }, []);
+
   return (
-    <group>
-      {/* Main disc */}
-      <mesh>
-        <cylinderGeometry args={[R, R, THICK, 64]} />
-        <TitaniumMat ghost={ghost} />
-      </mesh>
-      {/* Edge bead (round cross-section confirmed) */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[R - 0.10, 0.10, 10, 48]} />
-        <TitaniumMat ghost={ghost} />
-      </mesh>
-    </group>
+    <mesh geometry={geo} rotation={[-Math.PI / 2, 0, 0]} position={[0, -THICK / 2, 0]}>
+      <TitaniumMat ghost={ghost} />
+    </mesh>
   );
 }
 
@@ -299,17 +311,25 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
     new THREE.Vector2(0.00,  0.20),   // bowl center (deepest - cradles stapes head)
   ], []);
 
-  // Narrow slits: 2° gap per slit (0.035 rad) → bell looks nearly complete
-  const SLIT_GAP  = 0.035;
-  const PETAL_ARC = Math.PI / 2 - SLIT_GAP;
+  // Slit widths (confirmed measurements, shaft Ø0.2mm for reference):
+  //   Narrow (vertical):   0.4mm → angle at rim = 0.4/1.3 = 0.308 rad (17.7°)
+  //   Wide   (horizontal): 0.6mm → angle at rim = 0.6/1.3 = 0.462 rad (26.5°)
+  //   Alternating: narrow → sector → wide → sector → narrow → ...
+  const GAP_N  = 0.308;
+  const GAP_W  = 0.462;
+  const SECTOR = (Math.PI * 2 - 2 * GAP_N - 2 * GAP_W) / 4;  // ≈1.186 rad (67.9°)
+
+  // Precompute each sector's phiStart
+  const S0 = GAP_N;
+  const S1 = S0 + SECTOR + GAP_W;
+  const S2 = S1 + SECTOR + GAP_N;
+  const S3 = S2 + SECTOR + GAP_W;
 
   return (
     <group rotation={[Math.PI, 0, 0]}>
-      {[0, 1, 2, 3].map((i) => (
+      {[S0, S1, S2, S3].map((start, i) => (
         <mesh key={i}>
-          <latheGeometry
-            args={[petalPoints, 14, i * (Math.PI / 2) + SLIT_GAP / 2, PETAL_ARC]}
-          />
+          <latheGeometry args={[petalPoints, 12, start, SECTOR]} />
           <TitaniumMatDS ghost={ghost} />
         </mesh>
       ))}
