@@ -26,7 +26,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Düsseldorf',
     type: 'PORP',
     footType: 'BELL',
-    headType: 'DISC',           // flat disc head (confirmed from 20x scale photos)
+    headType: 'FENESTRATED',    // catalog: 3.6mm fenestrated head plate (ASTM F67)
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.0,
     footDiameter: 2.5,
@@ -42,7 +42,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Düsseldorf',
     type: 'TORP',
     footType: 'FLAT',
-    headType: 'OVAL_RING',      // oval ring frame head (confirmed from 20x scale photos)
+    headType: 'FENESTRATED',    // catalog: 3.6mm fenestrated head plate (ASTM F67)
     shaftLengths: [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0],
     headPlateDiameter: 3.0,
     footDiameter: 4.5,

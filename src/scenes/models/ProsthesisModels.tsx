@@ -1,21 +1,21 @@
 /**
  * ProsthesisModels.tsx  -- KURZ ossicular prosthesis 3D models
  *
- * Updated 2026-06-23: Revised geometry based on 20x scale physical reference models.
+ * Updated 2026-06-23 v2: Catalog-accurate revision (M9600320_0723).
+ * All prostheses: Pure Titanium ASTM F67 Medical Grade.
  *
  * Head plate variants:
- *   'FENESTRATED'  - Düsseldorf type (4-spoke, outer torus ring) -- original design
- *   'DISC'         - Simple flat disc (PORP Düsseldorf, confirmed from photos)
- *   'OVAL_RING'    - Oval frame with figure-8 inner cutouts (TORP Aerial variant)
- *   'DOME_4FIN'    - 4-fin dome, CNC-machined from solid egg blank (TORP variant)
+ *   'FENESTRATED'  - Düsseldorf type (4-spoke, outer torus ring) -- all standard products
+ *   'DISC'         - Simple flat disc (20x scale model display only)
+ *   'OVAL_RING'    - Oval frame with figure-8 inner cutouts (20x scale model display)
+ *   'DOME_4FIN'    - 4-fin dome, CNC-machined from solid egg blank (MunichLMU style)
  *
  * Foot variants:
- *   'BELL'   - HDPE cone, 4 radial slits at 90° (confirmed from photos)
- *   'FLAT'   - Flat titanium disc, 3 nubs on underside (TORP footplate contact)
- *   'CLIP'   - Double-arm spring clip: upper pair (wide) + lower pair (tight)
+ *   'BELL'   - Titanium conical bell, 4 narrow slits (~2°) for stapedius tendon clearance
+ *   'FLAT'   - Cannulated (hollow) distal footing, AERIAL Total type
+ *   'CLIP'   - 2 spring foil arms (filigree clip legs), titanium ribbon foil
  *
- * Shaft: circular cross-section (confirmed), matte titanium finish.
- * BELL material: white HDPE / polyethylene (not titanium).
+ * Shaft: circular cross-section, 0.2mm diameter (scaled), matte titanium finish.
  */
 
 import { useMemo } from 'react';
@@ -278,125 +278,91 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
 // FOOT VARIANTS
 // ================================================================
 
-// ── BELL foot (PORP Düsseldorf) ───────────────────────────────────
-//   Material: white HDPE/polyethylene (confirmed from photos).
-//   Shape: truncated cone with outward flare at rim.
-//   4 radial slits at 90° intervals (confirmed: up/down/left/right).
-//   Each slit divides the cone into 4 independent petals.
+// ── BELL foot (PORP Düsseldorf / TTP-Tuebingen) ──────────────────
+//   Catalog: "conically shaped bell, Pure Titanium ASTM F67"
+//   "recessed slots allow adequate space for stapedius tendon"
+//   4 narrow slits at 90° (only ~2° each) → bell appears nearly solid.
 //   Inner surface: concave cup cradles stapes capitulum.
 // ================================================================
 function BellFoot({ ghost }: { ghost?: boolean }) {
-  // 4 quadrant petal sections (simulate 4 slits by rendering 4 separate LatheGeometry sectors)
-  const petalPoints = useMemo<THREE.Vector2[]>(() => {
-    // Outer profile: concical with outward flare at rim, concave interior
-    return [
-      new THREE.Vector2(0.22,  0.00),   // top: shaft attachment
-      new THREE.Vector2(0.30,  0.18),
-      new THREE.Vector2(0.50,  0.55),
-      new THREE.Vector2(0.72,  0.95),
-      new THREE.Vector2(0.82,  1.20),   // max flare
-      new THREE.Vector2(0.78,  1.38),   // rim outer edge
-      new THREE.Vector2(0.62,  1.38),   // rim inner edge (wall thickness ~0.16)
-      new THREE.Vector2(0.50,  1.22),   // inner wall
-      new THREE.Vector2(0.30,  0.85),   // inner concave bowl
-      new THREE.Vector2(0.10,  0.50),
-      new THREE.Vector2(0.00,  0.20),   // bowl center
-    ];
-  }, []);
+  const petalPoints = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.22,  0.00),   // top: shaft attachment collar
+    new THREE.Vector2(0.30,  0.18),
+    new THREE.Vector2(0.50,  0.55),
+    new THREE.Vector2(0.72,  0.95),
+    new THREE.Vector2(0.82,  1.20),   // max flare (2.6mm dia in catalog)
+    new THREE.Vector2(0.78,  1.38),   // rim outer edge
+    new THREE.Vector2(0.62,  1.38),   // rim inner edge (wall ~0.16)
+    new THREE.Vector2(0.50,  1.22),   // inner wall
+    new THREE.Vector2(0.30,  0.85),   // concave bowl
+    new THREE.Vector2(0.10,  0.50),
+    new THREE.Vector2(0.00,  0.20),   // bowl center (deepest - cradles stapes head)
+  ], []);
 
-  const SLIT_GAP = 0.06; // angular gap for slit (radians)
+  // Narrow slits: 2° gap per slit (0.035 rad) → bell looks nearly complete
+  const SLIT_GAP  = 0.035;
   const PETAL_ARC = Math.PI / 2 - SLIT_GAP;
 
   return (
-    <group>
-      {[0, 1, 2, 3].map((i) => {
-        const phiStart = i * (Math.PI / 2) + SLIT_GAP / 2;
-        return (
-          <mesh key={i} rotation={[Math.PI, 0, phiStart]}>
-            <latheGeometry args={[petalPoints, 16, 0, PETAL_ARC]} />
-            <HdpeMat ghost={ghost} />
-          </mesh>
-        );
-      })}
+    <group rotation={[Math.PI, 0, 0]}>
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={i}>
+          <latheGeometry
+            args={[petalPoints, 14, i * (Math.PI / 2) + SLIT_GAP / 2, PETAL_ARC]}
+          />
+          <TitaniumMatDS ghost={ghost} />
+        </mesh>
+      ))}
     </group>
   );
 }
 
-// ── FLAT foot (TORP Düsseldorf) ───────────────────────────────────
-//   2.6 mm radius flat titanium disc + 3 small sphere nubs on underside.
+// ── FLAT foot (TORP Düsseldorf AERIAL) ───────────────────────────
+//   Catalog: "cannulated distal footing to increase fluid adhesion
+//   force to the stapes footplate" → hollow shaft tip, not a disc.
+//   Slightly widened terminal cylinder with visible hollow center.
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
+      {/* Tapered terminal cylinder (cannulated end) */}
       <mesh>
-        <cylinderGeometry args={[1.30, 1.30, 0.22, 32]} />
+        <cylinderGeometry args={[0.24, 0.18, 0.42, 16]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
-      {[0, 120, 240].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        return (
-          <mesh key={deg} position={[Math.cos(rad) * 0.80, -0.17, Math.sin(rad) * 0.80]}>
-            <sphereGeometry args={[0.09, 8, 6]} />
-            <TitaniumMat ghost={ghost} />
-          </mesh>
-        );
-      })}
+      {/* Hollow interior — creates fluid adhesion force */}
+      <mesh position={[0, -0.08, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.28, 8]} />
+        <meshStandardMaterial color="#050810" transparent opacity={ghost ? 0.0 : 0.90} />
+      </mesh>
     </group>
   );
 }
 
 // ── CLIP foot (Dresden Type) ──────────────────────────────────────
-//   Confirmed from photos: double-arm spring clip.
-//   Structure:
-//     TopBar     – rectangular flat plate (ribbon cross-section)
-//     UpperArms  – 2 wide C-curves, open upward, larger radius
-//     LowerArms  – 2 tight C-curves, open downward, smaller radius
-//     JunctionBlock – connects arms to shaft
-//
-//   Upper arms grip ABOVE stapes capitulum.
-//   Lower arms grip BELOW capitulum / around neck.
-//   Together: 4-point axial lock on stapes head.
+//   Catalog: "spring-loaded, atraumatic foils", "filigree clip legs"
+//   "elastic CliP ensures a secure fit on the stapes head"
+//   Structure: 2 thin titanium ribbon spring foils (NOT 4 arms).
+//   Each foil: C-shaped sweep from top bar → outward → inward hook.
+//   Total spread: 2.6mm. Arms grip LEFT and RIGHT of stapes capitulum.
+//   TubeGeometry radialSegments=4 → square cross-section ≈ ribbon foil.
 // ================================================================
-function ClipArm({
-  level,
-  side,
-  ghost,
-}: {
-  level: 'upper' | 'lower';
-  side: 1 | -1;
-  ghost?: boolean;
-}) {
+function ClipArm({ side, ghost }: { side: 1 | -1; ghost?: boolean }) {
   const tube = useMemo(() => {
-    let pts: THREE.Vector3[];
-
-    if (level === 'upper') {
-      // Wide C-curve: from TopBar end → sweeps upward/outward → hooks inward
-      pts = [
-        new THREE.Vector3(side * 0.22,  0.24,  0),
-        new THREE.Vector3(side * 0.48,  0.18,  0),
-        new THREE.Vector3(side * 0.62,  0.00,  0),
-        new THREE.Vector3(side * 0.68, -0.28,  0),
-        new THREE.Vector3(side * 0.56, -0.52,  0),
-        new THREE.Vector3(side * 0.32, -0.62,  0),
-        new THREE.Vector3(side * 0.10, -0.60,  0),
-      ];
-    } else {
-      // Tight C-curve: from JunctionBlock → sweeps downward/outward → hooks inward
-      pts = [
-        new THREE.Vector3(side * 0.18, -0.05,  0),
-        new THREE.Vector3(side * 0.38, -0.08,  0),
-        new THREE.Vector3(side * 0.50, -0.24,  0),
-        new THREE.Vector3(side * 0.52, -0.44,  0),
-        new THREE.Vector3(side * 0.40, -0.60,  0),
-        new THREE.Vector3(side * 0.20, -0.68,  0),
-        new THREE.Vector3(side * 0.06, -0.64,  0),
-      ];
-    }
-
+    // C-curve: from top bar → lateral sweep → downward → hook tip inward
+    const pts = [
+      new THREE.Vector3(side * 0.08,  0.18,  0),   // top bar junction
+      new THREE.Vector3(side * 0.30,  0.10,  0),   // sweeping outward
+      new THREE.Vector3(side * 0.50,  0.00,  0),   // max lateral (≈1.3mm half-spread)
+      new THREE.Vector3(side * 0.55, -0.20,  0),   // arm descends
+      new THREE.Vector3(side * 0.48, -0.42,  0),
+      new THREE.Vector3(side * 0.30, -0.58,  0),   // curves inward
+      new THREE.Vector3(side * 0.12, -0.64,  0),   // hook tip (grips stapes neck)
+    ];
     const curve = new THREE.CatmullRomCurve3(pts);
-    // Ribbon cross-section: flatten tubular segments (4 radial segments = square approx)
-    return new THREE.TubeGeometry(curve, 20, 0.07, 4, false);
-  }, [level, side]);
+    // Thin ribbon foil: small radius, square cross-section (radialSegments=4)
+    return new THREE.TubeGeometry(curve, 24, 0.052, 4, false);
+  }, [side]);
 
   return (
     <mesh geometry={tube}>
@@ -408,23 +374,19 @@ function ClipArm({
 function ClipFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
-      {/* TopBar – horizontal rectangular bar */}
-      <mesh position={[0, 0.24, 0]}>
-        <boxGeometry args={[0.50, 0.10, 0.16]} />
+      {/* Top connecting bar (joins 2 spring foil arms) */}
+      <mesh position={[0, 0.20, 0]}>
+        <boxGeometry args={[0.54, 0.09, 0.11]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
 
-      {/* Upper arm pair (wide C-curves, open upward) */}
-      <ClipArm level="upper" side={ 1} ghost={ghost} />
-      <ClipArm level="upper" side={-1} ghost={ghost} />
+      {/* Two spring foil arms (filigree clip legs) */}
+      <ClipArm side={ 1} ghost={ghost} />
+      <ClipArm side={-1} ghost={ghost} />
 
-      {/* Lower arm pair (tight C-curves, open downward) */}
-      <ClipArm level="lower" side={ 1} ghost={ghost} />
-      <ClipArm level="lower" side={-1} ghost={ghost} />
-
-      {/* Junction block */}
-      <mesh position={[0, -0.04, 0]}>
-        <boxGeometry args={[0.24, 0.12, 0.16]} />
+      {/* Junction collar at shaft base */}
+      <mesh position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.13, 10]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
     </group>
