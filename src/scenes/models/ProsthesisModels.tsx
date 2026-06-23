@@ -1,26 +1,21 @@
 /**
  * ProsthesisModels.tsx  -- KURZ ossicular prosthesis 3D models
  *
- * Dimensions from KURZ catalog M9600320_0723 + reference photos:
+ * Updated 2026-06-23: Revised geometry based on 20x scale physical reference models.
  *
- *   Head plate   : 3.6 mm diam, FENESTRATED (4 spokes + hub + outer ring)
- *   Shaft        : 0.2 mm diam  (extremely thin -- characteristic KURZ design)
- *   PORP Bell    : 2.6 mm diam, ~1.0 mm deep dome  (near-hemispherical)
- *   TORP Aerial  : 2.6 mm diam flat disc
- *   Clip Dresden : spring clip, 2.6 mm spread
+ * Head plate variants:
+ *   'FENESTRATED'  - Düsseldorf type (4-spoke, outer torus ring) -- original design
+ *   'DISC'         - Simple flat disc (PORP Düsseldorf, confirmed from photos)
+ *   'OVAL_RING'    - Oval frame with figure-8 inner cutouts (TORP Aerial variant)
+ *   'DOME_4FIN'    - 4-fin dome, CNC-machined from solid egg blank (TORP variant)
  *
- * Head plate design (Duesseldorf Type -- reference photo):
- *   - Outer torus rim (3.6 mm diam)
- *   - 4 large fenestrations (for visual access during surgery)
- *   - Inner hub cylinder (shaft connection)
- *   - 4 spokes connecting hub to rim
- *   - 2 slits visible in catalog (0.6 mm stapes-arch slit, 0.35 mm slit)
+ * Foot variants:
+ *   'BELL'   - HDPE cone, 4 radial slits at 90° (confirmed from photos)
+ *   'FLAT'   - Flat titanium disc, 3 nubs on underside (TORP footplate contact)
+ *   'CLIP'   - Double-arm spring clip: upper pair (wide) + lower pair (tight)
  *
- * Bell foot design (reference photos images 1 and 3):
- *   - Near-hemispherical dome (spherical arc R=1.35, maxTheta~74 deg)
- *   - Smooth convex outer surface
- *   - Concave inner cup cradles stapes head
- *   - Thin titanium shell (~0.15 mm wall at pole)
+ * Shaft: circular cross-section (confirmed), matte titanium finish.
+ * BELL material: white HDPE / polyethylene (not titanium).
  */
 
 import { useMemo } from 'react';
@@ -28,107 +23,97 @@ import * as THREE from 'three';
 import type { KurzProduct } from '../../data/products';
 import { STAPES_HEAD, STAPES_FOOTPLATE, UMBO_POS } from './OssicleModels';
 
-// -- Titanium material --
-const TI_COLOR = '#c8d4dc';
+// ── Materials ─────────────────────────────────────────────────────────────────
+
+const TI_COLOR   = '#c0ccd4';
+const HDPE_COLOR = '#f0ede4';
 
 function TitaniumMat({ ghost }: { ghost?: boolean }) {
   return (
     <meshStandardMaterial
       color={TI_COLOR}
       metalness={0.88}
-      roughness={0.12}
+      roughness={0.18}
       transparent={ghost}
       opacity={ghost ? 0.28 : 1.0}
     />
   );
 }
-
 function TitaniumMatDS({ ghost }: { ghost?: boolean }) {
   return (
     <meshStandardMaterial
       color={TI_COLOR}
       metalness={0.88}
-      roughness={0.12}
+      roughness={0.18}
       side={THREE.DoubleSide}
       transparent={ghost}
       opacity={ghost ? 0.28 : 1.0}
     />
   );
 }
+function HdpeMat({ ghost }: { ghost?: boolean }) {
+  return (
+    <meshStandardMaterial
+      color={HDPE_COLOR}
+      metalness={0.0}
+      roughness={0.75}
+      transparent={ghost}
+      opacity={ghost ? 0.22 : 1.0}
+    />
+  );
+}
 
 // ================================================================
-// Head plate  -- Duesseldorf Type  (3.6 mm diam, fenestrated)
-//
-// Structure (visible in catalog reference photo):
-//   - Outer torus ring (beveled, 14-segment tube)
-//   - 4 blade-like spokes (TubeGeometry with elliptic cross-section)
-//   - Inner hub cylinder (connects to shaft)
-//   - Large fenestrations between spokes
-//   - Slits in outer rim (0.6 mm / 0.35 mm)
-//
-// Improvements (v2):
-//   - Spokes: TubeGeometry along radial CatmullRom curve → smoother, blade-like
-//   - Rim torus: 14 tube segments for finer circular cross-section
-//   - Hub: slight chamfer cap for realistic look
+// HEAD PLATE VARIANTS
 // ================================================================
-function HeadPlate({ ghost }: { ghost?: boolean }) {
+
+// ── 1. Fenestrated (Düsseldorf Type) ─────────────────────────────
+//   4-spoke + outer torus ring + inner hub
+// ================================================================
+function HeadPlateFenestrated({ ghost }: { ghost?: boolean }) {
   const outerR     = 1.80;
   const hubR       = 0.30;
   const plateThick = 0.22;
   const rimTubeR   = 0.14;
-  const rimCenterR = outerR - rimTubeR;  // 1.66
-  const spokeLen   = rimCenterR - hubR;  // 1.36
-  const midR       = hubR + spokeLen / 2;
+  const rimCenterR = outerR - rimTubeR;
+  const spokeLen   = rimCenterR - hubR;
 
-  // ── スポーク: TubeGeometry で刃状（薄×幅）プロファイル ───────────────
-  // EllipseCurve で断面を楕円にする代わりに、thin boxを使うがスムースな
-  // TubeGeometry + custom path を利用して縁に丸みを付ける
   const spokeGeometries = useMemo(() => {
     return [0, 90, 180, 270].map((deg) => {
-      const rad = (deg * Math.PI) / 180;
-      // スポーク中心軸（hub外縁→rim内縁）
+      const rad  = (deg * Math.PI) / 180;
       const from = new THREE.Vector3(Math.cos(rad) * hubR,       0, Math.sin(rad) * hubR);
       const to   = new THREE.Vector3(Math.cos(rad) * rimCenterR, 0, Math.sin(rad) * rimCenterR);
       const mid1 = new THREE.Vector3().lerpVectors(from, to, 0.33);
       const mid2 = new THREE.Vector3().lerpVectors(from, to, 0.67);
       const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);
-      // tubularSegments=12, radius=spoke half-width (0.10 → 0.20mm 幅), radialSegments=5
       return new THREE.TubeGeometry(curve, 8, 0.095, 5, false);
     });
   }, []);
 
   return (
     <group>
-      {/* Outer rim: torus (14 tube segments → smoother) */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[rimCenterR, rimTubeR, 14, 44]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
-
-      {/* Inner hub */}
       <mesh>
         <cylinderGeometry args={[hubR, hubR + 0.04, plateThick, 20]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
-      {/* Hub top cap (chamfer) */}
       <mesh position={[0, plateThick / 2 + 0.025, 0]}>
         <cylinderGeometry args={[hubR + 0.04, hubR, 0.05, 20]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
-
-      {/* 4 blade-like spokes */}
       {spokeGeometries.map((geo, i) => (
         <mesh key={i} geometry={geo}>
           <TitaniumMat ghost={ghost} />
         </mesh>
       ))}
-
-      {/* Slit 0.6mm (stapes arch clearance) */}
+      {/* stapes-arch clearance slits */}
       <mesh position={[0, 0, outerR - 0.05]}>
         <boxGeometry args={[0.60, plateThick + 0.02, 0.22]} />
         <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
       </mesh>
-      {/* Slit 0.35mm */}
       <mesh position={[outerR * 0.5, 0, outerR * 0.866]}>
         <boxGeometry args={[0.35, plateThick + 0.02, 0.18]} />
         <meshStandardMaterial color="#0a0f1a" transparent opacity={ghost ? 0.0 : 1.0} />
@@ -137,87 +122,214 @@ function HeadPlate({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// ── 2. Disc (PORP, simple flat disc) ─────────────────────────────
+//   Confirmed from photos: completely flat, circular, thin.
+//   Outer edge has a slight torus bead.
 // ================================================================
-// PORP Bell foot  (Duesseldorf Type Bell Partial Prosthesis)
-//
-// Shape from reference photos (images 1 and 3):
-//   Near-hemispherical smooth dome, convex outside, concave inside.
-//   Spherical arc: R=1.35, maxTheta=74.5 deg, height ~1.0 mm.
-//   Diameter: 2.6 mm  (catalog spec).
-//   The dome cradles the stapes head (capitulum, diam ~0.9 mm).
-//
-// Improvements (v2):
-//   - 28-step outer dome for smoother silhouette
-//   - Slight outward rim flare (KURZ characteristic)
-//   - Elliptic inner bowl: a=1.17, b=0.80 (ellipse arc quarter-circle)
-//   - 20-step inner bowl for smooth concavity
-//   - 48 lathe segments for clean circular profile
-// ================================================================
-function BellFoot({ ghost }: { ghost?: boolean }) {
-  const points = useMemo(() => {
-    const R       = 1.35;   // outer sphere radius
-    const rimR    = 1.30;   // 2.6 mm diam / 2
-    const wallT   = 0.13;   // wall thickness at rim
-    const maxTheta = Math.asin(rimR / R);  // ~74.5 deg
-    const OUTER_STEPS = 28;
-    const BOWL_STEPS  = 20;
-
-    const pts: THREE.Vector2[] = [];
-
-    // ── 外側ドーム（球弧、極→リム）────────────────────────────────
-    for (let i = 0; i <= OUTER_STEPS; i++) {
-      const theta = (i / OUTER_STEPS) * maxTheta;
-      pts.push(new THREE.Vector2(
-        R * Math.sin(theta),
-        -(R - R * Math.cos(theta))   // ドームは下方向（Y負）に開く
-      ));
-    }
-
-    const rimY = -(R - R * Math.cos(maxTheta));  // ≈ -0.992
-
-    // ── リム: わずかな外側フレア（KURZ特徴）─────────────────────────
-    pts.push(new THREE.Vector2(rimR + 0.032, rimY - 0.038));
-    pts.push(new THREE.Vector2(rimR + 0.042, rimY - 0.082));  // フレア先端
-    pts.push(new THREE.Vector2(rimR + 0.010, rimY - 0.118));  // 外底
-    pts.push(new THREE.Vector2(rimR - wallT,  rimY - 0.118)); // 内底
-    pts.push(new THREE.Vector2(rimR - wallT,  rimY - 0.005)); // 内壁上端
-
-    // ── 内側凹面ボウル（楕円弧：a=1.17, b=0.80）─────────────────────
-    // 楕円パラメータ: r = a·cos(t), y_offset = b·sin(t), t: 0 → π/2
-    // t=0 → (rimR-wallT, rimY)  =内壁上端にマッチ
-    // t=π/2 → (0, rimY+0.80)   =ボウル中央（最深部）
-    const a = rimR - wallT;  // 1.17
-    const b = 0.80;          // ボウル深さ
-    for (let i = 1; i <= BOWL_STEPS; i++) {
-      const t = (i / BOWL_STEPS) * (Math.PI / 2);
-      pts.push(new THREE.Vector2(
-        a * Math.cos(t),
-        rimY + b * Math.sin(t)
-      ));
-    }
-    // ボウル中央極（r=0, ボウル最深部）
-    pts.push(new THREE.Vector2(0, rimY + b));
-
-    return pts;
-  }, []);
-
+function HeadPlateDisc({ ghost }: { ghost?: boolean }) {
+  const R     = 1.80;
+  const THICK = 0.18;
   return (
-    <mesh>
-      <latheGeometry args={[points, 48]} />
-      <TitaniumMatDS ghost={ghost} />
-    </mesh>
+    <group>
+      {/* Main disc */}
+      <mesh>
+        <cylinderGeometry args={[R, R, THICK, 64]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      {/* Edge bead (round cross-section confirmed) */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[R - 0.10, 0.10, 10, 48]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+    </group>
   );
 }
 
+// ── 3. Oval Ring Head (TORP Aerial variant) ───────────────────────
+//   Large oval frame (figure-8 inner cutout, KURZ logo position).
+//   Outer frame: ellipse tube (a=3.0, b=2.0, tubeR=0.18).
+//   Inner bridge: forms two oval openings.
+//   Cross-section of frame tube: circular (confirmed from photos).
 // ================================================================
-// TORP flat foot  (Duesseldorf Type AERIAL Total Prosthesis)
-// 2.6 mm diam disc, three small sphere nubs on underside.
+function HeadPlateOvalRing({ ghost }: { ghost?: boolean }) {
+  const A       = 3.00;   // semi-major (long axis)
+  const B       = 2.00;   // semi-minor (short axis)
+  const TUBE_R  = 0.18;   // tube cross-section radius (circular, confirmed)
+  const BRIDGE_R = 0.14;
+
+  const outerTube = useMemo(() => {
+    const pts = [];
+    for (let i = 0; i <= 64; i++) {
+      const t = (i / 64) * Math.PI * 2;
+      pts.push(new THREE.Vector3(A * Math.cos(t), 0, B * Math.sin(t)));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts, true);
+    return new THREE.TubeGeometry(curve, 80, TUBE_R, 10, true);
+  }, []);
+
+  // Inner horizontal bridge creating figure-8 cutout
+  const innerBridge = useMemo(() => {
+    const pts = [
+      new THREE.Vector3(-A * 0.55, 0,  0),
+      new THREE.Vector3( 0,        0,  0),
+      new THREE.Vector3( A * 0.55, 0,  0),
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    return new THREE.TubeGeometry(curve, 12, BRIDGE_R, 10, false);
+  }, []);
+
+  // Vertical spine (center, connects top/bottom of oval)
+  const spineBridge = useMemo(() => {
+    const pts = [
+      new THREE.Vector3(0, 0, -B * 0.70),
+      new THREE.Vector3(0, 0,  0),
+      new THREE.Vector3(0, 0,  B * 0.70),
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    return new THREE.TubeGeometry(curve, 10, BRIDGE_R * 0.85, 10, false);
+  }, []);
+
+  return (
+    <group>
+      <mesh geometry={outerTube}>
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      <mesh geometry={innerBridge}>
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      <mesh geometry={spineBridge}>
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+    </group>
+  );
+}
+
+// ── 4. Dome 4-Fin Head (TORP variant) ────────────────────────────
+//   CNC-machined from a single egg-shaped blank.
+//   Result: 4 arc-sector fins remain after 4 wedge cutouts.
+//   Fins are propeller-offset ~22.5°. Central dome is hemisphere.
+//   Fin cross-section: uniform arc thickness (confirmed).
+// ================================================================
+function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
+  const R_DOME   = 1.20;   // hemisphere radius
+  const R_INNER  = R_DOME + 0.05;
+  const R_OUTER  = 2.20;   // fin outer radius
+  const FIN_ARC  = Math.PI * 0.38;   // ~68° per fin
+  const FIN_THICK = 0.26;            // extrusion depth
+  const OFFSET   = Math.PI / 8;      // 22.5° propeller rotation
+
+  const finGeometries = useMemo(() => {
+    return [0, 1, 2, 3].map((i) => {
+      const startAngle = i * (Math.PI / 2) + OFFSET;
+      const endAngle   = startAngle + FIN_ARC;
+
+      const shape = new THREE.Shape();
+      // Outer arc
+      shape.absarc(0, 0, R_OUTER, startAngle, endAngle, false);
+      // Inner arc back to start
+      shape.absarc(0, 0, R_INNER, endAngle, startAngle, true);
+      shape.closePath();
+
+      return new THREE.ExtrudeGeometry(shape, {
+        depth:            FIN_THICK,
+        bevelEnabled:     true,
+        bevelSize:        0.035,
+        bevelThickness:   0.035,
+        bevelSegments:    2,
+      });
+    });
+  }, []);
+
+  return (
+    <group>
+      {/* Central hemisphere */}
+      <mesh>
+        <sphereGeometry args={[R_DOME, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      {/* 4 arc-sector fins, laid horizontal at dome base level */}
+      {finGeometries.map((geo, i) => (
+        <mesh
+          key={i}
+          geometry={geo}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, FIN_THICK * 0.10, 0]}
+        >
+          <TitaniumMat ghost={ghost} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ── Head plate selector ───────────────────────────────────────────
+export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN';
+
+function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; ghost?: boolean }) {
+  switch (headType) {
+    case 'DISC':      return <HeadPlateDisc      ghost={ghost} />;
+    case 'OVAL_RING': return <HeadPlateOvalRing  ghost={ghost} />;
+    case 'DOME_4FIN': return <HeadPlateDome4Fin  ghost={ghost} />;
+    default:          return <HeadPlateFenestrated ghost={ghost} />;
+  }
+}
+
+// ================================================================
+// FOOT VARIANTS
+// ================================================================
+
+// ── BELL foot (PORP Düsseldorf) ───────────────────────────────────
+//   Material: white HDPE/polyethylene (confirmed from photos).
+//   Shape: truncated cone with outward flare at rim.
+//   4 radial slits at 90° intervals (confirmed: up/down/left/right).
+//   Each slit divides the cone into 4 independent petals.
+//   Inner surface: concave cup cradles stapes capitulum.
+// ================================================================
+function BellFoot({ ghost }: { ghost?: boolean }) {
+  // 4 quadrant petal sections (simulate 4 slits by rendering 4 separate LatheGeometry sectors)
+  const petalPoints = useMemo<THREE.Vector2[]>(() => {
+    // Outer profile: concical with outward flare at rim, concave interior
+    return [
+      new THREE.Vector2(0.22,  0.00),   // top: shaft attachment
+      new THREE.Vector2(0.30,  0.18),
+      new THREE.Vector2(0.50,  0.55),
+      new THREE.Vector2(0.72,  0.95),
+      new THREE.Vector2(0.82,  1.20),   // max flare
+      new THREE.Vector2(0.78,  1.38),   // rim outer edge
+      new THREE.Vector2(0.62,  1.38),   // rim inner edge (wall thickness ~0.16)
+      new THREE.Vector2(0.50,  1.22),   // inner wall
+      new THREE.Vector2(0.30,  0.85),   // inner concave bowl
+      new THREE.Vector2(0.10,  0.50),
+      new THREE.Vector2(0.00,  0.20),   // bowl center
+    ];
+  }, []);
+
+  const SLIT_GAP = 0.06; // angular gap for slit (radians)
+  const PETAL_ARC = Math.PI / 2 - SLIT_GAP;
+
+  return (
+    <group>
+      {[0, 1, 2, 3].map((i) => {
+        const phiStart = i * (Math.PI / 2) + SLIT_GAP / 2;
+        return (
+          <mesh key={i} rotation={[Math.PI, 0, phiStart]}>
+            <latheGeometry args={[petalPoints, 16, 0, PETAL_ARC]} />
+            <HdpeMat ghost={ghost} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// ── FLAT foot (TORP Düsseldorf) ───────────────────────────────────
+//   2.6 mm radius flat titanium disc + 3 small sphere nubs on underside.
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
       <mesh>
-        <cylinderGeometry args={[1.3, 1.3, 0.22, 32]} />
+        <cylinderGeometry args={[1.30, 1.30, 0.22, 32]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
       {[0, 120, 240].map((deg) => {
@@ -233,24 +345,58 @@ function FlatFoot({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// ── CLIP foot (Dresden Type) ──────────────────────────────────────
+//   Confirmed from photos: double-arm spring clip.
+//   Structure:
+//     TopBar     – rectangular flat plate (ribbon cross-section)
+//     UpperArms  – 2 wide C-curves, open upward, larger radius
+//     LowerArms  – 2 tight C-curves, open downward, smaller radius
+//     JunctionBlock – connects arms to shaft
+//
+//   Upper arms grip ABOVE stapes capitulum.
+//   Lower arms grip BELOW capitulum / around neck.
+//   Together: 4-point axial lock on stapes head.
 // ================================================================
-// Dresden Clip foot  (CliP Partial Prosthesis Dresden Type)
-// Two C-shaped elastic spring arms, 2.6 mm total spread.
-// ================================================================
-function ClipArm({ side, ghost }: { side: number; ghost?: boolean }) {
+function ClipArm({
+  level,
+  side,
+  ghost,
+}: {
+  level: 'upper' | 'lower';
+  side: 1 | -1;
+  ghost?: boolean;
+}) {
   const tube = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(side * 0.22,  0.24,  0),
-      new THREE.Vector3(side * 0.42,  0.06,  0),
-      new THREE.Vector3(side * 0.56, -0.18,  0),
-      new THREE.Vector3(side * 0.58, -0.40,  0),
-      new THREE.Vector3(side * 0.46, -0.58,  0),
-      new THREE.Vector3(side * 0.26, -0.68,  0),
-      new THREE.Vector3(side * 0.10, -0.72,  0),
-    ];
+    let pts: THREE.Vector3[];
+
+    if (level === 'upper') {
+      // Wide C-curve: from TopBar end → sweeps upward/outward → hooks inward
+      pts = [
+        new THREE.Vector3(side * 0.22,  0.24,  0),
+        new THREE.Vector3(side * 0.48,  0.18,  0),
+        new THREE.Vector3(side * 0.62,  0.00,  0),
+        new THREE.Vector3(side * 0.68, -0.28,  0),
+        new THREE.Vector3(side * 0.56, -0.52,  0),
+        new THREE.Vector3(side * 0.32, -0.62,  0),
+        new THREE.Vector3(side * 0.10, -0.60,  0),
+      ];
+    } else {
+      // Tight C-curve: from JunctionBlock → sweeps downward/outward → hooks inward
+      pts = [
+        new THREE.Vector3(side * 0.18, -0.05,  0),
+        new THREE.Vector3(side * 0.38, -0.08,  0),
+        new THREE.Vector3(side * 0.50, -0.24,  0),
+        new THREE.Vector3(side * 0.52, -0.44,  0),
+        new THREE.Vector3(side * 0.40, -0.60,  0),
+        new THREE.Vector3(side * 0.20, -0.68,  0),
+        new THREE.Vector3(side * 0.06, -0.64,  0),
+      ];
+    }
+
     const curve = new THREE.CatmullRomCurve3(pts);
-    return new THREE.TubeGeometry(curve, 16, 0.07, 8, false);
-  }, [side]);
+    // Ribbon cross-section: flatten tubular segments (4 radial segments = square approx)
+    return new THREE.TubeGeometry(curve, 20, 0.07, 4, false);
+  }, [level, side]);
 
   return (
     <mesh geometry={tube}>
@@ -262,10 +408,23 @@ function ClipArm({ side, ghost }: { side: number; ghost?: boolean }) {
 function ClipFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
-      <ClipArm side={ 1} ghost={ghost} />
-      <ClipArm side={-1} ghost={ghost} />
-      <mesh position={[0, 0.24, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.07, 0.07, 0.80, 8]} />
+      {/* TopBar – horizontal rectangular bar */}
+      <mesh position={[0, 0.24, 0]}>
+        <boxGeometry args={[0.50, 0.10, 0.16]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+
+      {/* Upper arm pair (wide C-curves, open upward) */}
+      <ClipArm level="upper" side={ 1} ghost={ghost} />
+      <ClipArm level="upper" side={-1} ghost={ghost} />
+
+      {/* Lower arm pair (tight C-curves, open downward) */}
+      <ClipArm level="lower" side={ 1} ghost={ghost} />
+      <ClipArm level="lower" side={-1} ghost={ghost} />
+
+      {/* Junction block */}
+      <mesh position={[0, -0.04, 0]}>
+        <boxGeometry args={[0.24, 0.12, 0.16]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
     </group>
@@ -273,32 +432,36 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
 }
 
 // ================================================================
-// ProsthesisModel  -- assembles shaft + head plate + foot
+// ProsthesisModel  -- shaft + head plate + foot
 // ================================================================
+export type { KurzProduct };
+
 interface ProsthesisProps {
   product:          KurzProduct;
   shaftLength:      number;
+  headType?:        HeadType;
   basePos?:         THREE.Vector3;
   direction?:       THREE.Vector3;
   lateralOffset?:   number;
   anteriorOffset?:  number;
-  verticalOffset?:  number;  // Y軸オフセット（上下）
-  angleTilt?:       number;  // 前後傾斜 degrees（-180〜+180）
-  angleTiltZ?:      number;  // 左右傾斜 degrees（-180〜+180）
+  verticalOffset?:  number;
+  angleTilt?:       number;
+  angleTiltZ?:      number;
   ghost?:           boolean;
 }
 
 export function ProsthesisModel({
   product,
   shaftLength,
+  headType        = 'FENESTRATED',
   basePos,
   direction,
-  lateralOffset  = 0,
-  anteriorOffset = 0,
-  verticalOffset = 0,
-  angleTilt      = 0,
-  angleTiltZ     = 0,
-  ghost          = false,
+  lateralOffset   = 0,
+  anteriorOffset  = 0,
+  verticalOffset  = 0,
+  angleTilt       = 0,
+  angleTiltZ      = 0,
+  ghost           = false,
 }: ProsthesisProps) {
 
   const base = (basePos ?? (product.footType === 'FLAT' ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
@@ -317,24 +480,24 @@ export function ProsthesisModel({
   const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   const euler = new THREE.Euler().setFromQuaternion(quat);
 
-  const tiltXRad = (angleTilt  * Math.PI) / 180;  // 前後傾斜
-  const tiltZRad = (angleTiltZ * Math.PI) / 180;  // 左右傾斜
-  const headOff = len / 2 + 0.15;
-  const footOff = -(len / 2);   // foot connects flush to shaft bottom
+  const tiltXRad = (angleTilt  * Math.PI) / 180;
+  const tiltZRad = (angleTiltZ * Math.PI) / 180;
+  const headOff  = len / 2 + 0.15;
+  const footOff  = -(len / 2);
 
   return (
     <group
       position={[mid.x, mid.y, mid.z]}
       rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
     >
-      {/* Head plate  3.6 mm diam, fenestrated */}
+      {/* Head plate */}
       <group position={[0, headOff, 0]}>
-        <HeadPlate ghost={ghost} />
+        <HeadPlate headType={headType} ghost={ghost} />
       </group>
 
-      {/* Shaft  0.2 mm diam -- pure titanium characteristic thin design */}
+      {/* Shaft – circular cross-section (confirmed) */}
       <mesh>
-        <cylinderGeometry args={[0.10, 0.10, len, 12]} />
+        <cylinderGeometry args={[0.10, 0.10, len, 16]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
 
@@ -348,25 +511,39 @@ export function ProsthesisModel({
   );
 }
 
-// -- Ideal ghost --
+// ── Ideal ghost ───────────────────────────────────────────────────
 export function IdealGhostProsthesis({
   product,
   length,
+  headType           = 'FENESTRATED',
   idealLateralOffset = 0,
-  idealAngle = 0,
+  idealAngle         = 0,
 }: {
-  product: KurzProduct;
-  length:  number;
+  product:             KurzProduct;
+  length:              number;
+  headType?:           HeadType;
   idealLateralOffset?: number;
-  idealAngle?: number;
+  idealAngle?:         number;
 }) {
   return (
     <ProsthesisModel
       product={product}
       shaftLength={length}
+      headType={headType}
       lateralOffset={idealLateralOffset}
       angleTilt={idealAngle}
       ghost={true}
     />
   );
 }
+
+// ── Named exports for standalone use / testing ────────────────────
+export {
+  HeadPlateFenestrated,
+  HeadPlateDisc,
+  HeadPlateOvalRing,
+  HeadPlateDome4Fin,
+  BellFoot,
+  FlatFoot,
+  ClipFoot,
+};

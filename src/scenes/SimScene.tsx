@@ -228,6 +228,7 @@ function DraggableProsthesis({
         <ProsthesisModel
           product={product}
           shaftLength={selectedLength}
+          headType={product.headType}
           basePos={basePos.clone()}
           lateralOffset={lateralOffset   + dragOffsetX}
           verticalOffset={verticalOffset + dragOffsetY}
@@ -340,6 +341,7 @@ export function SimScene({
             <IdealGhostProsthesis
               product={product}
               length={surgicalCase.recommendedLength}
+              headType={product.headType}
               idealLateralOffset={surgicalCase.idealLateralOffset}
               idealAngle={surgicalCase.idealAngle}
             />

@@ -1,5 +1,6 @@
 export type ProsthesisType = 'PORP' | 'TORP' | 'PISTON';
 export type FootType = 'BELL' | 'CLIP' | 'FLAT' | 'FLEXIBAL';
+export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN';
 
 export interface KurzProduct {
   id: string;
@@ -7,6 +8,7 @@ export interface KurzProduct {
   series: string;
   type: ProsthesisType;
   footType: FootType;
+  headType: HeadType;   // 3D model head plate variant
   shaftLengths: number[];
   headPlateDiameter: number;
   footDiameter: number;
@@ -24,6 +26,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Düsseldorf',
     type: 'PORP',
     footType: 'BELL',
+    headType: 'DISC',           // flat disc head (confirmed from 20x scale photos)
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.0,
     footDiameter: 2.5,
@@ -39,6 +42,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Düsseldorf',
     type: 'TORP',
     footType: 'FLAT',
+    headType: 'OVAL_RING',      // oval ring frame head (confirmed from 20x scale photos)
     shaftLengths: [3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0],
     headPlateDiameter: 3.0,
     footDiameter: 4.5,
@@ -54,6 +58,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Dresden',
     type: 'PORP',
     footType: 'CLIP',
+    headType: 'FENESTRATED',    // Düsseldorf fenestrated (standard for Dresden series)
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0],
     headPlateDiameter: 3.0,
     footDiameter: 2.0,
@@ -69,6 +74,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Tuebingen',
     type: 'PORP',
     footType: 'BELL',
+    headType: 'FENESTRATED',    // fenestrated head (Tuebingen series standard)
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.0,
     footDiameter: 2.5,
