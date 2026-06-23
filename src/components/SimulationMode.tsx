@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, type CSSProperties } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, type CSSProperties } from 'react';
 
 // ─── Error Boundary ────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; message: string }
@@ -788,11 +788,28 @@ function PlacementStep() {
     setSimStep('score');
   };
 
-  const cycleVis = (key: StructureKey) => {
+  const cycleVis = useCallback((key: StructureKey) => {
     const current: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
     const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
     setSimVis((prev) => ({ ...prev, [key]: next }));
-  };
+  }, [simVis]);
+
+  // ⑧ ドラッグ中のダブルクリック誤発火を防ぐ
+  const _simPMoved = useRef(false);
+  const _simPStart = useRef({ x: 0, y: 0 });
+  const simCanvasRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = simCanvasRef.current;
+    if (!el) return;
+    const dn = (e: PointerEvent) => { _simPStart.current = { x: e.clientX, y: e.clientY }; _simPMoved.current = false; };
+    const mv = (e: PointerEvent) => { const dx = e.clientX - _simPStart.current.x, dy = e.clientY - _simPStart.current.y; if (dx*dx+dy*dy > 25) _simPMoved.current = true; };
+    el.addEventListener('pointerdown', dn);
+    el.addEventListener('pointermove', mv);
+    return () => { el.removeEventListener('pointerdown', dn); el.removeEventListener('pointermove', mv); };
+  }, []);
+  const guardedCycleVis = useCallback((key: StructureKey) => {
+    if (!_simPMoved.current) cycleVis(key);
+  }, [cycleVis]);
 
   // 防御的な placement フィールド取得（undefined が混入しても NaN クラッシュしない）
   const safeP = {
@@ -810,7 +827,7 @@ function PlacementStep() {
   return (
     <div className="layout-split">
       {/* 3D Scene */}
-      <div className="canvas-wrapper">
+      <div className="canvas-wrapper" ref={simCanvasRef}>
         <ErrorBoundary>
         <SimScene
           surgicalCase={selectedCase}
@@ -820,7 +837,7 @@ function PlacementStep() {
           showCartilage={showCartilage}
           vis={simVis}
           dragMode={dragMode}
-          onStructureClick={cycleVis}
+          onStructureClick={guardedCycleVis}
         />
         </ErrorBoundary>
         <div className="canvas-overlay top-left">

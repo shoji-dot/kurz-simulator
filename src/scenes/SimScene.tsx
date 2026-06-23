@@ -51,7 +51,7 @@ const GLB_OFFSET: [number, number, number] = [
 
 // SimScene デフォルト表示設定
 export const SIM_DEFAULT_VIS: VisibilityMap = {
-  bone:          'solid',
+  bone:          'ghost',
   auricle:       'hidden',
   ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング（旧キー）
   malleus:       'solid',    // 個別制御：サイドバー既定は実体
@@ -112,15 +112,15 @@ function CartilageSlice({
     >
       {/* 軟骨本体（1mm 厚） */}
       <mesh>
-        <cylinderGeometry args={[r, r, 1.0, 32]} />
+        <cylinderGeometry args={[r, r, 0.5, 32]} />
         <meshStandardMaterial color="#e8d5a0" transparent opacity={0.82} roughness={0.65} metalness={0} />
       </mesh>
       {/* 上面・下面の輪郭を強調 */}
-      <mesh position={[0,  0.5, 0]}>
+      <mesh position={[0,  0.25, 0]}>
         <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
-      <mesh position={[0, -0.5, 0]}>
+      <mesh position={[0, -0.25, 0]}>
         <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
@@ -286,7 +286,6 @@ export function SimScene({
 
   // 表示判定 — vis切替を最優先。absent骨も hidden → 切替で表示可能。
   // absent/footplate-only 骨を表示する場合は「参照解剖」として薄いゴーストで表示。
-  const ABSENT_OPACITY = GHOST_OPACITY * 0.6;
   const showMalleus    = ossMode('malleus') !== 'hidden';
   const showIncus      = ossMode('incus')   !== 'hidden';
   const showStapesGLB  = ossMode('stapes')  !== 'hidden';
@@ -294,14 +293,18 @@ export function SimScene({
   const isCaseWithFootplate = stapStatus === 'footplate-only' || stapStatus === 'absent';
   const showFootplateHighlight = footplateVisMode !== 'hidden'
     && (footplateVisMode !== undefined || isCaseWithFootplate);
+  // absent/footplate-only 骨：ユーザーが表示切替した場合は見える不透明度を使用
+  // solid → 0.30（参照解剖として識別可能）, ghost → GHOST_OPACITY（薄い参照）
+  const absentOpacity = (mode: OpacityMode): number =>
+    mode === 'ghost' ? GHOST_OPACITY : 0.30;
   const malOpacity  = malStatus  === 'absent'
-    ? ABSENT_OPACITY
+    ? absentOpacity(ossMode('malleus'))
     : ossMode('malleus') === 'ghost' ? GHOST_OPACITY : caseOpacity(malStatus);
   const incOpacity  = incStatus  === 'absent'
-    ? ABSENT_OPACITY
+    ? absentOpacity(ossMode('incus'))
     : ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
   const stapOpacity = (stapStatus === 'absent' || stapStatus === 'footplate-only')
-    ? ABSENT_OPACITY
+    ? absentOpacity(ossMode('stapes'))
     : ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
 
   const orbitRef = useRef<any>(null);

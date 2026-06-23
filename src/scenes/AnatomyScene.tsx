@@ -12,7 +12,7 @@
  *   'endoscope'  : 硬性内視鏡ビュー（広角FOV 110°, 円形クリップ）
  */
 
-import { Suspense, useRef, useEffect } from 'react';
+import { Suspense, useRef, useEffect, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -141,14 +141,8 @@ interface AnatomySceneProps {
   vis?:               VisibilityMap;
   zoomLevel?:         number;
   showTympanoCavity?: boolean;
-  showPinna?:         boolean;
-  /** showPinna=true のとき ghost(半透明) or solid で不透明度が変わる */
-  pinnaMode?:         'solid' | 'ghost';
-  patientId?:         string;
   /** 手術用ビューモード（CSS オーバーレイは LearningMode 側で描画） */
   viewMode?:          ViewMode;
-  /** 耳介の位置・回転・反転をデバッグ調整するトランスフォーム */
-  auricleTransform?:  AuricleTransform;
   /** ハイライトする構造キー */
   highlightedKey?:    string | null;
   /** 側頭骨ghost時不透明度（0–1） */
@@ -165,27 +159,36 @@ export function AnatomyScene({
   vis,
   zoomLevel = 0,
   showTympanoCavity = false,
-  showPinna = false,
-  pinnaMode = 'solid',
-  patientId = 'T',
   viewMode = 'normal',
-  auricleTransform,
   highlightedKey,
   boneGhostOpacity,
   minDistance = 4,
   onEndoscopeAlert,
   onStructureClick,
 }: AnatomySceneProps) {
-  // 耳介（Auricle.glb）を vis に統合
-  // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
-  // solid=0.55 / ghost=0.12（GHOST_OPACITY準拠）
-  const auricleMode = showPinna
-    ? (pinnaMode === 'ghost' ? 'ghost' : 'solid')
-    : (vis?.auricle ?? 'hidden');
-  const mergedVis: VisibilityMap = { ...vis, auricle: auricleMode };
+  const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
+
+  // ⑧ ドラッグ中のダブルクリック誤発火を防ぐ
+  const containerRef = useRef<HTMLDivElement>(null);
+  const _pointerMoved = useRef(false);
+  const _pStart = useRef({ x: 0, y: 0 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const dn = (e: PointerEvent) => { _pStart.current = { x: e.clientX, y: e.clientY }; _pointerMoved.current = false; };
+    const mv = (e: PointerEvent) => { const dx = e.clientX - _pStart.current.x, dy = e.clientY - _pStart.current.y; if (dx*dx+dy*dy > 25) _pointerMoved.current = true; };
+    el.addEventListener('pointerdown', dn);
+    el.addEventListener('pointermove', mv);
+    return () => { el.removeEventListener('pointerdown', dn); el.removeEventListener('pointermove', mv); };
+  }, []);
+  const handleStructureClick = useCallback((key: import('./models/RealAnatomyModels').StructureKey) => {
+    if (!_pointerMoved.current) onStructureClick?.(key);
+  }, [onStructureClick]);
+
   return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
     <Canvas
-      camera={{ position: [2, 4, 65], fov: 42 }}
+      camera={{ position: [0, 0, 30], fov: 42 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -219,7 +222,7 @@ export function AnatomyScene({
         {/* Y軸反転グループ（GLBがY-down座標系のため） */}
         <group scale={[1, -1, 1]}>
           {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
-          <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} boneGhostOpacity={boneGhostOpacity} onStructureClick={onStructureClick} />
+          <RealAnatomy vis={mergedVis} highlightedKey={highlightedKey} boneGhostOpacity={boneGhostOpacity} onStructureClick={handleStructureClick} />
           {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>
@@ -234,6 +237,7 @@ export function AnatomyScene({
         autoRotate={false}
       />
     </Canvas>
+    </div>
   );
 }
 
