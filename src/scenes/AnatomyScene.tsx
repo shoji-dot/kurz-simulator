@@ -17,7 +17,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
-import { RealAnatomy, type VisibilityMap, type AuricleTransform } from './models/RealAnatomyModels';
+import { RealAnatomy, type VisibilityMap, type AuricleTransform, type StructureKey } from './models/RealAnatomyModels';
 
 // ── 硬性内視鏡アラートゾーン定義 ────────────────────────────────────
 // 座標系: 世界空間（GLB Y-down を scale=[1,-1,1] で反転後）
@@ -157,6 +157,8 @@ interface AnatomySceneProps {
   minDistance?:       number;
   /** 内視鏡近接アラートコールバック */
   onEndoscopeAlert?:  (alerts: EndoscopeAlert[]) => void;
+  /** ダブルクリックで構造の表示モードを切替するコールバック */
+  onStructureClick?:  (key: StructureKey) => void;
 }
 
 export function AnatomyScene({
@@ -172,6 +174,7 @@ export function AnatomyScene({
   boneGhostOpacity,
   minDistance = 4,
   onEndoscopeAlert,
+  onStructureClick,
 }: AnatomySceneProps) {
   // 耳介（Auricle.glb）を vis に統合
   // Auricle.glb は Bone.glb と同一CT由来で位置合わせ済み。
@@ -182,7 +185,7 @@ export function AnatomyScene({
   const mergedVis: VisibilityMap = { ...vis, auricle: auricleMode };
   return (
     <Canvas
-      camera={{ position: [6, 8, 70], fov: 42 }}
+      camera={{ position: [2, 4, 65], fov: 42 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -216,7 +219,7 @@ export function AnatomyScene({
         {/* Y軸反転グループ（GLBがY-down座標系のため） */}
         <group scale={[1, -1, 1]}>
           {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
-          <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} boneGhostOpacity={boneGhostOpacity} />
+          <RealAnatomy vis={mergedVis} auricleTransform={auricleTransform} highlightedKey={highlightedKey} patientId={patientId} boneGhostOpacity={boneGhostOpacity} onStructureClick={onStructureClick} />
           {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>
@@ -224,7 +227,7 @@ export function AnatomyScene({
 
       <OrbitControls
         makeDefault
-        target={[0, 0, 0]}
+        target={[0, 0, 4]}
         enablePan={true}
         minDistance={minDistance}
         maxDistance={90}

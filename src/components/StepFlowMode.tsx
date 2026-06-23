@@ -333,14 +333,7 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
     );
   }
 
-  const { sizeScore, positionScore, angleScore, stabilityScore, total, rank, feedback } = scoreResult;
-  const rankColor: Record<string, string> = { S: '#f0c040', A: '#4ade80', B: '#60b8e0', C: '#ffd166', D: '#f87171' };
-  const subScores = [
-    { label: 'サイズ', score: sizeScore, color: '#00b4d8' },
-    { label: '位置', score: positionScore, color: '#06d6a0' },
-    { label: '角度', score: angleScore, color: '#ffd166' },
-    { label: '安定性', score: stabilityScore, color: '#c77dff' },
-  ];
+  const { feedback } = scoreResult;
 
   return (
     <div className="sidebar" style={{ overflowY: 'auto' }}>
@@ -348,32 +341,6 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
       <div className="card" style={{ padding: '10px 14px' }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{surgicalCase.title}</div>
         <CaseTagBar surgicalCase={surgicalCase} />
-      </div>
-
-      {/* スコアリング */}
-      <div className="card">
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
-          <div className={`score-ring rank-${rank}`}>
-            <div style={{ fontSize: 26, fontWeight: 900 }}>{total}</div>
-            <div style={{ fontSize: 10, opacity: 0.7 }}>/ 100</div>
-          </div>
-          <div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>
-            ランク {rank}
-          </div>
-        </div>
-
-        <div className="section-title" style={{ marginBottom: 10 }}>詳細スコア</div>
-        {subScores.map(({ label, score, color }) => (
-          <div key={label} style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, fontSize: 12 }}>
-              <span>{label}</span>
-              <strong style={{ color }}>{score} / 25</strong>
-            </div>
-            <div className="score-bar-track">
-              <div className="score-bar-fill" style={{ width: `${(score / 25) * 100}%`, background: color }} />
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* あなたの設置 */}
@@ -401,7 +368,7 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
           <div key={i} style={{
             fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
             marginBottom: 6, paddingLeft: 10,
-            borderLeft: `2px solid ${total >= 75 ? 'var(--green)' : 'var(--yellow)'}`,
+            borderLeft: '2px solid var(--accent)',
           }}>
             {f}
           </div>
@@ -420,7 +387,6 @@ function SummaryPanel({
   onHome: () => void;
 }) {
   const { scoreResult } = useSimStore();
-  const rankColor: Record<string, string> = { S: '#f0c040', A: '#4ade80', B: '#60b8e0', C: '#ffd166', D: '#f87171' };
   const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
   const abg = scoreResult?.abgPrediction;
   const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
@@ -432,12 +398,8 @@ function SummaryPanel({
         <CaseTagBar surgicalCase={surgicalCase} />
       </div>
 
-      {scoreResult && (
-        <div className="card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 32 }}>{scoreResult.rank === 'S' ? '🏆' : scoreResult.rank === 'A' ? '⭐' : '✓'}</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: rankColor[scoreResult.rank] ?? '#fff', margin: '8px 0' }}>
-            ランク {scoreResult.rank} — {scoreResult.total}点
-          </div>
+      {scoreResult && abg && (
+        <div className="card">
           {abg && (
             <div style={{ marginTop: 10, padding: '10px 14px', background: `${abgColor}12`, border: `1px solid ${abgColor}40`, borderRadius: 8, textAlign: 'left' }}>
               <div style={{ fontSize: 10, color: abgColor, fontWeight: 700, marginBottom: 4 }}>📈 術後ABG改善予測</div>
@@ -580,7 +542,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
 // ── メインコンポーネント ───────────────────────────────────────────
 export function StepFlowMode() {
-  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, selectedPatientId } = useSimStore();
+  const { setScreen, resetSimulation, updatePlacement, computeScore, placement } = useSimStore();
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
@@ -680,7 +642,7 @@ export function StepFlowMode() {
             <AnatomyScene
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', innerEar: 'ghost' }}
               highlightedKey="stapes"
-              patientId={selectedPatientId}
+              patientId="T"
               zoomLevel={zoomLevel}
               boneGhostOpacity={boneGhostOpacity}
             />
@@ -688,7 +650,7 @@ export function StepFlowMode() {
             <AnatomyScene
               vis={visForScene}
               highlightedKey={step.highlightedKey}
-              patientId={selectedPatientId}
+              patientId="T"
               zoomLevel={zoomLevel}
               boneGhostOpacity={boneGhostOpacity}
             />

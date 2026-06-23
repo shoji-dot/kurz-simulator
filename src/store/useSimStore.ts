@@ -5,8 +5,6 @@ import type { SurgicalCase } from '../data/cases';
 export type Screen = 'home' | 'learning' | 'simulation' | 'stepflow';
 export type SimStep = 'case-select' | 'judgment' | 'product-select' | 'shaft-estimate' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
-export type PatientId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T';
-export const ALL_PATIENT_IDS: PatientId[] = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T'];
 
 export interface PlacementState {
   selectedLength: number;
@@ -61,8 +59,6 @@ interface SimStore {
   judgmentResult: JudgmentResult | null;
   highlightedStructure: string | null;
   drillStep: number;
-  /** 選択中の患者ID（耳介バリエーション） */
-  selectedPatientId: PatientId;
 
   setScreen: (s: Screen) => void;
   setLearningTab: (t: LearningTab) => void;
@@ -75,7 +71,6 @@ interface SimStore {
   resetSimulation: () => void;
   setHighlightedStructure: (s: string | null) => void;
   setDrillStep: (n: number) => void;
-  setSelectedPatientId: (id: PatientId) => void;
 }
 
 function computeRank(total: number): 'S' | 'A' | 'B' | 'C' | 'D' {
@@ -90,7 +85,6 @@ export const useSimStore = create<SimStore>((set, get) => ({
   screen: 'home',
   learningTab: 'anatomy',
   drillStep: 0,
-  selectedPatientId: 'T',
   simStep: 'case-select',
   selectedCase: null,
   selectedProduct: null,
@@ -224,5 +218,5 @@ export const useSimStore = create<SimStore>((set, get) => ({
     judgmentResult: null,
   }),
 
-  setSelectedPatientId: (id) => set({ selectedPatientId: id }),
+
 }));

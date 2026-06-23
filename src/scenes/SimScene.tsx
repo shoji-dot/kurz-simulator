@@ -34,6 +34,7 @@ import {
   StapesFootplateHighlight,
   GHOST_OPACITY,
   type OpacityMode,
+  type StructureKey,
   type VisibilityMap,
 } from './models/RealAnatomyModels';
 import { useSimStore } from '../store/useSimStore';
@@ -109,18 +110,18 @@ function CartilageSlice({
       position={[center.x, center.y, center.z]}
       rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
     >
-      {/* 軟骨本体（2mm 厚） */}
+      {/* 軟骨本体（1mm 厚） */}
       <mesh>
-        <cylinderGeometry args={[r, r, 2.0, 32]} />
+        <cylinderGeometry args={[r, r, 1.0, 32]} />
         <meshStandardMaterial color="#e8d5a0" transparent opacity={0.82} roughness={0.65} metalness={0} />
       </mesh>
       {/* 上面・下面の輪郭を強調 */}
-      <mesh position={[0,  1.0, 0]}>
-        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.08, 32]} />
+      <mesh position={[0,  0.5, 0]}>
+        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
-      <mesh position={[0, -1.0, 0]}>
-        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.08, 32]} />
+      <mesh position={[0, -0.5, 0]}>
+        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
     </group>
@@ -137,6 +138,8 @@ interface SimSceneProps {
   vis?:           VisibilityMap;
   /** 操作モード: 'move'=プロテーゼ移動, 'view'=ビュー操作 */
   dragMode?:      DragMode;
+  /** ダブルクリックで構造の表示モードを切替するコールバック */
+  onStructureClick?: (key: StructureKey) => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -250,7 +253,7 @@ function clamp3(v: number): number {
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
-  surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view',
+  surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view', onStructureClick,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -281,26 +284,31 @@ export function SimScene({
   const caseOpacity = (status: string): number | undefined =>
     status === 'partial' ? 0.45 : undefined;
 
-  // 表示判定
-  const showMalleus = malStatus  !== 'absent' && ossMode('malleus') !== 'hidden';
-  const showIncus   = incStatus  !== 'absent' && ossMode('incus')   !== 'hidden';
-
-  // アブミ骨: footplate-only の場合は GLB は非表示（底板ハイライトで代替）
-  const showStapesGLB = stapStatus !== 'absent'
-    && stapStatus !== 'footplate-only'
-    && ossMode('stapes') !== 'hidden';
-  // 底板ハイライトは footplate-only または absent 時に表示
-  const showFootplateHighlight = stapStatus === 'footplate-only' || stapStatus === 'absent';
-
-  const malOpacity  = ossMode('malleus') === 'ghost' ? GHOST_OPACITY : caseOpacity(malStatus);
-  const incOpacity  = ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
-  const stapOpacity = ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
+  // 表示判定 — vis切替を最優先。absent骨も hidden → 切替で表示可能。
+  // absent/footplate-only 骨を表示する場合は「参照解剖」として薄いゴーストで表示。
+  const ABSENT_OPACITY = GHOST_OPACITY * 0.6;
+  const showMalleus    = ossMode('malleus') !== 'hidden';
+  const showIncus      = ossMode('incus')   !== 'hidden';
+  const showStapesGLB  = ossMode('stapes')  !== 'hidden';
+  const footplateVisMode = vis['stapesFootplate'];
+  const isCaseWithFootplate = stapStatus === 'footplate-only' || stapStatus === 'absent';
+  const showFootplateHighlight = footplateVisMode !== 'hidden'
+    && (footplateVisMode !== undefined || isCaseWithFootplate);
+  const malOpacity  = malStatus  === 'absent'
+    ? ABSENT_OPACITY
+    : ossMode('malleus') === 'ghost' ? GHOST_OPACITY : caseOpacity(malStatus);
+  const incOpacity  = incStatus  === 'absent'
+    ? ABSENT_OPACITY
+    : ossMode('incus')   === 'ghost' ? GHOST_OPACITY : caseOpacity(incStatus);
+  const stapOpacity = (stapStatus === 'absent' || stapStatus === 'footplate-only')
+    ? ABSENT_OPACITY
+    : ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
 
   const orbitRef = useRef<any>(null);
 
   return (
     <Canvas
-      camera={{ position: [6, 8, 45], fov: 38 }}
+      camera={{ position: [2, 4, 45], fov: 38 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -328,10 +336,10 @@ export function SimScene({
         <group scale={[1, -1, 1]}>
           {/* ── GLBリアルモデル ── */}
           <group position={GLB_OFFSET}>
-            <RealAnatomy vis={mergedVis} />
-            {showMalleus    && <RealMalleus opacityOverride={malOpacity}  />}
-            {showIncus      && <RealIncus   opacityOverride={incOpacity}  />}
-            {showStapesGLB  && <RealStapes  opacityOverride={stapOpacity} />}
+            <RealAnatomy vis={mergedVis} onStructureClick={onStructureClick} />
+            {showMalleus   && <group onDoubleClick={(e) => { e.stopPropagation(); onStructureClick?.('malleus'); }}><RealMalleus opacityOverride={malOpacity}  /></group>}
+            {showIncus     && <group onDoubleClick={(e) => { e.stopPropagation(); onStructureClick?.('incus');   }}><RealIncus   opacityOverride={incOpacity}  /></group>}
+            {showStapesGLB && <group onDoubleClick={(e) => { e.stopPropagation(); onStructureClick?.('stapes');  }}><RealStapes  opacityOverride={stapOpacity} /></group>}
             {/* 底板ハイライト: footplate-only / absent 時に発光ディスク表示 */}
             {showFootplateHighlight && <StapesFootplateHighlight />}
           </group>

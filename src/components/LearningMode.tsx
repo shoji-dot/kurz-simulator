@@ -30,6 +30,7 @@ const VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?: boo
   { key: 'malleus',       label: 'ツチ骨 (Malleus)',  color: '#e6a93a', indent: true },
   { key: 'incus',         label: 'キヌタ骨 (Incus)',  color: '#d9892a', indent: true },
   { key: 'stapes',        label: 'アブミ骨 (Stapes)', color: '#f2cb54', indent: true },
+  { key: 'stapesFootplate', label: '底板 (Footplate)', color: '#00e5ff', indent: true },
   { key: 'tympanic',      label: '鼓膜',    color: '#f8d8c0' },
   { key: 'innerEar',      label: '内耳',    color: '#60b8e0' },
   { key: 'facialNerve',   label: '顔面神経', color: '#f5d820' },
@@ -150,7 +151,7 @@ const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[
 
 // ══════════════════════════════════════════════════════════════════
 export function LearningMode() {
-  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure, selectedPatientId } = useSimStore();
+  const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 3D表示モード
@@ -328,13 +329,25 @@ export function LearningMode() {
     background: 'black',
   } : { position: 'absolute', inset: 0 };
 
-  // 内視鏡貫通防止: 側頭骨・耳小骨・鼓膜が表示されている場合はminDistanceを大きくする
-  const hasBlocker = viewMode === 'endoscope' && (
+  // 内視鏡貫通防止（φ2.7mm相当）
+  // solid構造: 骨壁表面で止まるイメージ → minDistance 12
+  // ghost構造: 半透明で緩い制限 → minDistance 6
+  // すべてhidden: 制限なし → minDistance 4
+  const hasSolidBlocker = viewMode === 'endoscope' && (
+    getMode('bone')          === 'solid' ||
+    getMode('malleus')       === 'solid' ||
+    getMode('incus')         === 'solid' ||
+    getMode('stapes')        === 'solid' ||
+    getMode('tympanic')      === 'solid' ||
+    getMode('facialNerve')   === 'solid' ||
+    getMode('chordaTympani') === 'solid'
+  );
+  const hasGhostBlocker = !hasSolidBlocker && viewMode === 'endoscope' && (
     getMode('bone')     !== 'hidden' ||
     getMode('malleus')  !== 'hidden' ||
     getMode('tympanic') !== 'hidden'
   );
-  const endoscopeMinDist = hasBlocker ? 8 : 4;
+  const endoscopeMinDist = hasSolidBlocker ? 12 : hasGhostBlocker ? 6 : 4;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 60px)' }}>
@@ -380,13 +393,14 @@ export function LearningMode() {
                 showTympanoCavity={showTympanoCavity}
                 showPinna={showPinna}
                 pinnaMode={auricleMode === 'ghost' ? 'ghost' : 'solid'}
-                patientId={selectedPatientId}
+                patientId="T"
                 viewMode={viewMode}
                 auricleTransform={auricleTransform}
                 highlightedKey={highlightedStructure}
                 boneGhostOpacity={boneGhostOpacity}
                 minDistance={endoscopeMinDist}
                 onEndoscopeAlert={handleEndoscopeAlert}
+                onStructureClick={cycleMode}
               />
             )}
 
@@ -836,7 +850,7 @@ export function LearningMode() {
               <div className="card">
                 <div className="section-title">3D 表示切替</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  クリックで 実体 → 半透明 → 非表示 を切替
+                  クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
                 </div>
 
                 {/* ── グループ一括切替 ── */}

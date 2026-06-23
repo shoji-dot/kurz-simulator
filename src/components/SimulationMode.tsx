@@ -56,6 +56,14 @@ interface HistoryEntry {
 
 const HISTORY_KEY = 'kurz_score_history';
 const MAX_HISTORY = 10;
+const SKIP_QUIZ_KEY = 'kurz_skip_judgment_quiz';
+
+function loadSkipQuiz(): boolean {
+  try { return localStorage.getItem(SKIP_QUIZ_KEY) === 'true'; } catch { return false; }
+}
+function saveSkipQuiz(v: boolean): void {
+  try { localStorage.setItem(SKIP_QUIZ_KEY, v ? 'true' : 'false'); } catch { /* */ }
+}
 
 function loadHistory(): HistoryEntry[] {
   try {
@@ -84,8 +92,9 @@ const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?:
   { key: 'bone',          label: '側頭骨',    color: '#f2ead8' },
   { key: 'malleus',       label: 'ツチ骨',    color: '#e6a93a', indent: true },
   { key: 'incus',         label: 'キヌタ骨',  color: '#d9892a', indent: true },
-  { key: 'stapes',        label: 'アブミ骨',  color: '#f2cb54', indent: true },
-  { key: 'tympanic',      label: '鼓膜',      color: '#f8d8c0' },
+  { key: 'stapes',          label: 'アブミ骨',  color: '#f2cb54', indent: true },
+  { key: 'stapesFootplate', label: '底板',      color: '#00e5ff', indent: true },
+  { key: 'tympanic',        label: '鼓膜',      color: '#f8d8c0' },
   { key: 'innerEar',      label: '内耳',      color: '#60b8e0' },
   { key: 'facialNerve',   label: '顔面神経',  color: '#f5d820' },
   { key: 'chordaTympani', label: '鼓索神経',  color: '#f0b830' },
@@ -196,6 +205,13 @@ function AdjRow({
 function CaseSelect() {
   const { selectedCase, setSelectedCase, setSimStep } = useSimStore();
   const [diffFilter, setDiffFilter] = useState<string>('all');
+  const [skipQuiz, setSkipQuiz] = useState<boolean>(loadSkipQuiz);
+
+  const handleSkipToggle = () => {
+    const next = !skipQuiz;
+    setSkipQuiz(next);
+    saveSkipQuiz(next);
+  };
 
   const filtered = diffFilter === 'all' ? surgicalCases : surgicalCases.filter(c => c.difficulty === diffFilter);
 
@@ -253,13 +269,31 @@ function CaseSelect() {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* 判断クイズスキップ設定 */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)' }}>
+          <div
+            onClick={handleSkipToggle}
+            style={{
+              width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer', flexShrink: 0,
+              background: skipQuiz ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
+              transition: 'background .2s',
+            }}
+          >
+            <div style={{
+              position: 'absolute', top: 2, left: skipQuiz ? 18 : 2,
+              width: 16, height: 16, borderRadius: '50%', background: '#fff',
+              transition: 'left .2s',
+            }} />
+          </div>
+          判断クイズをスキップ
+        </label>
         <button
           className="btn btn-primary"
           disabled={!selectedCase}
-          onClick={() => setSimStep('judgment')}
+          onClick={() => setSimStep(skipQuiz ? 'product-select' : 'judgment')}
         >
-          次へ: 製品選択 →
+          次へ: {skipQuiz ? '製品選択' : '適応判断'} →
         </button>
       </div>
     </div>
@@ -786,6 +820,7 @@ function PlacementStep() {
           showCartilage={showCartilage}
           vis={simVis}
           dragMode={dragMode}
+          onStructureClick={cycleVis}
         />
         </ErrorBoundary>
         <div className="canvas-overlay top-left">
@@ -980,7 +1015,7 @@ function PlacementStep() {
         <div className="card">
           <div className="section-title">3D 表示切替</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-            クリックで 実体 → 半透明 → 非表示 を切替
+            クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
           </div>
           {SIM_VIS_ITEMS.map(({ key, label, color }) => {
             const mode: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');

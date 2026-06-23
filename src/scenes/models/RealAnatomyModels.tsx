@@ -37,7 +37,7 @@ export const DEFAULT_AURICLE_TRANSFORM: AuricleTransform = {
 
 export type StructureKey =
   | 'bone' | 'auricle' | 'ossicles'
-  | 'malleus' | 'incus' | 'stapes'
+  | 'malleus' | 'incus' | 'stapes' | 'stapesFootplate'
   | 'tympanic'
   | 'innerEar' | 'facialNerve' | 'chordaTympani' | 'eac' | 'roundWindow';
 export type VisibilityMap = Partial<Record<StructureKey, OpacityMode>>;
@@ -51,8 +51,9 @@ export const DEFAULT_MODES: Record<StructureKey, OpacityMode> = {
   ossicles:      'solid',   // 後方互換: 個別キー未指定時のフォールバック
   malleus:       'solid',
   incus:         'solid',
-  stapes:        'solid',
-  tympanic:      'solid',
+  stapes:          'solid',
+  stapesFootplate: 'hidden',  // デフォルト非表示（表示切替で有効化）
+  tympanic:        'solid',
   innerEar:      'solid',
   facialNerve:   'solid',
   chordaTympani: 'solid',
@@ -395,8 +396,10 @@ interface RealAnatomyProps {
   patientId?: string;
   /** 側頭骨のghost時不透明度（0–1、デフォルト GHOST_OPACITY=0.18） */
   boneGhostOpacity?: number;
+  /** ダブルクリックで構造の表示モードを切替するコールバック */
+  onStructureClick?: (key: StructureKey) => void;
 }
-export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patientId, boneGhostOpacity }: RealAnatomyProps) {
+export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patientId, boneGhostOpacity, onStructureClick }: RealAnatomyProps) {
   const getMode = (key: StructureKey): OpacityMode => vis[key] ?? DEFAULT_MODES[key];
   const show    = (key: StructureKey) => getMode(key) !== 'hidden';
   const opacity = (key: StructureKey): number | undefined => {
@@ -413,19 +416,23 @@ export function RealAnatomy({ vis = {}, auricleTransform, highlightedKey, patien
   const ossicleOpacity = (key: 'malleus' | 'incus' | 'stapes'): number | undefined =>
     ossicleMode(key) === 'ghost' ? GHOST_OPACITY : undefined;
 
+  // ダブルクリックハンドラ（stopPropagation で多重発火防止）
+  const dbl = (key: StructureKey) => (e: any) => { e.stopPropagation(); onStructureClick?.(key); };
+
   return (
     <group>
-      {show('bone')          && <RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} />}
-      {show('auricle')       && <RealAuricle          opacityOverride={opacity('auricle')}       transform={auricleTransform} patientId={patientId} />}
-      {show('tympanic')      && <RealTympanicMembrane opacityOverride={opacity('tympanic')}      highlighted={hl('tympanic') || hl('membrane')} />}
-      {ossicleShow('malleus') && <RealMalleus opacityOverride={ossicleOpacity('malleus')} highlighted={hl('malleus')} />}
-      {ossicleShow('incus')   && <RealIncus   opacityOverride={ossicleOpacity('incus')}   highlighted={hl('incus')} />}
-      {ossicleShow('stapes')  && <RealStapes  opacityOverride={ossicleOpacity('stapes')}  highlighted={hl('stapes')} />}
-      {show('roundWindow')   && <RealRoundWindow       opacityOverride={opacity('roundWindow')}   highlighted={hl('roundWindow')} />}
-      {show('innerEar')      && <RealInnerEar          opacityOverride={opacity('innerEar')}      highlighted={hl('innerEar')} />}
-      {show('facialNerve')   && <RealFacialNerve       opacityOverride={opacity('facialNerve')}   highlighted={hl('facialNerve')} />}
-      {show('chordaTympani') && <RealChordaTympani     opacityOverride={opacity('chordaTympani')} highlighted={hl('chordaTympani')} />}
-      {show('eac')           && <RealEAC               opacityOverride={opacity('eac')}           highlighted={hl('eac')} />}
+      {show('bone')          && <group onDoubleClick={dbl('bone')}><RealTemporalBone    opacityOverride={opacity('bone')}          highlighted={hl('bone')} /></group>}
+      {show('auricle')       && <group onDoubleClick={dbl('auricle')}><RealAuricle       opacityOverride={opacity('auricle')}       transform={auricleTransform} patientId={patientId} /></group>}
+      {show('tympanic')      && <group onDoubleClick={dbl('tympanic')}><RealTympanicMembrane opacityOverride={opacity('tympanic')}  highlighted={hl('tympanic') || hl('membrane')} /></group>}
+      {ossicleShow('malleus') && <group onDoubleClick={dbl('malleus')}><RealMalleus opacityOverride={ossicleOpacity('malleus')} highlighted={hl('malleus')} /></group>}
+      {ossicleShow('incus')   && <group onDoubleClick={dbl('incus')}><RealIncus     opacityOverride={ossicleOpacity('incus')}   highlighted={hl('incus')} /></group>}
+      {ossicleShow('stapes')  && <group onDoubleClick={dbl('stapes')}><RealStapes   opacityOverride={ossicleOpacity('stapes')}  highlighted={hl('stapes')} /></group>}
+      {show('roundWindow')   && <group onDoubleClick={dbl('roundWindow')}><RealRoundWindow   opacityOverride={opacity('roundWindow')}   highlighted={hl('roundWindow')} /></group>}
+      {show('innerEar')      && <group onDoubleClick={dbl('innerEar')}><RealInnerEar         opacityOverride={opacity('innerEar')}      highlighted={hl('innerEar')} /></group>}
+      {show('facialNerve')   && <group onDoubleClick={dbl('facialNerve')}><RealFacialNerve   opacityOverride={opacity('facialNerve')}   highlighted={hl('facialNerve')} /></group>}
+      {show('chordaTympani') && <group onDoubleClick={dbl('chordaTympani')}><RealChordaTympani opacityOverride={opacity('chordaTympani')} highlighted={hl('chordaTympani')} /></group>}
+      {show('eac')           && <group onDoubleClick={dbl('eac')}><RealEAC                   opacityOverride={opacity('eac')}           highlighted={hl('eac')} /></group>}
+      {show('stapesFootplate') && <group onDoubleClick={dbl('stapesFootplate')}><StapesFootplateHighlight /></group>}
     </group>
   );
 }
