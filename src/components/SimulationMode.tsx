@@ -505,7 +505,7 @@ function JudgmentStep() {
         )}
       </div>
       <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setPhase('quiz'); setSubmitted(false); setTypeSelected(null); setProductSelected(null); }}>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setPhase('quiz'); setTypeSelected(null); setProductSelected(null); }}>
           やり直す
         </button>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>

@@ -54,10 +54,10 @@ export const surgicalCases: SurgicalCase[] = [
     title: '症例2: ツチ骨・キヌタ骨欠損（III型）— PORP',
     description: '47歳女性。真珠腫性中耳炎（アティコトミー後再発）。ツチ骨・キヌタ骨は真珠腫により破壊・摘出。アブミ骨上部構造（頭部・前後脚）は温存、可動性良好。鼓室形成III型の典型例。PORP適応。',
     difficulty: 'intermediate',
-    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
+    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
     recommendedProductId: 'porp-duesseldorf',
     recommendedLength: 2.0,
-    // ツチ骨なしでアブミ骨底板上に設置。底板中央(offset 0)が理想。
+    // ツチ骨なしでアブミ骨頭部上に設置（III型: stapes suprastructure温存）。
     // 上方に鼓膜再建軟骨があるため傾きは最小限(5°以内)。
     idealLateralOffset: 0.0,
     idealAngle: 5,
@@ -230,13 +230,13 @@ export const surgicalCases: SurgicalCase[] = [
     description: '38歳女性。両側進行性伝音難聴。純音聴力検査でCarhart notch（2kHz骨導低下）あり。ティンパノグラムAs型。CTにてアブミ骨底板肥厚、窓龕周囲のハロー所見。耳硬化症の診断。アブミ骨底板固定に対するStapedotomy（ピストン法）の教育症例。本シミュレーターではアブミ骨底板までのアクセスと評価を学ぶ。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'intact', incus: 'intact', stapes: 'footplate-only' },
-    recommendedProductId: 'torp-duesseldorf',
-    recommendedLength: 4.5,
-    // Stapedotomyでは底板開窓部の中央にピストンを挿入。開窓は底板中央が原則。
+    recommendedProductId: 'porp-clip-dresden',
+    recommendedLength: 4.0,
+    // Stapedotomy: キヌタ骨長突起〜底板開窓部の距離。クリップをキヌタ骨長突起に固定。
     // 底板中央(offset 0)・垂直(0°)が最重要。
     idealLateralOffset: 0.0,
     idealAngle: 0,
-    clinicalNotes: '耳硬化症のStapedotomyでは、まずアブミ骨上部構造（前後弓・頭部）を切断・摘出し、底板に0.4〜0.6mm径の小孔を開ける（底板開窓）。ツチ骨柄にピストン型プロテーゼ（Clip PORP）をクリンプし、ピストン先端を底板孔に挿入。本シミュレーターはアブミ骨底板へのアクセスと評価フローに特化。',
+    clinicalNotes: '耳硬化症のStapedotomyでは、まずアブミ骨上部構造（前後弓・頭部）を切断・摘出し、底板に0.4〜0.6mm径の小孔を開ける（底板開窓）。Clip型プロテーゼのクリップをキヌタ骨長突起にクリンプし、シャフト先端を底板孔に挿入（ピストン法）。本シミュレーターはアブミ骨底板へのアクセスと評価フローに特化。',
     teachingPoints: [
       'アブミ骨底板固定の確認方法：細い吸引管でアブミ骨頭部を軽く押す。正常なら弾性的に動く。固定なら全く動かない。',
       '顔面神経水平部はアブミ骨直上を走行する。顔面神経と底板の距離確認がStapedotomyの最重要ステップ。',
