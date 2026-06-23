@@ -15,6 +15,8 @@ export interface SurgicalCase {
   recommendedLength: number;
   idealLateralOffset: number;
   idealAngle: number;
+  /** 術前ABG想定値 (dB) — スコア画面のABG改善予測に使用 */
+  preOpAbg: number;
   clinicalNotes: string;
   teachingPoints: string[];
   /** コンテキストタグ（常時表示チップ） */
@@ -37,6 +39,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 底板はアブミ骨頭部中心(X=0.84)より約0.2mm内側が安定。傾斜角は解剖学的に約15°。
     idealLateralOffset: -0.2,
     idealAngle: 15,
+    preOpAbg: 30,
     clinicalNotes: 'ツチ骨柄〜アブミ骨頭間距離は約2.5mm。軟骨片を頭板下に挿入し鼓膜穿孔を防止する。',
     teachingPoints: [
       'PORP適応の典型例。アブミ骨上部構造温存が前提条件。',
@@ -61,6 +64,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 上方に鼓膜再建軟骨があるため傾きは最小限(5°以内)。
     idealLateralOffset: 0.0,
     idealAngle: 5,
+    preOpAbg: 35,
     clinicalNotes: '軟骨（耳珠軟骨）で鼓膜を再建し、軟骨〜アブミ骨頭間距離をサイザーで実測。本症例は約2.0mm。アブミ骨頭部が明視野に確認でき、ベル型フットで安定保持が可能。',
     teachingPoints: [
       'III型の定義：ツチ骨・キヌタ骨欠損、アブミ骨上部構造温存。PORPのベル型フット（Bell foot）がアブミ骨頭部を包む形で設置。',
@@ -86,6 +90,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 鼓膜〜底板間はほぼ垂直(0°)。
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    preOpAbg: 40,
     clinicalNotes: '鼓膜（軟骨再建）〜アブミ骨底板間距離は約5.0mm。フット部が底板上中央に安定設置されることを確認。底板の可動性が良好であることが術前評価で確認済み。',
     teachingPoints: [
       'IV型の定義：耳小骨連鎖が完全欠損し、アブミ骨底板のみ残存する状態。TORP適応の典型。',
@@ -111,6 +116,7 @@ export const surgicalCases: SurgicalCase[] = [
     // クリップ機構の構造上、わずかな前後傾き(5°)は許容される。
     idealLateralOffset: 0.0,
     idealAngle: 5,
+    preOpAbg: 30,
     clinicalNotes: 'Clip Partial Dresdenのクリップ部をアブミ骨頭部にクリッピング。軟骨不要。術野が狭い場合は注意。',
     teachingPoints: [
       'Clip PORPはアブミ骨頭部が温存されている症例で有用。',
@@ -135,6 +141,7 @@ export const surgicalCases: SurgicalCase[] = [
     // II型変法のため通常より約0.1mm多く内側へオフセット。傾斜はやや小さい(12°)。
     idealLateralOffset: -0.3,
     idealAngle: 12,
+    preOpAbg: 40,
     clinicalNotes: 'ツチ骨柄〜アブミ骨頭間距離は約3.0mm（癒着解除後計測）。鼓膜の癒着を慎重に剥離し、軟骨で補強再建。ツチ骨柄が菲薄化しているためPORP頭板の支持面積確保が重要。',
     teachingPoints: [
       'ツチ骨柄菲薄化症例ではPORP頭板サイズ（標準 vs ラージ）の選択が重要。支持面積が小さいと不安定になる。',
@@ -160,6 +167,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 小児は鼓室腔が狭く、アブミ骨頭部が成人より若干外側に位置する傾向(+0.1mm)。
     idealLateralOffset: 0.1,
     idealAngle: 8,
+    preOpAbg: 35,
     clinicalNotes: '小児例のため鼓室腔が小さい。術野確保にファイバー内視鏡を併用。ツチ骨柄下〜アブミ骨頭間距離は約2.0mm（成人比やや短い）。軟骨補強と鼓膜形成を同時施行。',
     teachingPoints: [
       '先天性耳小骨奇形は後天性疾患と異なり、炎症・瘢痕が少ないため解剖構造が比較的明瞭。',
@@ -185,6 +193,7 @@ export const surgicalCases: SurgicalCase[] = [
     // ツチ骨柄(X≈0)下配置のため約0.2mm内側オフセット・傾斜約15°が理想。
     idealLateralOffset: -0.2,
     idealAngle: 15,
+    preOpAbg: 30,
     clinicalNotes: '外傷から3ヶ月後に手術施行。鼓膜切開で鼓室内を確認するとキヌタ骨が砧骨窩から完全脱臼し、後鼓室に落下していた。脱臼キヌタ骨を摘出後、ツチ骨柄下〜アブミ骨頭間距離を実測（2.5mm）。PORPを設置。',
     teachingPoints: [
       '外傷性耳小骨離断の最多損傷部位はキヌタ骨長突起〜アブミ骨頭部の間（砧鐙関節）。CT診断が有用だが見落としも多い。',
@@ -211,6 +220,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 傾きは瘢痕の影響で完全垂直は困難なため5°を許容する。
     idealLateralOffset: 0.2,
     idealAngle: 5,
+    preOpAbg: 35,
     clinicalNotes: '初回術後10年での再手術。鼓室内は瘢痕組織に富み術野展開に難渋。底板は露出されているが可動性は軽度低下。瘢痕を丁寧に除去後、底板可動性を再確認し新規TORPを設置。鼓膜は瘢痕性に肥厚しており、軟骨補強を追加。',
     teachingPoints: [
       '再手術（Revision）では初回手術の術式と結果を正確に把握することが前提。前院の手術記録・使用プロテーゼ情報を収集する。',
@@ -236,6 +246,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 底板中央(offset 0)・垂直(0°)が最重要。
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    preOpAbg: 45,
     clinicalNotes: '耳硬化症のStapedotomyでは、まずアブミ骨上部構造（前後弓・頭部）を切断・摘出し、底板に0.4〜0.6mm径の小孔を開ける（底板開窓）。Clip型プロテーゼのクリップをキヌタ骨長突起にクリンプし、シャフト先端を底板孔に挿入（ピストン法）。本シミュレーターはアブミ骨底板へのアクセスと評価フローに特化。',
     teachingPoints: [
       'アブミ骨底板固定の確認方法：細い吸引管でアブミ骨頭部を軽く押す。正常なら弾性的に動く。固定なら全く動かない。',
@@ -261,6 +272,7 @@ export const surgicalCases: SurgicalCase[] = [
     // 偏心配置は固定底板への不均等圧力で術後めまいの原因となる。
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    preOpAbg: 45,
     clinicalNotes: '術前CT: 底板肥厚2.0mm、アブミ骨周囲低吸収ハロー所見あり。術中に底板可動性を細い吸引管で慎重に確認。可動性良好なら TORP 設置継続。固定が強い場合は Laser アシスト耳硬化症手術（鐙骨手術）との複合対応を検討。',
     teachingPoints: [
       '耳硬化症合併の TORP は「底板可動性の確認」が最重要手技。固定底板に TORP 設置しても音響改善は得られない。',

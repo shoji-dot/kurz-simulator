@@ -1071,12 +1071,17 @@ function ScoreStep() {
             </div>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 6 }}>
               <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>予測改善量</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: abgColor, lineHeight: 1 }}>+{abg.improvementDb} dB</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>術前ABG（本症例）</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1 }}>{selectedCase?.preOpAbg ?? 30} dB</div>
               </div>
+              <div style={{ fontSize: 18, color: abgColor, fontWeight: 700, paddingBottom: 2 }}>→</div>
               <div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>術後ABG目安</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: abgColor, lineHeight: 1 }}>{abg.postOpAbg} dB</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>改善量</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: abgColor, lineHeight: 1 }}>−{abg.improvementDb} dB</div>
               </div>
               <div style={{ padding: '3px 10px', borderRadius: 999, background: `${abgColor}22`, border: `1px solid ${abgColor}60`, fontSize: 11, fontWeight: 700, color: abgColor, marginBottom: 4 }}>
                 {{ excellent: '優秀', good: '良好', fair: '可', poor: '要改善' }[abg.successCategory]}

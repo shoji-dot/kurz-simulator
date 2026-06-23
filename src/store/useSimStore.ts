@@ -170,14 +170,14 @@ export const useSimStore = create<SimStore>((set, get) => ({
     // ── ABG改善予測（文献根拠ベース）────────────────────────────────
     // 参考: Austin (1994), Yung (2003), Merchant (2003) らの鼓室形成術成績
     // PORP/TORP 術後ABG: 理想例で0〜10dB、平均15〜20dB残存
-    // 術前ABG想定: 30dB（慢性中耳炎の典型値）
+    // 術前ABG: 症例別 preOpAbg フィールドから取得
     //
     // モデル:
     //   サイズ精度がABGに最も寄与（1mm誤差 ≒ 5〜10dB悪化）
     //   位置偏心がABGに次いで寄与（0.5mm偏心 ≒ 5dB悪化）
     //   角度は安定性を介して寄与
-    const PRE_OP_ABG = 30; // dB (術前ABG想定値)
-    const IDEAL_IMPROVEMENT = 25; // dB (理想的設置での改善上限)
+    const PRE_OP_ABG = selectedCase.preOpAbg; // dB (症例別術前ABG)
+    const IDEAL_IMPROVEMENT = Math.min(PRE_OP_ABG, 25); // dB (改善上限は術前ABGを超えない)
 
     // サイズ誤差による改善阻害（最大15dB減点）
     const sizeImpact   = (sizeScore / 25) * 15;
