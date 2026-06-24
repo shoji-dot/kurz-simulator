@@ -288,13 +288,15 @@ function BellTop({ ghost }: { ghost?: boolean }) {
     shape.absarc(0, 0, 0.90, 0, Math.PI * 2, false);
 
     // 3 large oval fenestrations at 120° intervals
+    // STL: holes are large — ~50% of disc area, thin bridges between
     for (let i = 0; i < 3; i++) {
       const angle = (i / 3) * Math.PI * 2 + Math.PI / 6;
-      const cx = Math.cos(angle) * 0.46;
-      const cy = Math.sin(angle) * 0.46;
+      const cx = Math.cos(angle) * 0.48;  // center at r=0.48 (near outer rim)
+      const cy = Math.sin(angle) * 0.48;
       const hole = new THREE.Path();
-      // absellipse: rotate so major axis points radially outward
-      hole.absellipse(cx, cy, 0.20, 0.34, 0, Math.PI * 2, false, angle - Math.PI / 2);
+      // Large oval: rx=0.26(tangential) ry=0.40(radial)
+      // Hole extends ~0.08→0.88 from disc center (very large opening)
+      hole.absellipse(cx, cy, 0.26, 0.40, 0, Math.PI * 2, false, angle - Math.PI / 2);
       shape.holes.push(hole);
     }
 
