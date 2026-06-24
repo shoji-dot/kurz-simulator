@@ -4,6 +4,7 @@ import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
 import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
+import { InteractiveDrillScene } from '../scenes/InteractiveDrillScene';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
   DEFAULT_MODES,
@@ -217,7 +218,7 @@ export function LearningMode() {
   const [panMode, setPanMode] = useState(false);
 
   // 削開タブ状態
-  const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5'>('s1');
+  const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5' | 's6'>('s1');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   // S1 側頭骨表示モード
   const [drillBoneVis, setDrillBoneVis] = useState<OpacityMode>('solid');
@@ -343,8 +344,11 @@ export function LearningMode() {
           {/* 3Dコンテンツ + 視覚エフェクト（内視鏡時はここだけclipPath適用） */}
           <div style={endoscopeClipStyle}>
             {learningTab === 'drilling' ? (
+              drillScenario === 's6' ? (
+                <InteractiveDrillScene />
+              ) : (
               <DrillTrainingScene
-                scenario={drillScenario}
+                scenario={drillScenario as 's1'|'s2'|'s3'|'s4'|'s5'}
                 selectedZoneId={selectedZoneId}
                 onZoneSelect={setSelectedZoneId}
                 s3StepIndex={s3StepIndex}
@@ -353,6 +357,7 @@ export function LearningMode() {
                 boneVis={drillBoneVis}
                 boneGhostOpacity={boneGhostOpacity}
               />
+              )
             ) : (
               <AnatomyScene
                 vis={visForScene}
@@ -971,6 +976,7 @@ export function LearningMode() {
                     { key: 's2', label: 'S2: 危険部位',   desc: 'クリックで確認' },
                     { key: 's3', label: 'S3: 削開動画',   desc: '5ステップ手術' },
                     { key: 's4', label: 'S4: 削開範囲',   desc: '推奨限界壁' },
+                    { key: 's6', label: 'S6: 削開練習',   desc: 'インタラクティブ' },
                     { key: 's5', label: 'S5: 削開完了後', desc: '確認ビュー' },
                   ] as const).map(({ key, label, desc }) => (
                     <button
@@ -1264,6 +1270,31 @@ export function LearningMode() {
                     ))}
                   </div>
                 </>
+              )}
+
+              {/* ── S6: インタラクティブ削開 ── */}
+              {drillScenario === 's6' && (
+                <div className="card">
+                  <div className="section-title" style={{ color: '#00b4d8' }}>🔴 インタラクティブ削開練習</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 10 }}>
+                    3mm 球形ダイヤモンドバーで側頭骨を自由に削開できます。
+                    危険部位に近づくとリアルタイムで警告が表示されます。
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(0,180,216,0.06)', border: '1px solid rgba(0,180,216,0.2)' }}>
+                      🖱 <b style={{ color: 'var(--text-secondary)' }}>「ドリル開始」</b> を押して左ドラッグで削開
+                    </div>
+                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                      ↻ 右回転 / 左回転を切り替えて臨床感覚を習得
+                    </div>
+                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(255,100,100,0.06)', border: '1px solid rgba(255,100,100,0.2)', color: '#f87171' }}>
+                      ⚠ 顔面神経・静脈洞に近づくと赤/黄アラート表示
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, padding: '6px 8px', borderRadius: 5, background: 'rgba(255,209,102,0.05)', border: '1px solid rgba(255,209,102,0.15)' }}>
+                    💡 S2（危険部位特定）で危険部位の位置を確認してから練習すると学習効果が高まります
+                  </div>
+                </div>
               )}
 
               {/* ── S4: 推奨削開範囲 ── */}
