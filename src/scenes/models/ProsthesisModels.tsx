@@ -274,26 +274,27 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
   );
 }
 
-// ── BELL TOP head plate (VTT-VARIAC) ─────────────────────────────
-//   STL scan-derived: inverted bell opens upward toward TM graft.
-//   Sharp flare from shaft collar to wide flat rim (~3.5mm dia).
+// ── BELL TOP head plate (TTP-VARIAC / PORP series) ───────────────
+//   STL scan-derived (Scaniverse 2026-06-24):
+//   - Ultra-sharp flare: r 0.22→0.88 in first ~35% of bell height
+//   - Wide flat rim (Thai-hat / flying-saucer profile)
+//   - Slight concave inner dome → TM graft contact at center
 //   Same 4-slit pattern as BellFoot (alternating narrow/wide gaps).
-//   No rotation needed — bell naturally opens upward (Y+).
+//   No rotation — bell opens upward (Y+) toward tympanic membrane.
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
   const points = useMemo<THREE.Vector2[]>(() => [
     new THREE.Vector2(0.22, 0.00),   // shaft collar (bottom)
-    new THREE.Vector2(0.26, 0.06),
-    new THREE.Vector2(0.40, 0.18),
-    new THREE.Vector2(0.62, 0.32),
-    new THREE.Vector2(0.80, 0.44),   // max flare (~3.5mm dia)
-    new THREE.Vector2(0.86, 0.53),   // outer rim edge
-    new THREE.Vector2(0.78, 0.60),   // rim top outer
-    new THREE.Vector2(0.62, 0.60),   // rim top inner (flat rim surface)
-    new THREE.Vector2(0.44, 0.52),   // inner wall
-    new THREE.Vector2(0.24, 0.38),
-    new THREE.Vector2(0.08, 0.22),
-    new THREE.Vector2(0.00, 0.10),   // center top (TM contact point)
+    new THREE.Vector2(0.42, 0.09),   // rapid expansion start
+    new THREE.Vector2(0.70, 0.20),   // sharp outer flare
+    new THREE.Vector2(0.86, 0.30),   // near max
+    new THREE.Vector2(0.90, 0.40),   // max flare — rim outer wall
+    new THREE.Vector2(0.88, 0.52),   // outer rim top edge
+    new THREE.Vector2(0.76, 0.58),   // flat rim inner edge
+    new THREE.Vector2(0.56, 0.60),   // inner dome surface
+    new THREE.Vector2(0.34, 0.62),
+    new THREE.Vector2(0.14, 0.63),
+    new THREE.Vector2(0.00, 0.63),   // center top (TM contact point)
   ], []);
 
   const GAP_N  = 0.308;

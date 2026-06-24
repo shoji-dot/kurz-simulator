@@ -26,7 +26,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Düsseldorf',
     type: 'PORP',
     footType: 'BELL',
-    headType: 'FENESTRATED',    // catalog: 3.6mm fenestrated head plate (ASTM F67)
+    headType: 'BELL_TOP',       // STL実測形状を適用
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.0,
     footDiameter: 2.5,
@@ -74,7 +74,7 @@ export const kurzProducts: KurzProduct[] = [
     series: 'Tuebingen',
     type: 'PORP',
     footType: 'BELL',
-    headType: 'FENESTRATED',    // fenestrated head (Tuebingen series standard)
+    headType: 'BELL_TOP',       // STL実測形状を適用
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.0,
     footDiameter: 2.5,
@@ -85,18 +85,18 @@ export const kurzProducts: KurzProduct[] = [
     color: '#b0bcc8',
   },
   {
-    id: 'porp-vtt-variac',
-    name: 'VTT-VARIAC PORP',
-    series: 'VTT',
+    id: 'porp-ttp-variac',
+    name: 'TTP-VARIAC PORP',
+    series: 'TTP',
     type: 'PORP',
     footType: 'BELL',
-    headType: 'BELL_TOP',       // scan-derived: inverted bell opens toward TM, slits present
+    headType: 'BELL_TOP',       // STLスキャン実測: 急峻フレアー＋フラットリム、スリット入り
     shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
     headPlateDiameter: 3.5,
     footDiameter: 2.5,
     weight: 4,
     mriSafe: '7.0T',
-    description: 'VTT-VARIACシリーズPORP。上下対称ベル構造（BELLフット＋BELLトップヘッド）。スリット入りベルが鼓膜・軟骨グラフトと優れた面接触を実現。',
+    description: 'TTP-VARIACシリーズPORP。上下対称ベル構造（BELLフット＋BELLトップヘッド）。鼓膜・軟骨グラフトに対して広い面接触を実現するフラットリム設計。',
     indications: ['ツチ骨・キヌタ骨欠損', 'キヌタ骨単独欠損', '鼓膜再建同時施行症例'],
     color: '#b8c0d0',
   },
