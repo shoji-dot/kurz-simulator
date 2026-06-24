@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { DANGER_ZONES } from '../data/dangerZones';
 
 // ── 定数 ──────────────────────────────────────────────────────────────
-const MAX_HOLES      = 80;   // シェーダー配列サイズ
+const MAX_HOLES      = 200;  // シェーダー配列サイズ（WebGL2上限内で200まで実用的）
 const DRILL_RADIUS   = 1.5;  // 3mm 径バーの半径 (scene unit = 1mm)
 const MIN_HOLE_DIST  = 0.55; // 連続ホール間の最小距離 mm
 const DRILL_INTERVAL = 80;   // ms ごとに 1 ホール追加
@@ -82,6 +82,8 @@ void main() {
 }
 
 // ── DrillBone ─────────────────────────────────────────────────────────
+type VisMode = 'solid' | 'ghost' | 'hidden';
+
 interface DrillBoneProps {
   uniformsRef: React.MutableRefObject<{
     drillHoles:     { value: THREE.Vector3[] };
@@ -91,10 +93,12 @@ interface DrillBoneProps {
   onPointerMove: (e: ThreeEvent<PointerEvent>) => void;
   onPointerDown: (e: ThreeEvent<PointerEvent>) => void;
   onPointerUp:   (e: ThreeEvent<PointerEvent>) => void;
+  boneVis:       VisMode;
 }
 
-function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp }: DrillBoneProps) {
+function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp, boneVis }: DrillBoneProps) {
   const { scene } = useGLTF('/models/Bone.glb');
+  const matRefs = useRef<THREE.MeshStandardMaterial[]>([]);
 
   const cloned = useMemo(() => {
     const sentinels = Array.from({ length: MAX_HOLES }, () => new THREE.Vector3(9999, 9999, 9999));
@@ -104,6 +108,7 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp }: D
       drillRadius:    { value: DRILL_RADIUS },
     };
     uniformsRef.current = uniforms;
+    matRefs.current = [];
 
     const c = scene.clone(true);
     c.traverse((obj) => {
@@ -115,17 +120,34 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp }: D
       mesh.geometry = geo;
 
       const mat = new THREE.MeshStandardMaterial({
-        color:     new THREE.Color('#c8b090'),
-        roughness: 0.72,
-        metalness: 0.03,
-        side:      THREE.DoubleSide,
+        color:       new THREE.Color('#c8b090'),
+        roughness:   0.72,
+        metalness:   0.03,
+        side:        THREE.DoubleSide,
+        transparent: true,
+        opacity:     1.0,
+        depthWrite:  true,
       });
       applyDrillShader(mat, uniforms);
       mesh.material = mat;
+      matRefs.current.push(mat);
     });
     return c;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
+
+  useEffect(() => {
+    const opacity    = boneVis === 'ghost' ? 0.18 : 1.0;
+    const depthWrite = boneVis !== 'ghost';
+    matRefs.current.forEach(mat => {
+      mat.opacity    = opacity;
+      mat.transparent = boneVis === 'ghost';
+      mat.depthWrite = depthWrite;
+      mat.needsUpdate = true;
+    });
+  }, [boneVis]);
+
+  if (boneVis === 'hidden') return null;
 
   return (
     <primitive
@@ -134,6 +156,64 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp }: D
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
     />
+  );
+}
+
+// ── DrillOssicles: 耳小骨（Malleus / Incus / Stapes）────────────────
+const OSSICLE_COLORS = ['#e6a93a', '#d9892a', '#f2cb54'] as const;
+
+function DrillOssicles({ mode }: { mode: VisMode }) {
+  const { scene: mScene } = useGLTF('/models/Malleus.glb');
+  const { scene: iScene } = useGLTF('/models/Incus.glb');
+  const { scene: sScene } = useGLTF('/models/Stapes.glb');
+  const matsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+
+  const clones = useMemo(() => {
+    matsRef.current = [];
+    return [mScene, iScene, sScene].map((scene, idx) => {
+      const c = scene.clone(true);
+      const mat = new THREE.MeshStandardMaterial({
+        color:       OSSICLE_COLORS[idx],
+        roughness:   0.32,
+        metalness:   0.35,
+        transparent: true,
+        opacity:     1.0,
+        depthWrite:  true,
+        side:        THREE.DoubleSide,
+      });
+      matsRef.current.push(mat);
+      c.traverse((obj) => {
+        if (!(obj as THREE.Mesh).isMesh) return;
+        const mesh = obj as THREE.Mesh;
+        const geo = mesh.geometry.clone();
+        geo.deleteAttribute('normal');
+        geo.computeVertexNormals();
+        mesh.geometry = geo;
+        mesh.material = mat;
+      });
+      return c;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mScene, iScene, sScene]);
+
+  useEffect(() => {
+    const op = mode === 'ghost' ? 0.32 : 1.0;
+    matsRef.current.forEach(mat => {
+      mat.opacity    = op;
+      mat.transparent = mode === 'ghost';
+      mat.depthWrite = mode !== 'ghost';
+      mat.needsUpdate = true;
+    });
+  }, [mode]);
+
+  if (mode === 'hidden') return null;
+
+  return (
+    <>
+      {clones.map((clone, i) => (
+        <primitive key={i} object={clone} />
+      ))}
+    </>
   );
 }
 
@@ -478,9 +558,11 @@ interface DrillCanvas3DProps {
   onDrillDirection: (dir: string | null) => void;
   showGuide:        boolean;
   expertMode:       boolean;
+  boneVis:          VisMode;
+  ossicleVis:       VisMode;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode, boneVis, ossicleVis }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -582,7 +664,10 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
+        boneVis={boneVis}
       />
+      {/* 耳小骨 */}
+      <DrillOssicles mode={ossicleVis} />
       {/* ポインタリーブ用不可視プレーン */}
       <mesh visible={false} onPointerLeave={handlePointerLeave}>
         <planeGeometry args={[200, 200]} />
@@ -623,6 +708,8 @@ export function InteractiveDrillScene() {
   const [antrumDist,    setAntrumDist]    = useState<number | null>(null);
   const [drillDirection, setDrillDirection] = useState<string | null>(null);
   const [expertMode,     setExpertMode]     = useState(false);
+  const [boneVis,        setBoneVis]        = useState<VisMode>('solid');
+  const [ossicleVis,     setOssicleVis]     = useState<VisMode>('solid');
   const [resetKey,       setResetKey]       = useState(0);
 
   const handleReset = () => {
@@ -650,6 +737,8 @@ export function InteractiveDrillScene() {
           onDrillDirection={setDrillDirection}
           showGuide={showGuide}
           expertMode={expertMode}
+          boneVis={boneVis}
+          ossicleVis={ossicleVis}
         />
       </Canvas>
 
@@ -797,6 +886,49 @@ export function InteractiveDrillScene() {
         {showGuide ? '🗺 ガイド ON' : '🗺 ガイド OFF'}
       </button>
 
+      {/* 可視化コントロール */}
+      <div style={{
+        position: 'absolute', bottom: 44, left: 10, zIndex: 10,
+        display: 'flex', gap: 5,
+      }}>
+        {/* 骨 表示トグル */}
+        <button
+          onClick={() => setBoneVis(v => v === 'solid' ? 'ghost' : v === 'ghost' ? 'hidden' : 'solid')}
+          style={{
+            padding: '5px 10px', borderRadius: 7,
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: boneVis === 'solid'  ? 'rgba(226,232,240,0.15)'
+                      : boneVis === 'ghost'  ? 'rgba(125,216,232,0.15)'
+                      : 'rgba(0,0,0,0.5)',
+            color: boneVis === 'solid'  ? '#e2e8f0'
+                 : boneVis === 'ghost'  ? '#7dd8e8'
+                 : 'rgba(255,255,255,0.3)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          🦴 骨: {boneVis === 'solid' ? '実体' : boneVis === 'ghost' ? '半透明' : '非表示'}
+        </button>
+        {/* 耳小骨 表示トグル */}
+        <button
+          onClick={() => setOssicleVis(v => v === 'solid' ? 'ghost' : v === 'ghost' ? 'hidden' : 'solid')}
+          style={{
+            padding: '5px 10px', borderRadius: 7,
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: ossicleVis === 'solid'  ? 'rgba(230,169,58,0.15)'
+                      : ossicleVis === 'ghost'  ? 'rgba(125,216,232,0.15)'
+                      : 'rgba(0,0,0,0.5)',
+            color: ossicleVis === 'solid'  ? '#e6a93a'
+                 : ossicleVis === 'ghost'  ? '#7dd8e8'
+                 : 'rgba(255,255,255,0.3)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          🔮 耳小骨: {ossicleVis === 'solid' ? '表示' : ossicleVis === 'ghost' ? '半透明' : '非表示'}
+        </button>
+      </div>
+
       {/* 操作ガイド（ドリルOFF時）*/}
       {!drillMode && (
         <div style={{
@@ -823,3 +955,7 @@ export function InteractiveDrillScene() {
     </div>
   );
 }
+
+useGLTF.preload('/models/Malleus.glb');
+useGLTF.preload('/models/Incus.glb');
+useGLTF.preload('/models/Stapes.glb');
