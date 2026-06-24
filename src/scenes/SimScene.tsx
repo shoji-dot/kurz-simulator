@@ -16,7 +16,7 @@
  *   OrbitControls はドラッグ中に無効化
  */
 
-import { Suspense, useRef, useEffect } from 'react';
+import { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -26,6 +26,39 @@ import {
   UMBO_POS,
 } from './models/OssicleModels';
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
+
+// ── カメラ視点 保存/復元 ────────────────────────────────────────
+const _SIM_KEY = 'kurz_cam_sim';
+const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
+  pos: [80, 6, 2], target: [0.5, 0.5, 3],
+};
+function _loadSimCam() {
+  try {
+    const raw = localStorage.getItem(_SIM_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
+        return d as typeof _SIM_DEFAULT;
+    }
+  } catch { /* */ }
+  return _SIM_DEFAULT;
+}
+let _simCam = { ..._SIM_DEFAULT };
+let _simOrbit: any = null;
+export function saveSimCam(): void {
+  localStorage.setItem(_SIM_KEY, JSON.stringify(_simCam));
+}
+export function resetSimCam(): void {
+  localStorage.removeItem(_SIM_KEY);
+  _simCam = { ..._SIM_DEFAULT };
+  if (_simOrbit) {
+    const [px, py, pz] = _SIM_DEFAULT.pos;
+    const [tx, ty, tz] = _SIM_DEFAULT.target;
+    _simOrbit.object.position.set(px, py, pz);
+    _simOrbit.target.set(tx, ty, tz);
+    _simOrbit.update();
+  }
+}
 import {
   RealAnatomy,
   RealMalleus,
@@ -312,10 +345,11 @@ export function SimScene({
     : ossMode('stapes')  === 'ghost' ? GHOST_OPACITY : caseOpacity(stapStatus);
 
   const orbitRef = useRef<any>(null);
+  const [initCam] = useState(() => _loadSimCam());
 
   return (
     <Canvas
-      camera={{ position: [80, 6, 2], fov: 38 }}
+      camera={{ position: initCam.pos, fov: 38 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -402,13 +436,19 @@ export function SimScene({
 
       <OrbitControls
         makeDefault
-        ref={orbitRef}
-        target={[0.5, 0.5, 3]}
+        ref={(r: any) => { (orbitRef as any).current = r; _simOrbit = r; }}
+        target={initCam.target}
         enablePan={true}
         minDistance={8}
         maxDistance={85}
         autoRotate={false}
         enabled={dragMode === 'view'}
+        onChange={() => {
+          if (!_simOrbit) return;
+          const p = _simOrbit.object.position;
+          const t = _simOrbit.target;
+          _simCam = { pos: [p.x, p.y, p.z], target: [t.x, t.y, t.z] };
+        }}
       />
     </Canvas>
   );

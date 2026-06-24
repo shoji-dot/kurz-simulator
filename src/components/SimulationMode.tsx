@@ -34,7 +34,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 import { useSimStore, type JudgmentResult } from '../store/useSimStore';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
-import { SimScene, SIM_DEFAULT_VIS, type DragMode } from '../scenes/SimScene';
+import { SimScene, SIM_DEFAULT_VIS, type DragMode, saveSimCam, resetSimCam } from '../scenes/SimScene';
 import {
   type OpacityMode,
   type StructureKey,
@@ -1040,6 +1040,23 @@ function PlacementStep() {
           )}
         </div>
 
+        {/* ── 視点保存 ── */}
+        <div style={{ display: 'flex', gap: 6, padding: '0 4px' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ flex: 1, fontSize: 11 }}
+            onClick={saveSimCam}
+          >
+            視点を保存
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}
+            onClick={resetSimCam}
+          >
+            視点リセット
+          </button>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
           <button className="btn btn-ghost" onClick={() => setSimStep('product-select')}>← 戻る</button>
           <button className="btn btn-primary" onClick={handleConfirm}>評価する →</button>

@@ -12,7 +12,7 @@
  *   'endoscope'  : 硬性内視鏡ビュー（広角FOV 110°, 円形クリップ）
  */
 
-import { Suspense, useRef, useEffect, useCallback } from 'react';
+import { Suspense, useRef, useEffect, useCallback, useState } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -90,6 +90,41 @@ function EndoscopeMonitor({
   return null;
 }
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
+
+// ── カメラ視点 保存/復元 ────────────────────────────────────────
+const _ANAT_KEY = 'kurz_cam_anatomy';
+const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
+  pos: [80, 5, 0], target: [0, 0, 4],
+};
+function _loadAnatCam() {
+  try {
+    const raw = localStorage.getItem(_ANAT_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
+        return d as typeof _ANAT_DEFAULT;
+    }
+  } catch { /* */ }
+  return _ANAT_DEFAULT;
+}
+let _anatCam = { ..._ANAT_DEFAULT };
+let _anatOrbit: any = null;
+/** 現在のカメラ視点をlocalStorageに保存 */
+export function saveAnatomyCam(): void {
+  localStorage.setItem(_ANAT_KEY, JSON.stringify(_anatCam));
+}
+/** カメラ視点をデフォルトにリセット */
+export function resetAnatomyCam(): void {
+  localStorage.removeItem(_ANAT_KEY);
+  _anatCam = { ..._ANAT_DEFAULT };
+  if (_anatOrbit) {
+    const [px, py, pz] = _ANAT_DEFAULT.pos;
+    const [tx, ty, tz] = _ANAT_DEFAULT.target;
+    _anatOrbit.object.position.set(px, py, pz);
+    _anatOrbit.target.set(tx, ty, tz);
+    _anatOrbit.update();
+  }
+}
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 export type ViewMode = 'normal' | 'microscope' | 'endoscope';
@@ -169,6 +204,7 @@ export function AnatomyScene({
   onStructureClick,
   panMode = false,
 }: AnatomySceneProps) {
+  const [initCam] = useState(() => _loadAnatCam());
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
 
   // ⑧ ドラッグ中のダブルクリック誤発火を防ぐ
@@ -191,7 +227,7 @@ export function AnatomyScene({
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
     <Canvas
-      camera={{ position: [80, 5, 0], fov: 40 }}
+      camera={{ position: initCam.pos, fov: 40 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -233,7 +269,8 @@ export function AnatomyScene({
 
       <OrbitControls
         makeDefault
-        target={[0, 0, 4]}
+        ref={(r: any) => { _anatOrbit = r; }}
+        target={initCam.target}
         enablePan={true}
         minDistance={minDistance}
         maxDistance={90}
@@ -242,6 +279,12 @@ export function AnatomyScene({
           LEFT:   panMode ? THREE.MOUSE.PAN    : THREE.MOUSE.ROTATE,
           MIDDLE: THREE.MOUSE.DOLLY,
           RIGHT:  panMode ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
+        }}
+        onChange={() => {
+          if (!_anatOrbit) return;
+          const p = _anatOrbit.object.position;
+          const t = _anatOrbit.target;
+          _anatCam = { pos: [p.x, p.y, p.z], target: [t.x, t.y, t.z] };
         }}
       />
     </Canvas>

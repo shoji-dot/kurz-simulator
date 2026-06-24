@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
-import { AnatomyScene } from '../scenes/AnatomyScene';
+import { AnatomyScene, saveAnatomyCam, resetAnatomyCam } from '../scenes/AnatomyScene';
 import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { InteractiveDrillScene } from '../scenes/InteractiveDrillScene';
@@ -786,6 +786,32 @@ export function LearningMode() {
                     })}
                   </>
                 )}
+              </div>
+
+              {/* ── 視点保存 ── */}
+              <div className="card" style={{ padding: '10px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em' }}>視点設定</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ flex: 1, fontSize: 11 }}
+                    onClick={saveAnatomyCam}
+                  >
+                    現在の視点を保存
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}
+                    onClick={resetAnatomyCam}
+                  >
+                    デフォルトに戻す
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+                  保存した視点は次回起動時から反映されます
+                </div>
               </div>
 
               <div className="card">
