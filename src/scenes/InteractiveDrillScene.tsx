@@ -349,9 +349,10 @@ interface DrillCanvas3DProps {
   rotation:     'CW' | 'CCW';
   onAlert:      (msg: string | null) => void;
   onHoleCount:  (n: number) => void;
+  showGuide:    boolean;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, showGuide }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -458,6 +459,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount }: DrillCanva
 
       {/* 危険部位マーカー */}
       <DangerSpheres />
+      {/* Mastoidectomy ガイドレイヤー */}
+      {showGuide && <MastoidGuide />}
 
       {/* ドリルカーソル */}
       <DrillCursor groupRef={cursorRef} rotation={rotation} />
@@ -481,6 +484,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount }: DrillCanva
 // ── InteractiveDrillScene: 外部コンポーネント ─────────────────────────
 export function InteractiveDrillScene() {
   const [drillMode, setDrillMode] = useState(false);
+  const [showGuide,  setShowGuide]  = useState(true);
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
   const [holeCount, setHoleCount] = useState(0);
@@ -505,6 +509,7 @@ export function InteractiveDrillScene() {
           rotation={rotation}
           onAlert={setAlertMsg}
           onHoleCount={setHoleCount}
+          showGuide={showGuide}
         />
       </Canvas>
 
@@ -581,6 +586,22 @@ export function InteractiveDrillScene() {
           {alertMsg}
         </div>
       )}
+
+      {/* ガイドレイヤートグル */}
+      <button
+        onClick={() => setShowGuide(v => !v)}
+        style={{
+          position: 'absolute', bottom: 44, right: 10, zIndex: 10,
+          padding: '5px 10px', borderRadius: 7,
+          border: '1px solid rgba(255,255,255,0.18)',
+          cursor: 'pointer', fontSize: 10, fontWeight: 700,
+          background: showGuide ? 'rgba(74,222,128,0.15)' : 'rgba(0,0,0,0.5)',
+          color: showGuide ? '#4ade80' : 'rgba(255,255,255,0.4)',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        {showGuide ? '🗺 ガイド ON' : '🗺 ガイド OFF'}
+      </button>
 
       {/* 操作ガイド（ドリルOFF時）*/}
       {!drillMode && (
