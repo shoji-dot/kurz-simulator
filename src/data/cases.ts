@@ -33,7 +33,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '42歳女性。慢性中耳炎。鼓膜穿孔、キヌタ骨欠損。ツチ骨柄・アブミ骨上部構造は温存。鼓室形成II型の適応。PORP（ツチ骨柄下）を使用。',
     difficulty: 'beginner',
     ossicularStatus: { malleus: 'intact', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.5,
     // ツチ骨柄(X≈0)下に頭板を合わせるため、シャフトは内側に傾く。
     // 底板はアブミ骨頭部中心(X=0.84)より約0.2mm内側が安定。傾斜角は解剖学的に約15°。
@@ -58,7 +58,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '47歳女性。真珠腫性中耳炎（アティコトミー後再発）。ツチ骨・キヌタ骨は真珠腫により破壊・摘出。アブミ骨上部構造（頭部・前後脚）は温存、可動性良好。鼓室形成III型の典型例。PORP適応。',
     difficulty: 'intermediate',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.0,
     // ツチ骨なしでアブミ骨頭部上に設置（III型: stapes suprastructure温存）。
     // 上方に鼓膜再建軟骨があるため傾きは最小限(5°以内)。
@@ -84,7 +84,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '58歳男性。真珠腫性中耳炎。ツチ骨・キヌタ骨・アブミ骨上部構造を全摘出。アブミ骨底板のみ残存、可動性良好。鼓室形成IV型の典型例。TORP適応。',
     difficulty: 'intermediate',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
-    recommendedProductId: 'torp-duesseldorf',
+    recommendedProductId: 'torp-ttp-variac',
     recommendedLength: 5.0,
     // 底板中央(offset 0)が理想。偏心すると窓龕縁に接触しめまいの原因となる。
     // 鼓膜〜底板間はほぼ垂直(0°)。
@@ -106,11 +106,11 @@ export const surgicalCases: SurgicalCase[] = [
   },
   {
     id: 'case-003',
-    title: '症例4: クリップPORP使用例（応用）',
-    description: '35歳男性。コレステアトーマ初回手術後。キヌタ骨欠損、アブミ骨頭部温存。クリップ固定を検討。',
+    title: '症例4: ツチ骨・キヌタ骨欠損（III型）— TTP-VARIAC PORP（応用）',
+    description: '35歳男性。コレステアトーマ初回手術後（アティコトミー）。ツチ骨・キヌタ骨はコレステアトーマにより除去。アブミ骨上部構造（頭部・前後弓）は温存、可動性良好。鼓室形成III型にTTP-VARIAC PORPを使用するin-stage再建の応用例。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'partial', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-clip-dresden',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.0,
     // クリップがアブミ骨頭部を掴むため中央(offset 0)が必須。
     // クリップ機構の構造上、わずかな前後傾き(5°)は許容される。
@@ -135,7 +135,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '61歳男性。癒着性中耳炎術後。キヌタ骨欠損、ツチ骨柄菲薄化・一部癒着。アブミ骨上部構造は温存。鼓膜は菲薄化し癒着傾向あり。PORPをツチ骨柄下に設置するが、ツチ骨柄の固定不完全により正確なセンタリングが要求される難症例。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'partial', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 3.0,
     // 癒着性中耳炎では鼓膜・ツチ骨柄が内側に引き寄せられる。
     // II型変法のため通常より約0.1mm多く内側へオフセット。傾斜はやや小さい(12°)。
@@ -161,7 +161,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '8歳男児。生下時より左耳の伝音難聴。CTにてキヌタ骨・アブミ骨上部構造の先天性欠損を確認。ツチ骨柄は形態的に存在するが、キヌタ骨との関節が未形成。アブミ骨底板は正常可動。先天性耳小骨奇形に対する鼓室形成術（PORP使用）の典型例。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'partial', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.0,
     // 先天性奇形では解剖構造は明瞭。ツチ骨柄なし相当のため直置き。
     // 小児は鼓室腔が狭く、アブミ骨頭部が成人より若干外側に位置する傾向(+0.1mm)。
@@ -187,7 +187,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '28歳男性。交通事故後の左側頭骨骨折。事故直後から左耳の伝音難聴。CTにてキヌタ骨の砧骨窩からの脱臼（Incus dislocation）を確認。ツチ骨・アブミ骨は正常位置。鼓膜は無穿孔。外傷性耳小骨離断の典型例。',
     difficulty: 'intermediate',
     ossicularStatus: { malleus: 'intact', incus: 'absent', stapes: 'suprastructure' },
-    recommendedProductId: 'porp-duesseldorf',
+    recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.5,
     // ツチ骨・アブミ骨は正常位置(外傷性キヌタ骨脱臼のみ)。II型と同様の解剖。
     // ツチ骨柄(X≈0)下配置のため約0.2mm内側オフセット・傾斜約15°が理想。
@@ -213,7 +213,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '63歳女性。10年前に鼓室形成IV型手術施行。術後聴力改善後、徐々に再悪化。CTにて以前のTORPが底板から外れ後鼓室に落下。鼓室内に瘢痕組織と肉芽。再手術の典型例。前回使用プロテーゼ摘出、瘢痕除去、新規TORPによる再建。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
-    recommendedProductId: 'torp-duesseldorf',
+    recommendedProductId: 'torp-ttp-variac',
     recommendedLength: 5.5,
     // 再手術(Revision)では瘢痕収縮により底板が外側縁に偏位することがある。
     // フット部を若干外側(+0.2mm)に設置することで底板中央〜外側の安定した接触を確保。
@@ -240,14 +240,14 @@ export const surgicalCases: SurgicalCase[] = [
     description: '38歳女性。両側進行性伝音難聴。純音聴力検査でCarhart notch（2kHz骨導低下）あり。ティンパノグラムAs型。CTにてアブミ骨底板肥厚、窓龕周囲のハロー所見。耳硬化症の診断。アブミ骨底板固定に対するStapedotomy（ピストン法）の教育症例。本シミュレーターではアブミ骨底板までのアクセスと評価を学ぶ。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'intact', incus: 'intact', stapes: 'footplate-only' },
-    recommendedProductId: 'porp-clip-dresden',
+    recommendedProductId: 'soft-clip-stapes',
     recommendedLength: 4.0,
     // Stapedotomy: キヌタ骨長突起〜底板開窓部の距離。クリップをキヌタ骨長突起に固定。
     // 底板中央(offset 0)・垂直(0°)が最重要。
     idealLateralOffset: 0.0,
     idealAngle: 0,
     preOpAbg: 45,
-    clinicalNotes: '耳硬化症のStapedotomyでは、まずアブミ骨上部構造（前後弓・頭部）を切断・摘出し、底板に0.4〜0.6mm径の小孔を開ける（底板開窓）。Clip型プロテーゼのクリップをキヌタ骨長突起にクリンプし、シャフト先端を底板孔に挿入（ピストン法）。本シミュレーターはアブミ骨底板へのアクセスと評価フローに特化。',
+    clinicalNotes: '耳硬化症のStapedotomyでは、まずアブミ骨上部構造（前後弓・頭部）を切断・摘出し、底板に0.4〜0.6mm径の小孔を開ける（底板開窓）。Soft Clipのバンドをキヌタ骨長突起にクリンピング不要で固定し、シャフト先端を底板孔に挿入（ピストン法）。バンドスプリング機構がキヌタ骨長突起の径に自動適合。本シミュレーターはアブミ骨底板へのアクセスと評価フローに特化。',
     teachingPoints: [
       'アブミ骨底板固定の確認方法：細い吸引管でアブミ骨頭部を軽く押す。正常なら弾性的に動く。固定なら全く動かない。',
       '顔面神経水平部はアブミ骨直上を走行する。顔面神経と底板の距離確認がStapedotomyの最重要ステップ。',
@@ -266,7 +266,7 @@ export const surgicalCases: SurgicalCase[] = [
     description: '52歳女性。両側の混合性難聴（骨導低下を伴う）。真珠腫術後、耳小骨連鎖全欠損。アブミ骨底板のみ残存するが、術前CTにて底板肥厚・ハロー所見あり。耳硬化症の合併が疑われる。術中に底板可動性を慎重に評価しTORPを設置する高難度症例。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
-    recommendedProductId: 'torp-duesseldorf',
+    recommendedProductId: 'torp-ttp-variac',
     recommendedLength: 4.5,
     // 耳硬化症では底板が肥厚・中央固定のため底板中央(offset 0)・垂直(0°)が厳格に要求される。
     // 偏心配置は固定底板への不均等圧力で術後めまいの原因となる。

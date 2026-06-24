@@ -315,7 +315,7 @@ function deriveSurgicalType(sc: SurgicalCase): string {
 /** recommendedProductId からプロテーゼ種別を導出 */
 function deriveProsthesisType(productId: string): string {
   if (productId.includes('torp')) return 'TORP';
-  if (productId.includes('clip')) return 'Clip PORP';
+  if (productId.includes('soft-clip')) return 'Soft Clip (PISTON)';
   return 'PORP';
 }
 
@@ -357,7 +357,7 @@ function JudgmentStep() {
   // useMemo は早期 return の前に呼ぶ（Rules of Hooks）
   const caseId         = selectedCase?.id ?? '';
   const typeOptions    = useMemo(() => shuffled(['II型', 'III型', 'IV型', 'アブミ骨手術']), [caseId]);
-  const productOptions = useMemo(() => shuffled(['PORP', 'TORP', 'Clip PORP']),            [caseId]);
+  const productOptions = useMemo(() => shuffled(['PORP', 'TORP', 'Soft Clip (PISTON)']), [caseId]);
 
   if (!selectedCase) return null;
 
@@ -1193,18 +1193,74 @@ function ScoreStep() {
         </div>
       )}
 
-      {history.length > 1 && (
+      {history.length > 0 && (
         <div className="card">
-          <div className="section-title">スコア履歴（直近{Math.min(history.length, 5)}件）</div>
-          {history.slice(0, 5).map((h, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11 }}>
-              <div>
-                <span style={{ color: RANK_COLOR[h.rank] ?? '#aaa', fontWeight: 700, marginRight: 8 }}>{h.rank}</span>
-                <span style={{ color: 'var(--text-muted)' }}>{h.caseTitle.slice(0, 20)}</span>
+          <div className="section-title">スコア履歴（直近{Math.min(history.length, MAX_HISTORY)}件）</div>
+
+          {/* サマリ行：前回比 + ベストスコア */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            {history.length > 1 && (() => {
+              const trend = history[0].total - history[1].total;
+              const tColor = trend > 0 ? '#4ade80' : trend < 0 ? '#ff6666' : 'var(--text-muted)';
+              return (
+                <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>前回比</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: tColor }}>
+                    {trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : '→ 変化なし'}
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>ベスト</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#ffd700' }}>
+                {Math.max(...history.map(h => h.total))}点
               </div>
-              <span style={{ fontWeight: 700 }}>{h.total}点</span>
             </div>
-          ))}
+          </div>
+
+          {/* ミニバーチャート（古→新、左→右） */}
+          {history.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 56, marginBottom: 12, padding: '0 2px' }}>
+              {[...history.slice(0, 5)].reverse().map((h, i, arr) => {
+                const color = RANK_COLOR[h.rank] ?? '#888';
+                const isLatest = i === arr.length - 1;
+                return (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                    <div style={{ fontSize: 8, color: isLatest ? color : 'var(--text-muted)', fontWeight: 700, marginBottom: 1 }}>{h.total}</div>
+                    <div style={{
+                      width: '100%',
+                      height: `${Math.max(4, h.total)}%`,
+                      background: color,
+                      borderRadius: '2px 2px 0 0',
+                      opacity: isLatest ? 1 : 0.45,
+                    }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* エントリーリスト */}
+          {history.slice(0, 5).map((h, i) => {
+            const trend = i < history.length - 1 ? h.total - history[i + 1].total : null;
+            return (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11 }}>
+                <div>
+                  <span style={{ color: RANK_COLOR[h.rank] ?? '#aaa', fontWeight: 700, marginRight: 8 }}>{h.rank}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{h.caseTitle.slice(0, 18)}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {trend !== null && (
+                    <span style={{ fontSize: 10, color: trend > 0 ? '#4ade80' : trend < 0 ? '#ff6666' : 'var(--text-muted)' }}>
+                      {trend > 0 ? `↑${trend}` : trend < 0 ? `↓${-trend}` : '–'}
+                    </span>
+                  )}
+                  <span style={{ fontWeight: 700 }}>{h.total}点</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

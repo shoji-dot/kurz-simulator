@@ -221,6 +221,7 @@ function DraggableProsthesis({
     <TransformControls
       ref={tcRef}
       mode="translate"
+      space="world"
       showX={isMove}
       showY={isMove}
       showZ={isMove}
@@ -257,7 +258,7 @@ export function SimScene({
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
-  const isTotal = product.footType === 'FLAT';
+  const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
 
   // vis をマージ。耳小骨（ossicles/malleus/incus/stapes）と auricle は

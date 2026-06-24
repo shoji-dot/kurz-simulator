@@ -318,8 +318,32 @@ function BellTop({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// ── Soft Clip band (PISTON prosthesis head) ──────────────────────
+function SoftClipBand({ ghost }: { ghost?: boolean }) {
+  const BAND_R = 0.55; const BAND_ARC = Math.PI * 1.78; const STEPS = 40;
+  const band = useMemo<THREE.BufferGeometry>(() => {
+    const pts: THREE.Vector3[] = [];
+    const START = Math.PI / 2 - BAND_ARC / 2;
+    for (let i = 0; i <= STEPS; i++) {
+      const t = START + (i / STEPS) * BAND_ARC;
+      pts.push(new THREE.Vector3(Math.cos(t) * BAND_R, 0, Math.sin(t) * BAND_R));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts, false);
+    return new THREE.TubeGeometry(curve, 40, 0.105, 7, false);
+  }, []);
+  return (
+    <group>
+      <mesh geometry={band}><TitaniumMat ghost={ghost} /></mesh>
+      <mesh position={[0, -0.22, 0]}>
+        <cylinderGeometry args={[0.15, 0.12, 0.28, 10]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+    </group>
+  );
+}
+
 // ── Head plate selector ───────────────────────────────────────────
-export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN' | 'BELL_TOP';
+export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN' | 'BELL_TOP' | 'SOFT_CLIP';
 
 function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; ghost?: boolean }) {
   switch (headType) {
@@ -327,6 +351,7 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
     case 'OVAL_RING': return <HeadPlateOvalRing  ghost={ghost} />;
     case 'DOME_4FIN': return <HeadPlateDome4Fin  ghost={ghost} />;
     case 'BELL_TOP':  return <BellTop            ghost={ghost} />;
+    case 'SOFT_CLIP': return <SoftClipBand ghost={ghost} />;
     default:          return <HeadPlateFenestrated ghost={ghost} />;
   }
 }
@@ -458,6 +483,28 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
   );
 }
 
+
+// ── PISTON foot (Soft Clip Stapes / Stapedotomy) ─────────────────
+//   Catalog Ø0.4/0.6mm shaft. Rounded piston tip enters oval window.
+//   Small hemisphere + short cylinder ≈ clinical piston shape.
+// ================================================================
+function PistonFoot({ ghost }: { ghost?: boolean }) {
+  return (
+    <group>
+      {/* Rounded hemisphere tip (enters oval window fenestration) */}
+      <mesh>
+        <sphereGeometry args={[0.20, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+      {/* Short cylindrical collar above the tip */}
+      <mesh position={[0, 0.10, 0]}>
+        <cylinderGeometry args={[0.20, 0.20, 0.20, 12]} />
+        <TitaniumMat ghost={ghost} />
+      </mesh>
+    </group>
+  );
+}
+
 // ================================================================
 // ProsthesisModel  -- shaft + head plate + foot
 // ================================================================
@@ -491,7 +538,7 @@ export function ProsthesisModel({
   ghost           = false,
 }: ProsthesisProps) {
 
-  const base = (basePos ?? (product.footType === 'FLAT' ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
+  const base = (basePos ?? (['FLAT', 'PISTON'].includes(product.footType) ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
   base.x += lateralOffset;
   base.y += verticalOffset;
   base.z += anteriorOffset;
@@ -522,17 +569,23 @@ export function ProsthesisModel({
         <HeadPlate headType={headType} ghost={ghost} />
       </group>
 
-      {/* Shaft – circular cross-section (confirmed) */}
-      <mesh>
-        <cylinderGeometry args={[0.10, 0.10, len, 16]} />
-        <TitaniumMat ghost={ghost} />
-      </mesh>
+      {/* Shaft – circular cross-section; PISTON type uses Ø0.4mm */}
+      {(() => {
+        const r = product.type === 'PISTON' ? 0.20 : 0.10;
+        return (
+          <mesh>
+            <cylinderGeometry args={[r, r, len, 16]} />
+            <TitaniumMat ghost={ghost} />
+          </mesh>
+        );
+      })()}
 
       {/* Foot */}
       <group position={[0, footOff, 0]}>
-        {product.footType === 'BELL' && <BellFoot ghost={ghost} />}
-        {product.footType === 'FLAT' && <FlatFoot ghost={ghost} />}
-        {product.footType === 'CLIP' && <ClipFoot ghost={ghost} />}
+        {product.footType === 'BELL'   && <BellFoot   ghost={ghost} />}
+        {product.footType === 'FLAT'   && <FlatFoot   ghost={ghost} />}
+        {product.footType === 'CLIP'   && <ClipFoot   ghost={ghost} />}
+        {product.footType === 'PISTON' && <PistonFoot ghost={ghost} />}
       </group>
     </group>
   );
@@ -573,4 +626,6 @@ export {
   BellFoot,
   FlatFoot,
   ClipFoot,
+  SoftClipBand,
+  PistonFoot,
 };
