@@ -276,28 +276,40 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
 //   Physical prosthesis photo 2026-06-24:
-//   - Outer shape: PORTRAIT OVAL (taller than wide, ~4:3 H:W ratio)
-//   - 2 asymmetric fenestrations separated by thin horizontal bridge:
-//       Upper: small rounded oval (1/3 disc height)
-//       Lower: large oval (~1/2 disc height, wider)
-//   - Center knob on top surface = shaft connection point
-//   Uses ExtrudeGeometry; shape in XY, rotated so Y→Z, extrusion→Y+
+//   - Outer shape: PORTRAIT OVAL (taller than wide, H:W ≈ 4:3)
+//   - 2 asymmetric fenestrations + thin horizontal bridge:
+//       Upper hole: small oval (top third)
+//       Lower hole: large oval (bottom half, wider)
+//   - Small center knob on disc top surface (shaft connector)
+//   Uses ExtrudeGeometry with explicit point arrays (avoids absellipse)
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
   const discGeo = useMemo<THREE.BufferGeometry>(() => {
-    // Outer portrait oval: rx=0.68(narrow), ry=0.90(tall)
-    const shape = new THREE.Shape();
-    shape.absellipse(0, 0, 0.68, 0.90, 0, Math.PI * 2, false, 0);
+    // Helper: generate ellipse points as Vector2 array
+    const ellipsePoints = (cx: number, cy: number, rx: number, ry: number, n = 48): THREE.Vector2[] => {
+      const pts: THREE.Vector2[] = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        pts.push(new THREE.Vector2(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry));
+      }
+      return pts;
+    };
 
-    // Upper fenestration: small rounded oval in upper third
-    const holeTop = new THREE.Path();
-    holeTop.absellipse(0, 0.48, 0.26, 0.18, 0, Math.PI * 2, false, 0);
+    // Outer portrait oval — H:W ≈ 5:4 (matches real prosthesis photo)
+    // rx=0.72(left-right), ry=0.90(up-down)
+    const shape = new THREE.Shape(ellipsePoints(0, 0, 0.72, 0.90));
+
+    // Upper hole: small oval in top third
+    // Photo: ~38% disc width, ~22% disc height, center ~55% up from disc center
+    // center(0,+0.52), rx=0.26, ry=0.20 → spans y=+0.32 to +0.72
+    const holeTop = new THREE.Path(ellipsePoints(0, 0.52, 0.26, 0.20));
     shape.holes.push(holeTop);
 
-    // Lower fenestration: large oval in lower half
-    // Top edge ~y=0.24, leaving thin bridge between the two holes
-    const holeBot = new THREE.Path();
-    holeBot.absellipse(0, -0.18, 0.48, 0.42, 0, Math.PI * 2, false, 0);
+    // Lower hole: MUCH larger — dominates lower 2/3 of disc
+    // Photo: ~74% disc width, ~56% disc height
+    // center(0,-0.22), rx=0.52, ry=0.50 → spans y=-0.72 to +0.28
+    // Bridge gap: y=0.28(lower top) to y=0.32(upper bottom) = 0.04 (very thin)
+    const holeBot = new THREE.Path(ellipsePoints(0, -0.22, 0.52, 0.50));
     shape.holes.push(holeBot);
 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
@@ -305,16 +317,16 @@ function BellTop({ ghost }: { ghost?: boolean }) {
 
   return (
     <group>
-      {/* Portrait oval disc with 2 fenestrations */}
+      {/* Portrait oval disc — rotate so extrusion axis → Y+ (faces TM) */}
       <mesh geometry={discGeo} rotation={[Math.PI / 2, 0, 0]}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Center knob on top surface (shaft connection point, bridge center) */}
+      {/* Center knob on disc top surface (shaft lock point, sits on bridge) */}
       <mesh position={[0, 0.14, 0]}>
         <cylinderGeometry args={[0.08, 0.08, 0.06, 8]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Collar: shaft top → disc underside */}
+      {/* Collar: connects shaft top to disc underside */}
       <mesh position={[0, -0.07, 0]}>
         <cylinderGeometry args={[0.12, 0.12, 0.13, 12]} />
         <TitaniumMatDS ghost={ghost} />
