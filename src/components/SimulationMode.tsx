@@ -175,12 +175,12 @@ function AdjRow({
 }) {
   const btnStyle = (i: number): CSSProperties => ({
     flex: 1,
-    padding: '6px 2px',
-    borderRadius: 5,
+    padding: '8px 4px',
+    borderRadius: 6,
     border: '1px solid rgba(255,255,255,.12)',
     background: i < steps.length / 2 ? 'rgba(255,120,80,.1)' : 'rgba(80,200,120,.1)',
     color: i < steps.length / 2 ? '#ff9060' : '#60e090',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
@@ -188,8 +188,8 @@ function AdjRow({
   });
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', minWidth: 60, textAlign: 'right' }}>{value}</span>
       </div>
       <div style={{ display: 'flex', gap: 3 }}>
@@ -848,29 +848,10 @@ function PlacementStep() {
         />
         </ErrorBoundary>
         <div className="canvas-overlay top-left">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {/* コンテキストタグ */}
-            <ContextTagBar
-              procedureTags={selectedCase.tags.procedure}
-              lesionTags={selectedCase.tags.lesion}
-            />
-            <div style={{ background: 'rgba(0,0,0,.6)', padding: '6px 10px', borderRadius: 6, backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
-              {dragMode === 'move' ? (
-                <>
-                  <div>🖱 <strong style={{ color: 'var(--accent)' }}>プロテーゼ移動モード</strong></div>
-                  <div>赤ハンドル: 内外側　緑: 上下　青: 前後</div>
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>視点操作は「👁 ビュー操作」に切替</div>
-                </>
-              ) : (
-                <>
-                  <div>👁 <strong style={{ color: '#4ade80' }}>ビュー操作モード</strong></div>
-                  <div>ドラッグ: 視点回転　｜　ホイール: ズーム</div>
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>プロテーゼ移動は「🖱 プロテーゼ移動」に切替</div>
-                </>
-              )}
-              <div style={{ color: 'var(--accent)', fontSize: 10 }}>青い十字: 理想位置　👻ボタン: 理想形を表示</div>
-            </div>
-          </div>
+          <ContextTagBar
+            procedureTags={selectedCase.tags.procedure}
+            lesionTags={selectedCase.tags.lesion}
+          />
         </div>
         <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
           {/* 操作モード切替 */}
@@ -878,24 +859,24 @@ function PlacementStep() {
             <button
               onClick={() => setDragMode('move')}
               style={{
-                padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                 background: dragMode === 'move' ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                color: dragMode === 'move' ? '#001a20' : 'var(--text-muted)',
+                color: dragMode === 'move' ? '#fff' : 'var(--text-muted)',
                 transition: 'all .15s',
               }}
             >
-              🖱 プロテーゼ移動
+              移動
             </button>
             <button
               onClick={() => setDragMode('view')}
               style={{
-                padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                background: dragMode === 'view' ? '#4ade80' : 'rgba(255,255,255,0.08)',
-                color: dragMode === 'view' ? '#001a20' : 'var(--text-muted)',
+                padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: dragMode === 'view' ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
+                color: dragMode === 'view' ? '#fff' : 'var(--text-muted)',
                 transition: 'all .15s',
               }}
             >
-              👁 ビュー操作
+              視点
             </button>
           </div>
           {/* 理想位置トグル */}
@@ -903,14 +884,14 @@ function PlacementStep() {
             className={`btn btn-sm ${showIdeal ? 'btn-secondary' : 'btn-ghost'}`}
             onClick={() => setShowIdeal(!showIdeal)}
           >
-            {showIdeal ? '👻 理想位置を非表示' : '👻 理想位置を表示'}
+            {showIdeal ? '理想位置を非表示' : '理想位置を表示'}
           </button>
           {/* 軟骨スライストグル */}
           <button
             className={`btn btn-sm ${showCartilage ? 'btn-secondary' : 'btn-ghost'}`}
             onClick={() => setShowCartilage(!showCartilage)}
           >
-            {showCartilage ? '🟡 軟骨スライスを非表示' : '🟡 軟骨スライスを表示'}
+            {showCartilage ? '軟骨スライスを非表示' : '軟骨スライスを表示'}
           </button>
         </div>
       </div>
@@ -934,7 +915,7 @@ function PlacementStep() {
               dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
             })}
           >
-            📍 理想位置に配置
+            理想位置に配置
           </button>
           <button
             className="btn btn-ghost btn-sm"
@@ -959,10 +940,10 @@ function PlacementStep() {
               if (next >= lengths[0] && next <= lengths[lengths.length - 1])
                 updatePlacement({ selectedLength: next });
             }}
-            steps={[{ label: '−0.5', d: -0.5 }, { label: '−', d: -0.25 }, { label: '+', d: 0.25 }, { label: '+0.5', d: 0.5 }]}
+            steps={[{ label: '−0.25', d: -0.25 }, { label: '+0.25', d: 0.25 }]}
           />
 
-          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', paddingTop: 8 }}>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em', paddingTop: 8 }}>
             位置調整（mm）
           </div>
 
@@ -983,16 +964,14 @@ function PlacementStep() {
                 }
                 onStep={(d) => updatePlacement({ [key]: Math.max(-3, Math.min(3, safeP[key] + d)) })}
                 steps={[
-                  { label: `${neg}0.5`, d: -0.5 },
-                  { label: `${neg}0.1`, d: -0.1 },
-                  { label: `${pos}0.1`, d:  0.1 },
-                  { label: `${pos}0.5`, d:  0.5 },
+                  { label: `−0.1`, d: -0.1 },
+                  { label: `+0.1`, d:  0.1 },
                 ]}
               />
             );
           })}
 
-          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', paddingTop: 8 }}>
+          <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '10px 0 8px', fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em', paddingTop: 8 }}>
             傾斜調整（°）
           </div>
 
@@ -1009,29 +988,19 @@ function PlacementStep() {
                 value={val === 0 ? '0°' : val > 0 ? `${pos} ${val}°` : `${neg} ${-val}°`}
                 onStep={(d) => updatePlacement({ [key]: Math.max(-180, Math.min(180, safeP[key] + d)) })}
                 steps={[
-                  { label: `${neg}15°`, d: -15 },
-                  { label: `${neg}5°`,  d:  -5 },
-                  { label: `${pos}5°`,  d:   5 },
-                  { label: `${pos}15°`, d:  15 },
+                  { label: `−5°`, d: -5 },
+                  { label: `+5°`, d:  5 },
                 ]}
               />
             );
           })}
 
-          {/* 3Dドラッグ座標（補助表示） */}
+          {/* ドラッグリセット（ドラッグ済みの場合のみ表示）*/}
           {(safeP.dragOffsetX !== 0 || safeP.dragOffsetY !== 0 || safeP.dragOffsetZ !== 0) && (
-            <div style={{ marginTop: 8, background: 'rgba(0,180,216,.07)', border: '1px solid rgba(0,180,216,.2)', borderRadius: 6, padding: '6px 10px', fontSize: 10 }}>
-              <div style={{ color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>🖱 3Dドラッグ中</div>
-              <div style={{ display: 'flex', gap: 8, fontFamily: 'monospace' }}>
-                <span>X:{safeP.dragOffsetX.toFixed(2)}</span>
-                <span>Y:{safeP.dragOffsetY.toFixed(2)}</span>
-                <span>Z:{safeP.dragOffsetZ.toFixed(2)}</span>
-              </div>
-              <button className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: 6, fontSize: 10 }}
-                onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}>
-                ↺ ドラッグをリセット
-              </button>
-            </div>
+            <button className="btn btn-ghost btn-sm" style={{ width: '100%', marginTop: 4, fontSize: 11 }}
+              onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}>
+              ドラッグをリセット
+            </button>
           )}
         </div>
 
@@ -1044,14 +1013,14 @@ function PlacementStep() {
           {SIM_VIS_ITEMS.map(({ key, label, color }) => {
             const mode: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
             return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
                   <span style={{ fontSize: 11, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
                 </div>
                 <button
                   onClick={() => cycleVis(key)}
-                  style={{ padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 10, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 48 }}
+                  style={{ padding: '5px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52 }}
                 >
                   {MODE_LABEL[mode]}
                 </button>

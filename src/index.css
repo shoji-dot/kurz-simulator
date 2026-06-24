@@ -28,7 +28,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Hiragino Kaku G
 .tab { padding: 8px 18px; border-radius: 6px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; font-family: inherit; }
 .tab.active { background: var(--accent); color: #fff; }
 .tab:hover:not(.active) { color: var(--text-primary); background: rgba(255,255,255,.05); }
-.layout-split { display: grid; grid-template-columns: 1fr 380px; gap: 16px; height: calc(100dvh - 56px); padding: 16px; }
+.layout-split { display: grid; grid-template-columns: 1fr 280px; gap: 16px; height: calc(100dvh - 56px); padding: 16px; }
 .canvas-wrapper { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); position: relative; background: #050811; touch-action: none; }
 .sidebar { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
 .sidebar::-webkit-scrollbar { width: 4px; }

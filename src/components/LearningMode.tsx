@@ -539,52 +539,14 @@ export function LearningMode() {
             );
           })()}
 
-          {/* 操作モードトグル + ズームボタン（削開タブ以外）*/}
-          {learningTab !== 'drilling' && (
-            <>
-            {/* パンモードトグル */}
-            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 15, display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
-              <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--accent)' : 'rgba(255,255,255,0.08)', color: !panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>🔄 回転</button>
-              <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? '#4ade80' : 'rgba(255,255,255,0.08)', color: panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
-            </div>
-            <div style={{
-              position: 'absolute', bottom: 16, right: 16,
-              display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10,
-            }}>
-              {[
-                { label: '＋', delta: 1, title: 'ズームイン' },
-                { label: '－', delta: -1, title: 'ズームアウト' },
-              ].map(({ label, delta, title }) => (
-                <button
-                  key={label}
-                  title={title}
-                  onClick={() => setZoomLevel(z => z + delta)}
-                  style={{
-                    width: 34, height: 34, borderRadius: 8,
-                    border: '1px solid rgba(255,255,255,0.18)',
-                    background: 'rgba(10,15,26,0.80)', color: '#c0d8e8',
-                    fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)',
-                    lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: 700, transition: 'background .15s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,180,216,0.22)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(10,15,26,0.80)')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            </>
-          )}
-
           {/* 側頭骨不透明度スライダー（骨が ghost の場合）*/}
           {getMode('bone') === 'ghost' && (
-            <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
+            <div style={{ position: 'absolute', bottom: 16, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
                 style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as unknown as React.CSSProperties} />
-              <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
+              <span style={{ fontSize: 11, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}
         </div>
@@ -597,8 +559,8 @@ export function LearningMode() {
               {/* ビューモード説明 */}
               {viewMode !== 'normal' && (
                 <div className="card" style={{ padding: '10px 14px', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 12, marginBottom: 5 }}>
-                    {viewMode === 'microscope' ? '🔬 手術顕微鏡ビュー' : '🔭 硬性内視鏡ビュー'}
+                  <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 13, marginBottom: 5 }}>
+                    {viewMode === 'microscope' ? '手術顕微鏡ビュー' : '硬性内視鏡ビュー'}
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
                     {viewMode === 'microscope'
@@ -611,7 +573,7 @@ export function LearningMode() {
               {/* ── 解剖学習コース ── */}
               <div className="card">
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>📚 解剖学習コース</span>
+                  <span>解剖学習コース</span>
                   {courseLevel > 0 && (
                     <button
                       onClick={() => activateCourse(0)}
@@ -640,7 +602,7 @@ export function LearningMode() {
                         }}
                       >
                         <div>{c.title}</div>
-                        {isActive && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>🎯 {c.goal}</div>}
+                        {isActive && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{c.goal}</div>}
                       </button>
                     );
                   })}
@@ -654,7 +616,7 @@ export function LearningMode() {
                   return (
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
                       <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700, marginBottom: 8 }}>
-                        🧠 確認クイズ
+                        確認クイズ
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 10, lineHeight: 1.5 }}>
                         {quiz.question}
@@ -755,32 +717,32 @@ export function LearningMode() {
 
                 {/* ── グループ一括切替 ── */}
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.06em', marginBottom: 5 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 5 }}>
                     グループ一括切替
                   </div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                     {[
-                      { label: '🦴 外殻', mode: shellGroupMode(), onClick: cycleShell, color: '#f2ead8' },
-                      { label: '🔗 耳小骨', mode: ossicleGroupMode(), onClick: cycleOssicles, color: '#e6a93a' },
-                      { label: '⚡ 神経', mode: nerveGroupMode(), onClick: cycleNerves, color: '#f5d820' },
-                      { label: '🐚 内耳', mode: innerEarGroupMode(), onClick: cycleInnerEar, color: '#60b8e0' },
+                      { label: '外殻', mode: shellGroupMode(), onClick: cycleShell, color: '#f2ead8' },
+                      { label: '耳小骨', mode: ossicleGroupMode(), onClick: cycleOssicles, color: '#e6a93a' },
+                      { label: '神経', mode: nerveGroupMode(), onClick: cycleNerves, color: '#f5d820' },
+                      { label: '内耳', mode: innerEarGroupMode(), onClick: cycleInnerEar, color: '#60b8e0' },
                     ].map(({ label, mode, onClick, color }) => (
                       <button
                         key={label}
                         onClick={onClick}
                         style={{
-                          flex: '1 1 80px',
-                          padding: '5px 6px',
+                          flex: '1 1 64px',
+                          padding: '7px 6px',
                           borderRadius: 6,
                           border: `1px solid ${mode === 'solid' ? color : mode === 'ghost' ? color + '66' : 'var(--border)'}`,
                           background: mode === 'solid' ? color + '22' : mode === 'ghost' ? color + '11' : 'rgba(255,255,255,0.03)',
                           color: mode === 'hidden' ? 'var(--text-muted)' : color,
-                          fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                          fontSize: 11, fontWeight: 600, cursor: 'pointer',
                           textAlign: 'center', transition: 'all .15s',
                         }}
                       >
                         <div>{label}</div>
-                        <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{MODE_LABEL[mode]}</div>
+                        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>{MODE_LABEL[mode]}</div>
                       </button>
                     ))}
                   </div>
@@ -793,7 +755,7 @@ export function LearningMode() {
                     <div key={key}>
                       {key === 'malleus' && (
                         <div style={{ padding: '7px 2px 3px', marginTop: 4 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em', opacity: 0.7 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em', opacity: 0.7 }}>
                             耳小骨連鎖 (Ossicular Chain)
                           </span>
                         </div>

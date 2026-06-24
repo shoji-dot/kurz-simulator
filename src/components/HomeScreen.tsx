@@ -83,8 +83,8 @@ export function HomeScreen() {
             <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: '.02em', lineHeight: 1.2, color: '#e8eaf0' }}>
               KURZ Otology
             </div>
-            <div style={{ fontSize: 10, color: '#3a4a6a', letterSpacing: '.08em' }}>
-              SURGICAL TRAINING SIMULATOR
+            <div style={{ fontSize: 11, color: '#3a4a6a', letterSpacing: '.04em' }}>
+              Otology Simulator
             </div>
           </div>
         </div>
@@ -182,18 +182,18 @@ export function HomeScreen() {
                     position: 'absolute', top: 10, right: 10,
                     background: 'rgba(245,158,11,.14)',
                     border: '1px solid rgba(245,158,11,.32)',
-                    borderRadius: 5, padding: '2px 7px',
-                    fontSize: 10, fontWeight: 700, color: '#f59e0b',
-                    letterSpacing: '.07em',
-                  }}>🔒 PRO</div>
+                    borderRadius: 5, padding: '3px 8px',
+                    fontSize: 11, fontWeight: 700, color: '#f59e0b',
+                    letterSpacing: '.04em',
+                  }}>PRO</div>
                 ) : (
                   <div style={{
                     position: 'absolute', top: 10, right: 10,
                     background: 'rgba(6,214,160,.10)',
                     border: '1px solid rgba(6,214,160,.25)',
-                    borderRadius: 5, padding: '2px 7px',
-                    fontSize: 10, fontWeight: 700, color: '#06d6a0',
-                    letterSpacing: '.07em',
+                    borderRadius: 5, padding: '3px 8px',
+                    fontSize: 11, fontWeight: 700, color: '#06d6a0',
+                    letterSpacing: '.04em',
                   }}>FREE</div>
                 )}
 
@@ -205,10 +205,6 @@ export function HomeScreen() {
                   <div style={{
                     fontWeight: 800, fontSize: 15, color: '#e8eaf0', lineHeight: 1.2,
                   }}>{mod.title}</div>
-                  <div style={{
-                    fontSize: 10, color: mod.accent,
-                    letterSpacing: '.07em', fontWeight: 700, marginTop: 2,
-                  }}>{mod.titleEn}</div>
                 </div>
 
                 {/* Description */}
@@ -263,7 +259,7 @@ export function HomeScreen() {
                 }}>
                   <div style={{ fontSize: 22, fontWeight: 900, color: '#00b4d8' }}>{v}</div>
                   <div style={{ fontSize: 11, color: '#00b4d8', fontWeight: 700 }}>{u}</div>
-                  <div style={{ fontSize: 10, color: '#3a4a6a', marginTop: 2 }}>{l}</div>
+                  <div style={{ fontSize: 11, color: '#3a4a6a', marginTop: 2 }}>{l}</div>
                 </div>
               ))}
             </div>
@@ -274,9 +270,9 @@ export function HomeScreen() {
               padding: '12px 14px', border: '1px solid rgba(255,255,255,.07)',
             }}>
               <div style={{
-                fontSize: 10, fontWeight: 700, color: '#3a4a6a',
-                letterSpacing: '.1em', marginBottom: 8,
-              }}>PRODUCT SPECIFICATIONS</div>
+                fontSize: 11, fontWeight: 700, color: '#3a4a6a',
+                letterSpacing: '.06em', marginBottom: 8,
+              }}>製品仕様</div>
               {[
                 ['対象製品', 'KURZ チタン PORP / TORP'],
                 ['MRI安全性', '7.0T対応 (Grade 1 Ti)'],
