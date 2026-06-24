@@ -275,41 +275,44 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 }
 
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
-//   STL scan 2026-06-24: flat titanium disc — NOT bell/dome shaped
-//   Shape: thin coin-like disc with short collar at shaft junction
-//   - Sharp step from collar (r=0.22) to disc underside (r=0.84)
-//   - Outer chamfered edges, flat top surface contacts TM/graft
-//   - 4-sector slits (alternating narrow/wide) for tissue ingrowth
+//   STL scan 2026-06-24: flat disc with 3 large oval fenestrations
+//   - Outer dia ~4.5mm, disc thickness ~0.5mm
+//   - 3 oval holes at 120° for tissue ingrowth / weight reduction
+//   - Short collar below disc connects to shaft
+//   Uses ExtrudeGeometry (not LatheGeometry) for fenestrated disc
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
-  const points = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.22, 0.00),   // shaft collar base
-    new THREE.Vector2(0.22, 0.10),   // collar top
-    new THREE.Vector2(0.84, 0.14),   // disc underside — sharp radial step
-    new THREE.Vector2(0.90, 0.22),   // disc outer lower chamfer
-    new THREE.Vector2(0.90, 0.46),   // disc outer wall (thin, flat)
-    new THREE.Vector2(0.82, 0.54),   // outer top chamfer
-    new THREE.Vector2(0.12, 0.57),   // flat top surface
-    new THREE.Vector2(0.00, 0.57),   // disc center top
-  ], []);
+  const discGeo = useMemo<THREE.BufferGeometry>(() => {
+    // Outer disc boundary
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, 0.90, 0, Math.PI * 2, false);
 
-  const GAP_N  = 0.308;
-  const GAP_W  = 0.462;
-  const SECTOR = (Math.PI * 2 - 2 * GAP_N - 2 * GAP_W) / 4;
+    // 3 large oval fenestrations at 120° intervals
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2 + Math.PI / 6;
+      const cx = Math.cos(angle) * 0.46;
+      const cy = Math.sin(angle) * 0.46;
+      const hole = new THREE.Path();
+      // absellipse: rotate so major axis points radially outward
+      hole.absellipse(cx, cy, 0.20, 0.34, 0, Math.PI * 2, false, angle - Math.PI / 2);
+      shape.holes.push(hole);
+    }
 
-  const S0 = GAP_N;
-  const S1 = S0 + SECTOR + GAP_W;
-  const S2 = S1 + SECTOR + GAP_N;
-  const S3 = S2 + SECTOR + GAP_W;
+    // Extrude thin disc (depth = disc thickness)
+    return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
+  }, []);
 
   return (
     <group>
-      {[S0, S1, S2, S3].map((start, i) => (
-        <mesh key={i}>
-          <latheGeometry args={[points, 12, start, SECTOR]} />
-          <TitaniumMatDS ghost={ghost} />
-        </mesh>
-      ))}
+      {/* Fenestrated disc — rotated so extrusion goes Y+ (toward TM) */}
+      <mesh geometry={discGeo} rotation={[Math.PI / 2, 0, 0]}>
+        <TitaniumMatDS ghost={ghost} />
+      </mesh>
+      {/* Short collar: disc underside → shaft top */}
+      <mesh position={[0, -0.07, 0]}>
+        <cylinderGeometry args={[0.22, 0.22, 0.13, 12]} />
+        <TitaniumMatDS ghost={ghost} />
+      </mesh>
     </group>
   );
 }
@@ -357,26 +360,23 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
 // ================================================================
 
 // ── BELL foot (TTP-VARIAC PORP) ─────────────────────────────────
-//   STL scan 2026-06-24: gentle outward flare at distal end
-//   - Wide shallow cup (not deep concave bowl)
-//   - Outer dia ~2.5mm at rim, gentle taper to shaft
-//   - Rim height ~15% of total prosthesis length
+//   STL scan 2026-06-24: compact rounded cup at distal end
+//   - Small cup (max r ~0.52) that cradles stapes capitulum
+//   - Total height ~0.82 (much less than old 1.38)
 //   - 4-slit pattern for stapedius tendon clearance
 // ================================================================
 function BellFoot({ ghost }: { ghost?: boolean }) {
   const petalPoints = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.22,  0.00),   // shaft collar top
-    new THREE.Vector2(0.26,  0.22),   // gentle start of flare
-    new THREE.Vector2(0.38,  0.55),   // accelerating outward
-    new THREE.Vector2(0.58,  0.88),   // mid-flare
-    new THREE.Vector2(0.74,  1.10),   // near rim
-    new THREE.Vector2(0.82,  1.26),   // rim outer (max dia ~2.5mm)
-    new THREE.Vector2(0.78,  1.38),   // rim top outer edge
-    new THREE.Vector2(0.64,  1.38),   // rim inner edge
-    new THREE.Vector2(0.50,  1.28),   // inner wall
-    new THREE.Vector2(0.34,  1.08),   // shallow inner bowl
-    new THREE.Vector2(0.14,  0.72),   // bowl inner
-    new THREE.Vector2(0.00,  0.42),   // bowl center (shallower than before)
+    new THREE.Vector2(0.22,  0.00),   // shaft attachment collar
+    new THREE.Vector2(0.28,  0.13),   // begin flare
+    new THREE.Vector2(0.40,  0.32),
+    new THREE.Vector2(0.50,  0.52),
+    new THREE.Vector2(0.54,  0.66),   // max flare
+    new THREE.Vector2(0.50,  0.76),   // rim outer
+    new THREE.Vector2(0.40,  0.80),   // rim inner
+    new THREE.Vector2(0.26,  0.72),   // inner wall
+    new THREE.Vector2(0.10,  0.52),
+    new THREE.Vector2(0.00,  0.30),   // bowl center
   ], []);
 
   // Slit widths (confirmed measurements, shaft Ø0.2mm for reference):
