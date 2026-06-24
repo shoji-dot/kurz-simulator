@@ -217,6 +217,74 @@ function DrillOssicles({ mode }: { mode: VisMode }) {
   );
 }
 
+// ── DrillNerves: 神経・頸動脈 GLB ────────────────────────────────────
+// 色の根拠: 耳科解剖アトラスの標準配色
+//   顔面神経       → 黄色 (#f5d820) ← 最重要危険構造
+//   鼓索神経       → オレンジ (#f0b830)
+//   内耳神経       → ライムイエロー (#d4e840)
+//   内頸動脈       → 赤 (#e84040)
+const NERVE_DATA = [
+  { url: '/models/Facial_Nerve.glb',            color: '#f5d820', label: '顔面神経' },
+  { url: '/models/Chorda_Tympani.glb',          color: '#f0b830', label: '鼓索神経' },
+  { url: '/models/Cochleo_Vestibular_Nerve.glb', color: '#d4e840', label: '内耳神経' },
+  { url: '/models/Carotis.glb',                 color: '#e84040', label: '内頸動脈' },
+] as const;
+
+function DrillNerve({ url, color, mode }: { url: string; color: string; mode: VisMode }) {
+  const { scene } = useGLTF(url);
+  const matRef = useRef<THREE.MeshStandardMaterial | null>(null);
+
+  const cloned = useMemo(() => {
+    const c = scene.clone(true);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      roughness:   0.58,
+      metalness:   0.0,
+      transparent: true,
+      opacity:     0.88,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    matRef.current = mat;
+    c.traverse((obj) => {
+      if (!(obj as THREE.Mesh).isMesh) return;
+      const mesh = obj as THREE.Mesh;
+      const geo = mesh.geometry.clone();
+      geo.deleteAttribute('normal');
+      geo.computeVertexNormals();
+      mesh.geometry = geo;
+      mesh.material = mat;
+      mesh.renderOrder = 1;
+    });
+    return c;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, color]);
+
+  useEffect(() => {
+    const mat = matRef.current;
+    if (!mat) return;
+    const op = mode === 'solid' ? 0.88 : mode === 'ghost' ? 0.28 : 0;
+    mat.opacity     = op;
+    mat.transparent = true;
+    mat.depthWrite  = false;
+    mat.needsUpdate = true;
+  }, [mode]);
+
+  if (mode === 'hidden') return null;
+  return <primitive object={cloned} />;
+}
+
+function DrillNerves({ mode }: { mode: VisMode }) {
+  if (mode === 'hidden') return null;
+  return (
+    <>
+      {NERVE_DATA.map(({ url, color }) => (
+        <DrillNerve key={url} url={url} color={color} mode={mode} />
+      ))}
+    </>
+  );
+}
+
 // ── DrillCursor: Round Carbide Bur #8 (8枚刃 球形バー) ───────────────
 function DrillCursor({ groupRef, rotation }: {
   groupRef: React.RefObject<THREE.Group>;
@@ -560,9 +628,10 @@ interface DrillCanvas3DProps {
   expertMode:       boolean;
   boneVis:          VisMode;
   ossicleVis:       VisMode;
+  nerveVis:         VisMode;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode, boneVis, ossicleVis }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode, boneVis, ossicleVis, nerveVis }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -668,6 +737,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
       />
       {/* 耳小骨 */}
       <DrillOssicles mode={ossicleVis} />
+      {/* 神経・頸動脈 */}
+      <DrillNerves mode={nerveVis} />
       {/* ポインタリーブ用不可視プレーン */}
       <mesh visible={false} onPointerLeave={handlePointerLeave}>
         <planeGeometry args={[200, 200]} />
@@ -710,6 +781,7 @@ export function InteractiveDrillScene() {
   const [expertMode,     setExpertMode]     = useState(false);
   const [boneVis,        setBoneVis]        = useState<VisMode>('solid');
   const [ossicleVis,     setOssicleVis]     = useState<VisMode>('solid');
+  const [nerveVis,       setNerveVis]       = useState<VisMode>('solid');
   const [resetKey,       setResetKey]       = useState(0);
 
   const handleReset = () => {
@@ -739,6 +811,7 @@ export function InteractiveDrillScene() {
           expertMode={expertMode}
           boneVis={boneVis}
           ossicleVis={ossicleVis}
+          nerveVis={nerveVis}
         />
       </Canvas>
 
@@ -927,6 +1000,24 @@ export function InteractiveDrillScene() {
         >
           🔮 耳小骨: {ossicleVis === 'solid' ? '表示' : ossicleVis === 'ghost' ? '半透明' : '非表示'}
         </button>
+        {/* 神経 表示トグル */}
+        <button
+          onClick={() => setNerveVis(v => v === 'solid' ? 'ghost' : v === 'ghost' ? 'hidden' : 'solid')}
+          style={{
+            padding: '5px 10px', borderRadius: 7,
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: nerveVis === 'solid'  ? 'rgba(245,216,32,0.15)'
+                      : nerveVis === 'ghost'  ? 'rgba(125,216,232,0.15)'
+                      : 'rgba(0,0,0,0.5)',
+            color: nerveVis === 'solid'  ? '#f5d820'
+                 : nerveVis === 'ghost'  ? '#7dd8e8'
+                 : 'rgba(255,255,255,0.3)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          ⚡ 神経: {nerveVis === 'solid' ? '表示' : nerveVis === 'ghost' ? '半透明' : '非表示'}
+        </button>
       </div>
 
       {/* 操作ガイド（ドリルOFF時）*/}
@@ -959,3 +1050,7 @@ export function InteractiveDrillScene() {
 useGLTF.preload('/models/Malleus.glb');
 useGLTF.preload('/models/Incus.glb');
 useGLTF.preload('/models/Stapes.glb');
+useGLTF.preload('/models/Facial_Nerve.glb');
+useGLTF.preload('/models/Chorda_Tympani.glb');
+useGLTF.preload('/models/Cochleo_Vestibular_Nerve.glb');
+useGLTF.preload('/models/Carotis.glb');
