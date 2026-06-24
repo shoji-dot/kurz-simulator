@@ -269,6 +269,24 @@ const GUIDE = {
   ANTRUM_DEPTH: 13,
 } as const;
 
+// 専門医モード用ランドマーク（Bone.glb 実測値 2026-06-24）
+const LANDMARKS = {
+  // EAC後壁: 外側面重心
+  PCW_CENTER:  [ 1.8,  2.8, 29.0] as V3,
+  PCW_WIDTH:   4.0,  // X幅 mm
+  PCW_HEIGHT:  6.0,  // Y高さ mm
+
+  // Temporal Line: Y≈9 の稜線（X=-12〜5）
+  TL_Y:        9.0,
+  TL_Z:        22.0,  // 乳突側 Z
+  TL_X_LEFT:  -12.0,
+  TL_X_RIGHT:   4.0,
+
+  // S状静脈洞予測: X<-8 の後方皮質中心
+  SIG_CENTER:  [-12.0, 4.0, 20.0] as V3,
+  SIG_RADIUS:   4.0,
+} as const;
+
 function TriMesh({ v0, v1, v2, color, opacity, wire = false }: {
   v0: V3; v1: V3; v2: V3; color: string; opacity: number; wire?: boolean;
 }) {
@@ -308,7 +326,7 @@ function FanMesh({ verts, color, opacity }: { verts: V3[]; color: string; opacit
   );
 }
 
-function MastoidGuide() {
+function MastoidGuide({ expertMode }: { expertMode: boolean }) {
   const [cx, cy, sz] = GUIDE.CENTER;
   return (
     <group>
@@ -358,15 +376,62 @@ function MastoidGuide() {
         );
       })}
 
-      {/* Mastoid Antrum: First Surgical Target */}
-      <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
-        <sphereGeometry args={[ANTRUM_RADIUS, 20, 14]} />
-        <meshBasicMaterial color="#4ade80" transparent opacity={0.22} />
-      </mesh>
-      <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
-        <sphereGeometry args={[ANTRUM_RADIUS + 0.1, 20, 14]} />
-        <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.70} />
-      </mesh>
+      {/* Mastoid Antrum: First Surgical Target（専門医モードでは非表示）*/}
+      {!expertMode && (
+        <>
+          <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
+            <sphereGeometry args={[ANTRUM_RADIUS, 20, 14]} />
+            <meshBasicMaterial color="#4ade80" transparent opacity={0.22} />
+          </mesh>
+          <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
+            <sphereGeometry args={[ANTRUM_RADIUS + 0.1, 20, 14]} />
+            <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.70} />
+          </mesh>
+        </>
+      )}
+
+      {/* 専門医モード: 解剖学的ランドマークのみ表示 */}
+      {expertMode && (
+        <>
+          {/* EAC後壁（水色プレーン）*/}
+          <mesh position={LANDMARKS.PCW_CENTER} renderOrder={2}>
+            <planeGeometry args={[LANDMARKS.PCW_WIDTH, LANDMARKS.PCW_HEIGHT]} />
+            <meshBasicMaterial color="#7dd8f0" transparent opacity={0.35}
+              side={THREE.DoubleSide} depthWrite={false} />
+          </mesh>
+          <mesh position={LANDMARKS.PCW_CENTER} renderOrder={2}>
+            <planeGeometry args={[LANDMARKS.PCW_WIDTH, LANDMARKS.PCW_HEIGHT]} />
+            <meshBasicMaterial color="#38bdf8" wireframe transparent opacity={0.70}
+              side={THREE.DoubleSide} />
+          </mesh>
+
+          {/* Temporal Line（濃青バー）*/}
+          <mesh
+            position={[(LANDMARKS.TL_X_LEFT + LANDMARKS.TL_X_RIGHT) / 2, LANDMARKS.TL_Y, LANDMARKS.TL_Z]}
+            renderOrder={2}
+          >
+            <boxGeometry args={[LANDMARKS.TL_X_RIGHT - LANDMARKS.TL_X_LEFT, 0.35, 0.35]} />
+            <meshBasicMaterial color="#1d4ed8" />
+          </mesh>
+          {/* 側頭線ラベルドット */}
+          {[-8, -4, 0, 4].map(x => (
+            <mesh key={x} position={[x, LANDMARKS.TL_Y, LANDMARKS.TL_Z + 0.3]} renderOrder={3}>
+              <sphereGeometry args={[0.4, 8, 6]} />
+              <meshBasicMaterial color="#3b82f6" />
+            </mesh>
+          ))}
+
+          {/* S状静脈洞予測（赤橙 半透明球）*/}
+          <mesh position={LANDMARKS.SIG_CENTER}>
+            <sphereGeometry args={[LANDMARKS.SIG_RADIUS, 16, 12]} />
+            <meshBasicMaterial color="#f97316" transparent opacity={0.18} />
+          </mesh>
+          <mesh position={LANDMARKS.SIG_CENTER}>
+            <sphereGeometry args={[LANDMARKS.SIG_RADIUS + 0.1, 16, 12]} />
+            <meshBasicMaterial color="#fb923c" wireframe transparent opacity={0.55} />
+          </mesh>
+        </>
+      )}
 
       {/* 削開方向矢印（黄色、外側→内側）*/}
       <group position={[cx + 4, cy + 2.5, sz + 1.5]}>
@@ -405,16 +470,17 @@ function DangerSpheres() {
 
 // ── DrillCanvas3D: R3F内部コンポーネント ────────────────────────────
 interface DrillCanvas3DProps {
-  drillMode:      boolean;
-  rotation:       'CW' | 'CCW';
-  onAlert:        (msg: string | null) => void;
-  onHoleCount:    (n: number) => void;
-  onAntrumDist:   (dist: number | null) => void;
+  drillMode:        boolean;
+  rotation:         'CW' | 'CCW';
+  onAlert:          (msg: string | null) => void;
+  onHoleCount:      (n: number) => void;
+  onAntrumDist:     (dist: number | null) => void;
   onDrillDirection: (dir: string | null) => void;
-  showGuide:      boolean;
+  showGuide:        boolean;
+  expertMode:       boolean;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -526,7 +592,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
       {/* 危険部位マーカー */}
       <DangerSpheres />
       {/* Mastoidectomy ガイドレイヤー */}
-      {showGuide && <MastoidGuide />}
+      {showGuide && <MastoidGuide expertMode={expertMode} />}
 
       {/* ドリルカーソル */}
       <DrillCursor groupRef={cursorRef} rotation={rotation} />
@@ -556,6 +622,7 @@ export function InteractiveDrillScene() {
   const [holeCount,  setHoleCount]  = useState(0);
   const [antrumDist,    setAntrumDist]    = useState<number | null>(null);
   const [drillDirection, setDrillDirection] = useState<string | null>(null);
+  const [expertMode,     setExpertMode]     = useState(false);
   const [resetKey,       setResetKey]       = useState(0);
 
   const handleReset = () => {
@@ -582,6 +649,7 @@ export function InteractiveDrillScene() {
           onAntrumDist={setAntrumDist}
           onDrillDirection={setDrillDirection}
           showGuide={showGuide}
+          expertMode={expertMode}
         />
       </Canvas>
 
@@ -644,8 +712,8 @@ export function InteractiveDrillScene() {
         </div>
       )}
 
-      {/* Distance to Antrum */}
-      {antrumDist !== null && (
+      {/* Distance to Antrum（専門医モードでは非表示）*/}
+      {!expertMode && antrumDist !== null && (
         <div style={{
           position: 'absolute', top: 44, right: 10, zIndex: 10,
           padding: '6px 12px', borderRadius: 7,
@@ -665,8 +733,8 @@ export function InteractiveDrillScene() {
         </div>
       )}
 
-      {/* 削開方向ガイド */}
-      {drillDirection && antrumDist !== null && antrumDist >= ANTRUM_REACHED_DIST && (
+      {/* 削開方向ガイド（専門医モードでは非表示）*/}
+      {!expertMode && drillDirection && antrumDist !== null && antrumDist >= ANTRUM_REACHED_DIST && (
         <div style={{
           position: 'absolute', top: 76, right: 10, zIndex: 10,
           padding: '5px 10px', borderRadius: 7,
@@ -694,6 +762,24 @@ export function InteractiveDrillScene() {
           {alertMsg}
         </div>
       )}
+
+      {/* 専門医モードトグル */}
+      <button
+        onClick={() => setExpertMode(v => !v)}
+        style={{
+          position: 'absolute', bottom: 76, right: 10, zIndex: 10,
+          padding: '5px 10px', borderRadius: 7,
+          border: expertMode
+            ? '1px solid rgba(251,191,36,0.6)'
+            : '1px solid rgba(255,255,255,0.18)',
+          cursor: 'pointer', fontSize: 10, fontWeight: 700,
+          background: expertMode ? 'rgba(251,191,36,0.15)' : 'rgba(0,0,0,0.5)',
+          color: expertMode ? '#fde68a' : 'rgba(255,255,255,0.4)',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        {expertMode ? '🧠 専門医モード' : '🧠 専門医モード OFF'}
+      </button>
 
       {/* ガイドレイヤートグル */}
       <button
