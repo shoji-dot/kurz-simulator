@@ -106,7 +106,7 @@ function CartilageSlice({
   // BellTop 3Dモデルは外径 ry=0.90mm（カタログ寸法3.6mmの半スケール描画）
   // headPlateDiameter / 4 = 3.6/4 = 0.90 でレンダリング外径に一致
   const r = (product.headPlateDiameter ?? 3.0) / 4;
-  const THICK = 2.0; // 軟骨スライス厚さ 2mm（ユーザー指定）
+  const THICK = 0.25; // 軟骨スライス厚さ 0.25mm（ユーザー指定）
 
   return (
     <group
