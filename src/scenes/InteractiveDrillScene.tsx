@@ -174,6 +174,155 @@ function DrillCursor({ groupRef, rotation }: {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════
+// MastoidGuide: 乳突削開 教育ガイドレイヤー
+//
+// 座標系: アブミ骨底板 = (0,0,0), Y+ = 上方, Z+ = 外耳道方向（外側）
+// ⚠ 座標は Bone.glb 推定値。3D ビューで確認後に GUIDE 定数を調整。
+// ══════════════════════════════════════════════════════════════════
+type V3 = [number, number, number];
+
+const GUIDE = {
+  // MacEwen Triangle (Suprameatal Triangle) ── 外側皮質面上の三角
+  CENTER:    [-2.5,  6,   15] as V3,
+  SUPERIOR:  [-2.5, 10,   15] as V3,  // 上角: Temporal Line
+  ANTERIOR:  [ 2.0,  3.5, 15] as V3,  // 前角: Posterior EAC Wall
+  POSTERIOR: [-8.0,  4,   15] as V3,  // 後角: Predicted sigmoid line
+
+  // Mastoidectomy Start Zone（MacEwen 周囲の安全削開域）
+  START_ZONE: [
+    [-2.5, 10, 15], [ 4.0, 10, 14], [-11,  9.5, 13],
+    [-11,  1, 13],  [ 3,   1, 15],
+  ] as V3[],
+
+  // Saucerization Volume（すり鉢状削開ガイド）
+  SURFACE_Z:   15,    // 外側皮質面 Z
+  DEPTH:       14,    // 削開深度 mm
+  OUTER_R:     5.0,   // 外側開口半径
+  INNER_R:     1.5,   // 深部半径
+
+  DEPTH_RINGS: [
+    { depth: 5,  color: '#4ade80' },
+    { depth: 10, color: '#fbbf24' },
+    { depth: 15, color: '#f97316' },
+  ],
+  ANTRUM_DEPTH: 13,
+} as const;
+
+function TriMesh({ v0, v1, v2, color, opacity, wire = false }: {
+  v0: V3; v1: V3; v2: V3; color: string; opacity: number; wire?: boolean;
+}) {
+  const geo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([
+      ...v0, ...v1, ...v2, ...v0, ...v2, ...v1,
+    ], 3));
+    g.computeVertexNormals();
+    return g;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <mesh geometry={geo} renderOrder={1}>
+      <meshBasicMaterial color={color} transparent opacity={opacity}
+        side={THREE.DoubleSide} wireframe={wire} depthWrite={false} />
+    </mesh>
+  );
+}
+
+function FanMesh({ verts, color, opacity }: { verts: V3[]; color: string; opacity: number }) {
+  const geo = useMemo(() => {
+    const flat: number[] = [];
+    for (let i = 1; i < verts.length - 1; i++) {
+      flat.push(...verts[0], ...verts[i], ...verts[i+1]);
+      flat.push(...verts[0], ...verts[i+1], ...verts[i]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(flat, 3));
+    g.computeVertexNormals();
+    return g;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <mesh geometry={geo} renderOrder={1}>
+      <meshBasicMaterial color={color} transparent opacity={opacity}
+        side={THREE.DoubleSide} depthWrite={false} />
+    </mesh>
+  );
+}
+
+function MastoidGuide() {
+  const [cx, cy, sz] = GUIDE.CENTER;
+  return (
+    <group>
+      {/* Start Zone: 薄いグリーン */}
+      <FanMesh verts={GUIDE.START_ZONE} color="#4ade80" opacity={0.09} />
+
+      {/* MacEwen Triangle: 塗り */}
+      <TriMesh v0={GUIDE.SUPERIOR} v1={GUIDE.ANTERIOR} v2={GUIDE.POSTERIOR}
+               color="#22c55e" opacity={0.35} />
+      {/* MacEwen Triangle: アウトライン */}
+      <TriMesh v0={GUIDE.SUPERIOR} v1={GUIDE.ANTERIOR} v2={GUIDE.POSTERIOR}
+               color="#86efac" opacity={0.85} wire />
+
+      {/* Center マーカー（Safe Entry ドット）*/}
+      <mesh position={GUIDE.CENTER}>
+        <sphereGeometry args={[0.55, 12, 8]} />
+        <meshBasicMaterial color="#22c55e" />
+      </mesh>
+
+      {/* Temporal Line（青バー）*/}
+      <mesh position={[(-12 + 4) / 2, GUIDE.SUPERIOR[1], sz - 0.5]}>
+        <boxGeometry args={[16, 0.28, 0.28]} />
+        <meshBasicMaterial color="#60a5fa" />
+      </mesh>
+
+      {/* Saucerization Volume（黄色ワイヤーフレーム錐台）*/}
+      {/* CylinderGeometry axis = Y → rotate PI/2 around X to align with Z */}
+      <mesh
+        position={[cx, cy, sz - GUIDE.DEPTH / 2]}
+        rotation={[Math.PI / 2, 0, 0]}
+        renderOrder={2}
+      >
+        <cylinderGeometry args={[GUIDE.INNER_R, GUIDE.OUTER_R, GUIDE.DEPTH, 24, 1, true]} />
+        <meshBasicMaterial color="#fbbf24" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* 深度リング（5 / 10 / 15 mm）*/}
+      {GUIDE.DEPTH_RINGS.map(({ depth, color }) => {
+        const ringZ = sz - depth;
+        const t     = depth / GUIDE.DEPTH;
+        const ringR = GUIDE.OUTER_R + (GUIDE.INNER_R - GUIDE.OUTER_R) * t;
+        return (
+          <mesh key={depth} position={[cx, cy, ringZ]}>
+            <torusGeometry args={[ringR, 0.2, 8, 36]} />
+            <meshBasicMaterial color={color} transparent opacity={0.75} />
+          </mesh>
+        );
+      })}
+
+      {/* Antrum Expected（13mm 深部）*/}
+      <mesh position={[cx, cy, sz - GUIDE.ANTRUM_DEPTH]}>
+        <sphereGeometry args={[1.9, 16, 12]} />
+        <meshBasicMaterial color="#4ade80" transparent opacity={0.28} />
+      </mesh>
+      <mesh position={[cx, cy, sz - GUIDE.ANTRUM_DEPTH]}>
+        <sphereGeometry args={[1.95, 16, 12]} />
+        <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.65} />
+      </mesh>
+
+      {/* 削開方向矢印（黄色、外側→内側）*/}
+      <group position={[cx + 4, cy + 2.5, sz + 1.5]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -3.5]}>
+          <cylinderGeometry args={[0.22, 0.22, 7, 8]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -7.5]}>
+          <coneGeometry args={[0.65, 1.6, 8]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 // ── DangerSpheres: 危険部位マーカー ───────────────────────────────────
 function DangerSpheres() {
   return (
