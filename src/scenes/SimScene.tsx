@@ -398,4 +398,18 @@ export function SimScene({
             dragMode={dragMode}
           />
         </group>
-      </Suspen
+      </Suspense>
+
+      <OrbitControls
+        makeDefault
+        ref={orbitRef}
+        target={[0.5, 0.5, 3]}
+        enablePan={true}
+        minDistance={8}
+        maxDistance={85}
+        autoRotate={false}
+        enabled={dragMode === 'view'}
+      />
+    </Canvas>
+  );
+}
