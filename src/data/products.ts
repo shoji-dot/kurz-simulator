@@ -1,6 +1,6 @@
 export type ProsthesisType = 'PORP' | 'TORP' | 'PISTON';
 export type FootType = 'BELL' | 'CLIP' | 'FLAT' | 'FLEXIBAL';
-export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN';
+export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN' | 'BELL_TOP';
 
 export interface KurzProduct {
   id: string;
@@ -83,5 +83,21 @@ export const kurzProducts: KurzProduct[] = [
     description: 'TTPシリーズのPORP。ハンドル付きで術中操作性向上。可変シャフト長調整対応。',
     indications: ['キヌタ骨欠損', '鼓室形成II型', 'ツチ骨頭温存症例'],
     color: '#b0bcc8',
+  },
+  {
+    id: 'porp-vtt-variac',
+    name: 'VTT-VARIAC PORP',
+    series: 'VTT',
+    type: 'PORP',
+    footType: 'BELL',
+    headType: 'BELL_TOP',       // scan-derived: inverted bell opens toward TM, slits present
+    shaftLengths: [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5],
+    headPlateDiameter: 3.5,
+    footDiameter: 2.5,
+    weight: 4,
+    mriSafe: '7.0T',
+    description: 'VTT-VARIACシリーズPORP。上下対称ベル構造（BELLフット＋BELLトップヘッド）。スリット入りベルが鼓膜・軟骨グラフトと優れた面接触を実現。',
+    indications: ['ツチ骨・キヌタ骨欠損', 'キヌタ骨単独欠損', '鼓膜再建同時施行症例'],
+    color: '#b8c0d0',
   },
 ];

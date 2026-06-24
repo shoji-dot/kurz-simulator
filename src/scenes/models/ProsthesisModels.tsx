@@ -274,14 +274,58 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// ── BELL TOP head plate (VTT-VARIAC) ─────────────────────────────
+//   STL scan-derived: inverted bell opens upward toward TM graft.
+//   Sharp flare from shaft collar to wide flat rim (~3.5mm dia).
+//   Same 4-slit pattern as BellFoot (alternating narrow/wide gaps).
+//   No rotation needed — bell naturally opens upward (Y+).
+// ================================================================
+function BellTop({ ghost }: { ghost?: boolean }) {
+  const points = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.22, 0.00),   // shaft collar (bottom)
+    new THREE.Vector2(0.26, 0.06),
+    new THREE.Vector2(0.40, 0.18),
+    new THREE.Vector2(0.62, 0.32),
+    new THREE.Vector2(0.80, 0.44),   // max flare (~3.5mm dia)
+    new THREE.Vector2(0.86, 0.53),   // outer rim edge
+    new THREE.Vector2(0.78, 0.60),   // rim top outer
+    new THREE.Vector2(0.62, 0.60),   // rim top inner (flat rim surface)
+    new THREE.Vector2(0.44, 0.52),   // inner wall
+    new THREE.Vector2(0.24, 0.38),
+    new THREE.Vector2(0.08, 0.22),
+    new THREE.Vector2(0.00, 0.10),   // center top (TM contact point)
+  ], []);
+
+  const GAP_N  = 0.308;
+  const GAP_W  = 0.462;
+  const SECTOR = (Math.PI * 2 - 2 * GAP_N - 2 * GAP_W) / 4;
+
+  const S0 = GAP_N;
+  const S1 = S0 + SECTOR + GAP_W;
+  const S2 = S1 + SECTOR + GAP_N;
+  const S3 = S2 + SECTOR + GAP_W;
+
+  return (
+    <group>
+      {[S0, S1, S2, S3].map((start, i) => (
+        <mesh key={i}>
+          <latheGeometry args={[points, 12, start, SECTOR]} />
+          <TitaniumMatDS ghost={ghost} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 // ── Head plate selector ───────────────────────────────────────────
-export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN';
+export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN' | 'BELL_TOP';
 
 function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; ghost?: boolean }) {
   switch (headType) {
     case 'DISC':      return <HeadPlateDisc      ghost={ghost} />;
     case 'OVAL_RING': return <HeadPlateOvalRing  ghost={ghost} />;
     case 'DOME_4FIN': return <HeadPlateDome4Fin  ghost={ghost} />;
+    case 'BELL_TOP':  return <BellTop            ghost={ghost} />;
     default:          return <HeadPlateFenestrated ghost={ghost} />;
   }
 }
