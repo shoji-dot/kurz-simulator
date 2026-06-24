@@ -31,7 +31,12 @@ const DANGER_DIST    = 2.5;  // 赤危険距離 mm
 // 乳突洞（Mastoid Antrum）推定位置
 // 算出根拠: EAC後壁(X≈2)後方5.5mm, 側頭線(Y≈10)下方3mm, 外側皮質(Z≈26)深部13mm
 // Bone.glb 解剖学的実測値 2026-06-24
-const ANTRUM_POS          = new THREE.Vector3(-3.5, 7.0, 13.0);
+// Bone.glb 実測値に基づく修正済み座標（2026-06-24検証）
+// 深さ: 外側皮質(Z≈22)から12mm → Z=10.0
+// 前後: EAC後壁(X≈1.8)後方5.3mm → X=-3.5  ✓
+// 上下: 側頭線(Y≈9.4)下方2.4mm → Y=7.0  ✓
+// Tegmen（上壁）まで2.7mm → 解剖学的に妥当
+const ANTRUM_POS          = new THREE.Vector3(-3.5, 7.0, 10.0);
 const ANTRUM_RADIUS       = 3.5;   // 乳突洞半径 mm（成人平均）
 const ANTRUM_REACHED_DIST = 2.5;   // 到達判定距離 mm
 
@@ -201,6 +206,31 @@ function DrillCursor({ groupRef, rotation }: {
       </mesh>
     </group>
   );
+}
+
+// ── 方向ガイド計算 ────────────────────────────────────────────────────
+// ドリル位置から ANTRUM_POS への方向を外科的用語で返す
+// 座標軸: X+=前方, Y+=上方, Z+=外耳道方向(外側)
+function computeDrillDirection(point: THREE.Vector3): string | null {
+  const diff = new THREE.Vector3().subVectors(ANTRUM_POS, point);
+  if (diff.length() < ANTRUM_REACHED_DIST) return null;
+
+  // 各成分の解剖学的方向ラベル
+  const components = [
+    { label: diff.z < 0 ? '深部' : '外側', abs: Math.abs(diff.z) },
+    { label: diff.x < 0 ? '後方' : '前方', abs: Math.abs(diff.x) },
+    { label: diff.y > 0 ? '上方' : '下方', abs: Math.abs(diff.y) },
+  ].sort((a, b) => b.abs - a.abs);
+
+  const primary = components[0];
+  const secondary = components[1];
+
+  // 第2成分が第1の50%以上なら両方表示
+  let guide = `→ ${primary.label}へ削開`;
+  if (secondary.abs > primary.abs * 0.5) {
+    guide += ` + ${secondary.label}`;
+  }
+  return guide;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -375,15 +405,16 @@ function DangerSpheres() {
 
 // ── DrillCanvas3D: R3F内部コンポーネント ────────────────────────────
 interface DrillCanvas3DProps {
-  drillMode:    boolean;
-  rotation:     'CW' | 'CCW';
-  onAlert:      (msg: string | null) => void;
-  onHoleCount:  (n: number) => void;
-  onAntrumDist: (dist: number | null) => void;
-  showGuide:    boolean;
+  drillMode:      boolean;
+  rotation:       'CW' | 'CCW';
+  onAlert:        (msg: string | null) => void;
+  onHoleCount:    (n: number) => void;
+  onAntrumDist:   (dist: number | null) => void;
+  onDrillDirection: (dir: string | null) => void;
+  showGuide:      boolean;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, showGuide }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -450,7 +481,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     }
     checkDanger(e.point);
     onAntrumDist(e.point.distanceTo(ANTRUM_POS));
-  }, [checkDanger, onAntrumDist]);
+    onDrillDirection(computeDrillDirection(e.point));
+  }, [checkDanger, onAntrumDist, onDrillDirection]);
 
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!drillMode || e.button !== 0) return;
@@ -468,7 +500,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     if (cursorRef.current) cursorRef.current.visible = false;
     onAlert(null);
     onAntrumDist(null);
-  }, [onAlert, onAntrumDist]);
+    onDrillDirection(null);
+  }, [onAlert, onAntrumDist, onDrillDirection]);
 
   return (
     <>
@@ -521,14 +554,16 @@ export function InteractiveDrillScene() {
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
   const [holeCount,  setHoleCount]  = useState(0);
-  const [antrumDist, setAntrumDist] = useState<number | null>(null);
-  const [resetKey,   setResetKey]   = useState(0);
+  const [antrumDist,    setAntrumDist]    = useState<number | null>(null);
+  const [drillDirection, setDrillDirection] = useState<string | null>(null);
+  const [resetKey,       setResetKey]       = useState(0);
 
   const handleReset = () => {
     setResetKey(k => k + 1);
     setHoleCount(0);
     setAlertMsg(null);
     setAntrumDist(null);
+    setDrillDirection(null);
   };
 
   return (
@@ -545,6 +580,7 @@ export function InteractiveDrillScene() {
           onAlert={setAlertMsg}
           onHoleCount={setHoleCount}
           onAntrumDist={setAntrumDist}
+          onDrillDirection={setDrillDirection}
           showGuide={showGuide}
         />
       </Canvas>
@@ -626,6 +662,21 @@ export function InteractiveDrillScene() {
           {antrumDist < ANTRUM_REACHED_DIST
             ? '🟢 Reached Antrum!'
             : `🎯 Antrum: ${antrumDist.toFixed(1)} mm`}
+        </div>
+      )}
+
+      {/* 削開方向ガイド */}
+      {drillDirection && antrumDist !== null && antrumDist >= ANTRUM_REACHED_DIST && (
+        <div style={{
+          position: 'absolute', top: 76, right: 10, zIndex: 10,
+          padding: '5px 10px', borderRadius: 7,
+          background: 'rgba(0,0,0,0.65)',
+          border: '1px solid rgba(251,191,36,0.35)',
+          color: '#fde68a',
+          fontSize: 11, fontWeight: 600, backdropFilter: 'blur(4px)',
+          letterSpacing: '0.03em',
+        }}>
+          {drillDirection}
         </div>
       )}
 
