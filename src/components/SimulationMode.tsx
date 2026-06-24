@@ -787,6 +787,7 @@ function PlacementStep() {
     return init;
   });
   const [dragMode, setDragMode] = useState<DragMode>('view');
+  const [vis3dOpen, setVis3dOpen] = useState(false);
 
   if (!selectedCase || !selectedProduct) return null;
 
@@ -832,7 +833,7 @@ function PlacementStep() {
   };
 
   return (
-    <div className="layout-split">
+    <div className="layout-split" style={{ height: '100%' }}>
       {/* 3D Scene */}
       <div className="canvas-wrapper" ref={simCanvasRef}>
         <ErrorBoundary>
@@ -1006,27 +1007,37 @@ function PlacementStep() {
 
         {/* 3D 表示切替 */}
         <div className="card">
-          <div className="section-title">3D 表示切替</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-            クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
+          <div
+            onClick={() => setVis3dOpen(v => !v)}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <div className="section-title" style={{ margin: 0 }}>3D 表示切替</div>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'inline-block', transform: vis3dOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▼</span>
           </div>
-          {SIM_VIS_ITEMS.map(({ key, label, color }) => {
-            const mode: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
-            return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
-                </div>
-                <button
-                  onClick={() => cycleVis(key)}
-                  style={{ padding: '5px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52 }}
-                >
-                  {MODE_LABEL[mode]}
-                </button>
+          {vis3dOpen && (
+            <>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
+                クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
               </div>
-            );
-          })}
+              {SIM_VIS_ITEMS.map(({ key, label, color }) => {
+                const mode: OpacityMode = simVis[key] ?? (SIM_DEFAULT_VIS[key] ?? 'solid');
+                return (
+                  <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
+                    </div>
+                    <button
+                      onClick={() => cycleVis(key)}
+                      style={{ padding: '5px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52 }}
+                    >
+                      {MODE_LABEL[mode]}
+                    </button>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
@@ -1067,7 +1078,6 @@ function ScoreStep() {
   if (!scoreResult || !selectedCase || !selectedProduct) return null;
 
   const RANK_COLOR: Record<string, string> = { S: '#ffd700', A: '#00e5ff', B: '#69ff69', C: '#ffaa44', D: '#ff6666' };
-  const rankColor = RANK_COLOR[scoreResult.rank] ?? '#aaa';
   const abg = scoreResult.abgPrediction;
   const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
   const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
@@ -1081,45 +1091,71 @@ function ScoreStep() {
 
   return (
     <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
-      <div className="card" style={{ textAlign: 'center', padding: '28px 20px' }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '.1em' }}>SCORE</div>
-        <div style={{ fontSize: 72, fontWeight: 900, color: rankColor, lineHeight: 1, textShadow: `0 0 30px ${rankColor}88` }}>
-          {scoreResult.rank}
+      {/* ── ABG改善量グラフ（主評価指標）── */}
+      <div className="card" style={{ padding: '20px' }}>
+        <div style={{ fontSize: 11, letterSpacing: '.08em', color: 'var(--text-muted)', marginBottom: 14 }}>
+          術後ABG改善予測　|　{selectedCase.title}
         </div>
-        <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>
-          {scoreResult.total} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>/ 100</span>
-        </div>
-        <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
-          {selectedCase.title}　|　{selectedProduct.name} {placement.selectedLength}mm
-        </div>
-        {abg && (
-          <div style={{ marginTop: 16, padding: '12px 16px', background: `${abgColor}12`, border: `1px solid ${abgColor}40`, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, color: abgColor, fontWeight: 700, marginBottom: 6 }}>
-              📈 術後ABG改善予測
+        {abg ? (
+          <>
+            {/* 改善バー */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', width: 32, textAlign: 'right', flexShrink: 0 }}>術前</div>
+                <div style={{ flex: 1, height: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: '100%', background: 'rgba(255,255,255,0.18)', borderRadius: 5 }} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.4)', width: 42, flexShrink: 0, textAlign: 'right' }}>
+                  {selectedCase?.preOpAbg ?? 30} dB
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', width: 32, textAlign: 'right', flexShrink: 0 }}>術後</div>
+                <div style={{ flex: 1, height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 5, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${Math.round((abg.postOpAbg / (selectedCase?.preOpAbg ?? 30)) * 100)}%`,
+                    background: abgColor,
+                    borderRadius: 5,
+                    transition: 'width .8s ease',
+                  }} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: abgColor, width: 42, flexShrink: 0, textAlign: 'right' }}>
+                  {abg.postOpAbg} dB
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', marginBottom: 6 }}>
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>術前ABG（本症例）</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-secondary)', lineHeight: 1 }}>{selectedCase?.preOpAbg ?? 30} dB</div>
+            {/* 数値行 */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>ABG改善量</div>
+                <div style={{ fontSize: 42, fontWeight: 900, color: abgColor, lineHeight: 1 }}>
+                  −{abg.improvementDb}<span style={{ fontSize: 18, marginLeft: 3 }}>dB</span>
+                </div>
               </div>
-              <div style={{ fontSize: 18, color: abgColor, fontWeight: 700, paddingBottom: 2 }}>→</div>
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>術後ABG目安</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: abgColor, lineHeight: 1 }}>{abg.postOpAbg} dB</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>改善量</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: abgColor, lineHeight: 1 }}>−{abg.improvementDb} dB</div>
-              </div>
-              <div style={{ padding: '3px 10px', borderRadius: 999, background: `${abgColor}22`, border: `1px solid ${abgColor}60`, fontSize: 11, fontWeight: 700, color: abgColor, marginBottom: 4 }}>
-                {{ excellent: '優秀', good: '良好', fair: '可', poor: '要改善' }[abg.successCategory]}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ padding: '5px 14px', borderRadius: 999, background: abgColor + '22', border: `1px solid ${abgColor}66`, fontSize: 13, fontWeight: 700, color: abgColor, marginBottom: 8, display: 'inline-block' }}>
+                  {{ excellent: '優秀', good: '良好', fair: '可', poor: '要改善' }[abg.successCategory]}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  {scoreResult.total}<span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 3 }}>/ 100</span>
+                </div>
               </div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
               {abg.clinicalInterpretation}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
-              ※ 術前ABG 30dB想定 / Austin (1994), Merchant (2003) 文献値ベース
+            <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+              ※ {selectedProduct.name} {placement.selectedLength}mm　/ Austin (1994), Merchant (2003) 文献値ベース
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 48, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
+              {scoreResult.total}<span style={{ fontSize: 18, color: 'var(--text-muted)', marginLeft: 6 }}>/ 100</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>
+              {selectedCase.title}　|　{selectedProduct.name} {placement.selectedLength}mm
             </div>
           </div>
         )}
@@ -1251,15 +1287,78 @@ function ScoreStep() {
 
 // ─── メインコンポーネント ────────────────────────
 
+const SIM_STEPS = [
+  { id: 'case-select',    label: '症例選択' },
+  { id: 'judgment',       label: '適応判断' },
+  { id: 'product-select', label: '製品選択' },
+  { id: 'shaft-estimate', label: 'サイズ' },
+  { id: 'placement',      label: '配置調整' },
+  { id: 'score',          label: '評価' },
+] as const;
+
 export function SimulationMode() {
   const { simStep } = useSimStore();
-  switch (simStep) {
-    case 'case-select':     return <CaseSelect />;
-    case 'judgment':        return <JudgmentStep />;
-    case 'product-select':  return <ProductSelect />;
-    case 'shaft-estimate':  return <ShaftEstimateStep />;
-    case 'placement':       return <PlacementStep />;
-    case 'score':           return <ScoreStep />;
-    default:                return <CaseSelect />;
-  }
+  const currentIdx = SIM_STEPS.findIndex(s => s.id === simStep);
+
+  const stepContent = (() => {
+    switch (simStep) {
+      case 'case-select':     return <CaseSelect />;
+      case 'judgment':        return <JudgmentStep />;
+      case 'product-select':  return <ProductSelect />;
+      case 'shaft-estimate':  return <ShaftEstimateStep />;
+      case 'placement':       return <PlacementStep />;
+      case 'score':           return <ScoreStep />;
+      default:                return <CaseSelect />;
+    }
+  })();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 56px)' }}>
+      {/* ── 6ステップ プログレスバー ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', padding: '0 16px',
+        height: 36, borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
+      }}>
+        {SIM_STEPS.map((s, i) => {
+          const done   = i < currentIdx;
+          const active = i === currentIdx;
+          return (
+            <React.Fragment key={s.id}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 18, height: 18, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 9, fontWeight: 700, flexShrink: 0,
+                  background: done ? 'var(--accent)' : active ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.07)',
+                  border: active ? '1.5px solid var(--accent)' : 'none',
+                  color: done ? '#001a20' : active ? 'var(--accent)' : 'rgba(255,255,255,0.25)',
+                  transition: 'all .2s',
+                }}>
+                  {done ? '✓' : i + 1}
+                </div>
+                <span style={{
+                  fontSize: 10, whiteSpace: 'nowrap',
+                  color: active ? 'var(--accent)' : done ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)',
+                  fontWeight: active ? 700 : 400,
+                }}>
+                  {s.label}
+                </span>
+              </div>
+              {i < SIM_STEPS.length - 1 && (
+                <div style={{
+                  flex: 1, height: 1, margin: '0 5px',
+                  background: i < currentIdx ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
+                  transition: 'background .3s',
+                }} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {/* ── ステップコンテンツ ── */}
+      <div style={{ flex: 1, minHeight: 0, overflow: simStep === 'placement' ? 'hidden' : 'auto' }}>
+        {stepContent}
+      </div>
+    </div>
+  );
 }

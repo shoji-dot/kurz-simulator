@@ -216,6 +216,7 @@ export function LearningMode() {
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [panMode, setPanMode] = useState(false);
+  const [vis3dOpen, setVis3dOpen] = useState(false);
 
   // 削開タブ状態
   const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5' | 's6'>('s1');
@@ -710,71 +711,81 @@ export function LearningMode() {
               </div>
 
               <div className="card">
-                <div className="section-title">3D 表示切替</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
+                <div
+                  onClick={() => setVis3dOpen(v => !v)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <div className="section-title" style={{ margin: 0 }}>3D 表示切替</div>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'inline-block', transform: vis3dOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▼</span>
                 </div>
+                {vis3dOpen && (
+                  <>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
+                      クリックまたは3Dダブルクリックで 実体 → 半透明 → 非表示 を切替
+                    </div>
 
-                {/* ── グループ一括切替 ── */}
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 5 }}>
-                    グループ一括切替
-                  </div>
-                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                    {[
-                      { label: '外殻', mode: shellGroupMode(), onClick: cycleShell, color: '#f2ead8' },
-                      { label: '耳小骨', mode: ossicleGroupMode(), onClick: cycleOssicles, color: '#e6a93a' },
-                      { label: '神経', mode: nerveGroupMode(), onClick: cycleNerves, color: '#f5d820' },
-                      { label: '内耳', mode: innerEarGroupMode(), onClick: cycleInnerEar, color: '#60b8e0' },
-                    ].map(({ label, mode, onClick, color }) => (
-                      <button
-                        key={label}
-                        onClick={onClick}
-                        style={{
-                          flex: '1 1 64px',
-                          padding: '7px 6px',
-                          borderRadius: 6,
-                          border: `1px solid ${mode === 'solid' ? color : mode === 'ghost' ? color + '66' : 'var(--border)'}`,
-                          background: mode === 'solid' ? color + '22' : mode === 'ghost' ? color + '11' : 'rgba(255,255,255,0.03)',
-                          color: mode === 'hidden' ? 'var(--text-muted)' : color,
-                          fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                          textAlign: 'center', transition: 'all .15s',
-                        }}
-                      >
-                        <div>{label}</div>
-                        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>{MODE_LABEL[mode]}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ borderTop: '1px solid var(--border)', marginBottom: 8 }} />
-
-                {VIS_ITEMS.map(({ key, label, color, indent }) => {
-                  const mode = getMode(key);
-                  return (
-                    <div key={key}>
-                      {key === 'malleus' && (
-                        <div style={{ padding: '7px 2px 3px', marginTop: 4 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em', opacity: 0.7 }}>
-                            耳小骨連鎖 (Ossicular Chain)
-                          </span>
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', paddingLeft: indent ? 14 : 2, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                          <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
-                        </div>
-                        <button
-                          onClick={() => cycleMode(key)}
-                          style={{ padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52, transition: 'background .15s' }}
-                        >
-                          {MODE_LABEL[mode]}
-                        </button>
+                    {/* ── グループ一括切替 ── */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 5 }}>
+                        グループ一括切替
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {[
+                          { label: '外殻', mode: shellGroupMode(), onClick: cycleShell, color: '#f2ead8' },
+                          { label: '耳小骨', mode: ossicleGroupMode(), onClick: cycleOssicles, color: '#e6a93a' },
+                          { label: '神経', mode: nerveGroupMode(), onClick: cycleNerves, color: '#f5d820' },
+                          { label: '内耳', mode: innerEarGroupMode(), onClick: cycleInnerEar, color: '#60b8e0' },
+                        ].map(({ label, mode, onClick, color }) => (
+                          <button
+                            key={label}
+                            onClick={onClick}
+                            style={{
+                              flex: '1 1 64px',
+                              padding: '7px 6px',
+                              borderRadius: 6,
+                              border: `1px solid ${mode === 'solid' ? color : mode === 'ghost' ? color + '66' : 'var(--border)'}`,
+                              background: mode === 'solid' ? color + '22' : mode === 'ghost' ? color + '11' : 'rgba(255,255,255,0.03)',
+                              color: mode === 'hidden' ? 'var(--text-muted)' : color,
+                              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              textAlign: 'center', transition: 'all .15s',
+                            }}
+                          >
+                            <div>{label}</div>
+                            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 1 }}>{MODE_LABEL[mode]}</div>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  );
-                })}
+                    <div style={{ borderTop: '1px solid var(--border)', marginBottom: 8 }} />
+
+                    {VIS_ITEMS.map(({ key, label, color, indent }) => {
+                      const mode = getMode(key);
+                      return (
+                        <div key={key}>
+                          {key === 'malleus' && (
+                            <div style={{ padding: '7px 2px 3px', marginTop: 4 }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#e0a93a', letterSpacing: '.04em', opacity: 0.7 }}>
+                                耳小骨連鎖 (Ossicular Chain)
+                              </span>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 2px', paddingLeft: indent ? 14 : 2, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, opacity: mode === 'hidden' ? 0.2 : mode === 'ghost' ? 0.5 : 1, flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, color: mode === 'hidden' ? 'var(--text-muted)' : 'var(--text-primary)' }}>{label}</span>
+                            </div>
+                            <button
+                              onClick={() => cycleMode(key)}
+                              style={{ padding: '3px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: MODE_BG[mode], color: MODE_FG[mode], minWidth: 52, transition: 'background .15s' }}
+                            >
+                              {MODE_LABEL[mode]}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
               </div>
 
               <div className="card">

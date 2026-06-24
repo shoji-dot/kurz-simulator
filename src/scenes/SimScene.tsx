@@ -315,7 +315,7 @@ export function SimScene({
 
   return (
     <Canvas
-      camera={{ position: [2, 6, 80], fov: 38 }}
+      camera={{ position: [80, 6, 2], fov: 38 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -398,18 +398,4 @@ export function SimScene({
             dragMode={dragMode}
           />
         </group>
-      </Suspense>
-
-      <OrbitControls
-        makeDefault
-        ref={orbitRef}
-        target={[0.5, 0.5, 3]}
-        enablePan={true}
-        minDistance={8}
-        maxDistance={85}
-        autoRotate={false}
-        enabled={dragMode === 'view'}
-      />
-    </Canvas>
-  );
-}
+      </Suspen
