@@ -275,17 +275,19 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 }
 
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
-//   Physical prosthesis photo 2026-06-24:
-//   - Outer shape: PORTRAIT OVAL (taller than wide, H:W ≈ 4:3)
-//   - 2 asymmetric fenestrations + thin horizontal bridge:
-//       Upper hole: small oval (top third)
-//       Lower hole: large oval (bottom half, wider)
-//   - Small center knob on disc top surface (shaft connector)
-//   Uses ExtrudeGeometry with explicit point arrays (avoids absellipse)
+//   Structure (ChatGPT + real photo analysis 2026-06-24):
+//   - Outer oval ring (portrait: rx=0.72, ry=0.90)
+//   - 3 fenestrations:
+//       [1] Top:    small oval, center(0, +0.52)
+//       [2] BotL:   large oval, center(-0.26, -0.20)
+//       [3] BotR:   large oval, center(+0.26, -0.20)
+//   - Elastic locking strut = material between holes (T-shape):
+//       Horizontal bar: y=0.24→0.32 (between top hole and bottom holes)
+//       Vertical connector: x=-0.04→+0.04 (between left and right holes)
+//   - Shaft fixation pin on strut (small cylinder protrusion on top face)
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
   const discGeo = useMemo<THREE.BufferGeometry>(() => {
-    // Helper: generate ellipse points as Vector2 array
     const ellipsePoints = (cx: number, cy: number, rx: number, ry: number, n = 48): THREE.Vector2[] => {
       const pts: THREE.Vector2[] = [];
       for (let i = 0; i < n; i++) {
@@ -295,40 +297,40 @@ function BellTop({ ghost }: { ghost?: boolean }) {
       return pts;
     };
 
-    // Outer portrait oval — H:W ≈ 5:4 (matches real prosthesis photo)
-    // rx=0.72(left-right), ry=0.90(up-down)
+    // Outer portrait oval
     const shape = new THREE.Shape(ellipsePoints(0, 0, 0.72, 0.90));
 
-    // Upper hole: small oval in top third
-    // Photo: ~38% disc width, ~22% disc height, center ~55% up from disc center
-    // center(0,+0.52), rx=0.26, ry=0.20 → spans y=+0.32 to +0.72
-    const holeTop = new THREE.Path(ellipsePoints(0, 0.52, 0.26, 0.20));
-    shape.holes.push(holeTop);
+    // Fenestration 1 — top (small oval, center of upper third)
+    const hole1 = new THREE.Path(ellipsePoints(0, 0.52, 0.26, 0.20));
+    shape.holes.push(hole1);
 
-    // Lower hole: MUCH larger — dominates lower 2/3 of disc
-    // Photo: ~74% disc width, ~56% disc height
-    // center(0,-0.22), rx=0.52, ry=0.50 → spans y=-0.72 to +0.28
-    // Bridge gap: y=0.28(lower top) to y=0.32(upper bottom) = 0.04 (very thin)
-    const holeBot = new THREE.Path(ellipsePoints(0, -0.22, 0.52, 0.50));
-    shape.holes.push(holeBot);
+    // Fenestration 2 — bottom-left (large oval)
+    // Top edge y=0.24 → thin horizontal bar above (strut: y=0.24~0.32)
+    // Right edge x=-0.04 → thin vertical connector to right hole
+    const hole2 = new THREE.Path(ellipsePoints(-0.26, -0.20, 0.22, 0.44));
+    shape.holes.push(hole2);
+
+    // Fenestration 3 — bottom-right (mirror of hole2)
+    const hole3 = new THREE.Path(ellipsePoints(+0.26, -0.20, 0.22, 0.44));
+    shape.holes.push(hole3);
 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
   }, []);
 
   return (
     <group>
-      {/* Portrait oval disc — rotate so extrusion axis → Y+ (faces TM) */}
+      {/* Portrait oval disc with 3 fenestrations — rotate so front face → Y+ (TM side) */}
       <mesh geometry={discGeo} rotation={[Math.PI / 2, 0, 0]}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Center knob on disc top surface (shaft lock point, sits on bridge) */}
-      <mesh position={[0, 0.14, 0]}>
-        <cylinderGeometry args={[0.08, 0.08, 0.06, 8]} />
+      {/* Shaft fixation pin on disc top surface (at strut center) */}
+      <mesh position={[0, 0.13, 0]}>
+        <cylinderGeometry args={[0.07, 0.05, 0.06, 8]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
       {/* Collar: connects shaft top to disc underside */}
       <mesh position={[0, -0.07, 0]}>
-        <cylinderGeometry args={[0.12, 0.12, 0.13, 12]} />
+        <cylinderGeometry args={[0.10, 0.10, 0.13, 12]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
     </group>
