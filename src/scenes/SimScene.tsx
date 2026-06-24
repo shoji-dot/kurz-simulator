@@ -103,24 +103,27 @@ function CartilageSlice({
   const euler = new THREE.Euler().setFromQuaternion(quat);
   const tiltXRad = (angleTilt  * Math.PI) / 180;
   const tiltZRad = (angleTiltZ * Math.PI) / 180;
-  const r = (product.headPlateDiameter ?? 3.0) / 2;
+  // BellTop 3Dモデルは外径 ry=0.90mm（カタログ寸法3.6mmの半スケール描画）
+  // headPlateDiameter / 4 = 3.6/4 = 0.90 でレンダリング外径に一致
+  const r = (product.headPlateDiameter ?? 3.0) / 4;
+  const THICK = 2.0; // 軟骨スライス厚さ 2mm（ユーザー指定）
 
   return (
     <group
       position={[center.x, center.y, center.z]}
       rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
     >
-      {/* 軟骨本体（1mm 厚） */}
+      {/* 軟骨本体（2mm 厚） */}
       <mesh>
-        <cylinderGeometry args={[r, r, 0.5, 32]} />
+        <cylinderGeometry args={[r, r, THICK, 32]} />
         <meshStandardMaterial color="#e8d5a0" transparent opacity={0.82} roughness={0.65} metalness={0} />
       </mesh>
       {/* 上面・下面の輪郭を強調 */}
-      <mesh position={[0,  0.25, 0]}>
+      <mesh position={[0,  THICK / 2, 0]}>
         <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
-      <mesh position={[0, -0.25, 0]}>
+      <mesh position={[0, -THICK / 2, 0]}>
         <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
