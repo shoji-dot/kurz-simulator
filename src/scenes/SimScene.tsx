@@ -51,17 +51,17 @@ const GLB_OFFSET: [number, number, number] = [
 
 // SimScene デフォルト表示設定
 export const SIM_DEFAULT_VIS: VisibilityMap = {
-  bone:          'ghost',
+  bone:          'solid',
   auricle:       'hidden',
   ossicles:      'hidden',   // GLB 耳小骨は症例別に直接レンダリング（旧キー）
   malleus:       'solid',    // 個別制御：サイドバー既定は実体
   incus:         'solid',
   stapes:        'solid',
   tympanic:      'solid',
-  innerEar:      'ghost',
-  facialNerve:   'ghost',    // 顔面神経：ghost で存在感を示す
+  innerEar:      'solid',
+  facialNerve:   'solid',
   chordaTympani: 'solid',    // 鼓索神経：手術視野に近いため solid
-  eac:           'ghost',
+  eac:           'solid',
   roundWindow:   'solid',
 };
 
@@ -312,7 +312,7 @@ export function SimScene({
 
   return (
     <Canvas
-      camera={{ position: [2, 4, 45], fov: 38 }}
+      camera={{ position: [2, 6, 80], fov: 38 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,

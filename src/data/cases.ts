@@ -286,4 +286,28 @@ export const surgicalCases: SurgicalCase[] = [
       lesion:    ['耳硬化症合併', '全耳小骨欠損', '底板固定疑い'],
     },
   },
+  {
+    id: 'case-011',
+    title: '症例11: 小児慢性中耳炎 — PORP（II型 小児）',
+    description: '8歳男児。3歳から反復性急性中耳炎の既往。左耳に鼓膜穿孔が持続し慢性化。術前CT・鼓室鏡にてキヌタ骨長突起の骨吸収（partial）を確認。ツチ骨柄および鼓膜臍部は温存。アブミ骨上部構造は保存されており鼓室形成II型の適応。小児のため外耳道が狭く、軟骨グラフトとPORPを組み合わせた鼓室形成術を計画。',
+    difficulty: 'intermediate',
+    ossicularStatus: { malleus: 'intact', incus: 'partial', stapes: 'suprastructure' },
+    recommendedProductId: 'porp-ttp-variac',
+    recommendedLength: 2.0,
+    idealLateralOffset: -0.1,
+    idealAngle: 12,
+    preOpAbg: 30,
+    clinicalNotes: '小児の外耳道は成人と比べて狭く短い。顕微鏡視野確保のため耳後切開が必要な場合がある。軟骨グラフト（耳珠軟骨）を鼓膜補強に使用し、頭板下に薄い軟骨片を挟んでプロテーゼの押出しを防止する。キヌタ骨長突起残存部は除去してPORP頭板の支持面を確保する。',
+    teachingPoints: [
+      '小児慢性中耳炎ではキヌタ骨長突起の骨吸収が最多パターン（II型）。ツチ骨柄は比較的保存されることが多い。',
+      '小児は成人より耳小骨間距離が短い傾向があり、プロテーゼ長は術中サイザーで実測することが必須。',
+      '軟骨グラフトとPORPの組み合わせは小児・再手術例での鼓膜穿孔再発防止に有効。',
+      '術後管理：小児は自己管理が難しいため、保護者への耳管通気・水への注意の教育が重要。',
+      '小児では中耳炎の再発リスクが残るため、術後フォローアップを6ヶ月ごとに継続する。',
+    ],
+    tags: {
+      procedure: ['鼓室形成II型', 'PORP', '軟骨グラフト'],
+      lesion:    ['小児慢性中耳炎', 'キヌタ骨長突起骨吸収'],
+    },
+  },
 ];

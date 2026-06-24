@@ -84,7 +84,7 @@ const ANATOMY_COURSES = [
     level: 1,
     title: 'Level 1：外耳道・鼓膜・中耳腔',
     goal: '外耳道から鼓室への空間的連続性を理解する',
-    vis: { bone: 'ghost', eac: 'solid', tympanic: 'solid', auricle: 'hidden',
+    vis: { bone: 'solid', eac: 'solid', tympanic: 'solid', auricle: 'hidden',
            malleus: 'ghost', incus: 'hidden', stapes: 'hidden',
            facialNerve: 'hidden', chordaTympani: 'hidden', innerEar: 'hidden', roundWindow: 'hidden' } as VisibilityMap,
     quiz: {
@@ -98,7 +98,7 @@ const ANATOMY_COURSES = [
     level: 2,
     title: 'Level 2：耳小骨連鎖と音伝達',
     goal: '3骨の配置関係と音響伝達経路を立体的に把握する',
-    vis: { bone: 'ghost', eac: 'ghost', tympanic: 'ghost', auricle: 'hidden',
+    vis: { bone: 'solid', eac: 'ghost', tympanic: 'ghost', auricle: 'hidden',
            malleus: 'solid', incus: 'solid', stapes: 'solid',
            facialNerve: 'hidden', chordaTympani: 'hidden', innerEar: 'ghost', roundWindow: 'hidden' } as VisibilityMap,
     quiz: {
@@ -112,7 +112,7 @@ const ANATOMY_COURSES = [
     level: 3,
     title: 'Level 3：顔面神経・鼓索神経',
     goal: 'プロテーゼ設置経路と危険構造の立体的位置関係を学ぶ',
-    vis: { bone: 'ghost', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
+    vis: { bone: 'solid', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
            malleus: 'ghost', incus: 'hidden', stapes: 'ghost',
            facialNerve: 'solid', chordaTympani: 'solid', innerEar: 'hidden', roundWindow: 'hidden' } as VisibilityMap,
     quiz: {
@@ -126,7 +126,7 @@ const ANATOMY_COURSES = [
     level: 4,
     title: 'Level 4：内耳・卵円窓・正円窓',
     goal: 'アブミ骨底板から内耳への振動伝達経路と正円窓の役割を理解する',
-    vis: { bone: 'ghost', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
+    vis: { bone: 'solid', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
            malleus: 'hidden', incus: 'hidden', stapes: 'ghost',
            facialNerve: 'ghost', chordaTympani: 'hidden', innerEar: 'solid', roundWindow: 'solid' } as VisibilityMap,
     quiz: {
@@ -153,7 +153,7 @@ export function LearningMode() {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
 
   // 3D表示モード
-  const [vis, setVis] = useState<VisibilityMap>({ bone: 'ghost', eac: 'solid' });
+  const [vis, setVis] = useState<VisibilityMap>({ bone: 'solid', eac: 'solid' });
   const cycleMode = (key: StructureKey) => {
     const curr = vis[key] ?? DEFAULT_MODES[key];
     const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
@@ -543,7 +543,7 @@ export function LearningMode() {
           {learningTab !== 'drilling' && (
             <>
             {/* パンモードトグル */}
-            <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
+            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 15, display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
               <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--accent)' : 'rgba(255,255,255,0.08)', color: !panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>🔄 回転</button>
               <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? '#4ade80' : 'rgba(255,255,255,0.08)', color: panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
             </div>

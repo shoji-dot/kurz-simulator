@@ -796,7 +796,7 @@ export function InteractiveDrillScene() {
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Canvas
         key={resetKey}
-        camera={{ position: [10, 6, 26], fov: 40 }}
+        camera={{ position: [10, 8, 52], fov: 38 }}
         style={{ background: '#0a0f1a' }}
         gl={{ antialias: true }}
       >

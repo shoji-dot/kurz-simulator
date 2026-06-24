@@ -191,7 +191,7 @@ export function AnatomyScene({
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
     <Canvas
-      camera={{ position: [0, 0, 30], fov: 42 }}
+      camera={{ position: [0, 5, 80], fov: 40 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       shadows
       style={{ width: '100%', height: '100%' }}
@@ -260,7 +260,7 @@ interface CaseSceneProps {
 export function CasePreviewScene({ malleus, incus, stapes }: CaseSceneProps) {
   return (
     <Canvas
-      camera={{ position: [4, 6, 24], fov: 44 }}
+      camera={{ position: [4, 8, 40], fov: 42 }}
       gl={{ antialias: true }}
       style={{ width: '100%', height: '100%' }}
     >

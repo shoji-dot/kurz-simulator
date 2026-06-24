@@ -246,28 +246,35 @@ function CaseSelect() {
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {filtered.map((c) => (
-          <div
-            key={c.id}
-            className={`selectable-card ${selectedCase?.id === c.id ? 'selected' : ''}`}
-            onClick={() => setSelectedCase(c)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <span style={{ fontWeight: 700, fontSize: 15 }}>{c.title}</span>
-              <span className={`badge ${diffBadge[c.difficulty]}`}>{diffLabel[c.difficulty]}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {filtered.map((c) => {
+          const isSelected = selectedCase?.id === c.id;
+          return (
+            <div
+              key={c.id}
+              className={`selectable-card ${isSelected ? 'selected' : ''}`}
+              onClick={() => setSelectedCase(c)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{c.title}</span>
+                <span className={`badge ${diffBadge[c.difficulty]}`}>{diffLabel[c.difficulty]}</span>
+              </div>
+              {isSelected && (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 8, marginBottom: 8 }}>{c.description}</p>
+                  <ContextTagBar procedureTags={c.tags.procedure} lesionTags={c.tags.lesion} style={{ marginBottom: 6 }} />
+                  <div style={{ display: 'flex', gap: 6, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                    <span>ツチ骨: {ossicleLabel[c.ossicularStatus.malleus] ?? c.ossicularStatus.malleus}</span>
+                    <span>·</span>
+                    <span>キヌタ骨: {ossicleLabel[c.ossicularStatus.incus] ?? c.ossicularStatus.incus}</span>
+                    <span>·</span>
+                    <span>アブミ骨: {ossicleLabel[c.ossicularStatus.stapes] ?? c.ossicularStatus.stapes}</span>
+                  </div>
+                </>
+              )}
             </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>{c.description}</p>
-            <ContextTagBar procedureTags={c.tags.procedure} lesionTags={c.tags.lesion} style={{ marginBottom: 6 }} />
-            <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>ツチ骨: {ossicleLabel[c.ossicularStatus.malleus] ?? c.ossicularStatus.malleus}</span>
-              <span>｜</span>
-              <span>キヌタ骨: {ossicleLabel[c.ossicularStatus.incus] ?? c.ossicularStatus.incus}</span>
-              <span>｜</span>
-              <span>アブミ骨: {ossicleLabel[c.ossicularStatus.stapes] ?? c.ossicularStatus.stapes}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* 判断クイズスキップ設定 */}

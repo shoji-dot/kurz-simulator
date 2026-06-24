@@ -472,43 +472,46 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
             className={`selectable-card ${selectedCaseId === c.id ? 'selected' : ''}`}
             onClick={() => { setSelectedCaseId(c.id); setSelectedProductId(c.recommendedProductId); }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <span style={{ fontWeight: 700, fontSize: 13 }}>{c.title}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{c.title}</span>
               <span style={{
                 padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700,
                 background: `${diffColor[c.difficulty]}15`, color: diffColor[c.difficulty],
                 border: `1px solid ${diffColor[c.difficulty]}44`,
               }}>{diffLabel[c.difficulty]}</span>
             </div>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-              {c.tags.procedure.map(t => (
-                <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,180,216,0.12)', color: '#7dd8e8', border: '1px solid rgba(0,180,216,0.25)' }}>{t}</span>
-              ))}
-              {c.tags.lesion.map(t => (
-                <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.25)' }}>{t}</span>
-              ))}
-            </div>
-            {/* 耳小骨状態インジケーター */}
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-              {([
-                { key: 'malleus', label: 'ツ', status: c.ossicularStatus.malleus },
-                { key: 'incus',   label: 'キ', status: c.ossicularStatus.incus },
-                { key: 'stapes',  label: 'ア', status: c.ossicularStatus.stapes },
-              ] as const).map(({ key, label, status }) => {
-                const absent = status === 'absent';
-                const partial = status === 'partial' || status === 'footplate-only';
-                const color = absent ? '#f87171' : partial ? '#ffd166' : '#4ade80';
-                const bg = absent ? 'rgba(248,113,113,0.12)' : partial ? 'rgba(255,209,102,0.12)' : 'rgba(74,222,128,0.12)';
-                const statusLabel = absent ? '欠損' : partial ? '部分' : '温存';
-                return (
-                  <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 5, background: bg, border: `1px solid ${color}44` }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, color }}>{label}</span>
-                    <span style={{ fontSize: 9, color, opacity: 0.85 }}>{statusLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, marginTop: 6 }}>{c.description}</p>
+            {selectedCaseId === c.id && (
+              <>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8, marginBottom: 6 }}>
+                  {c.tags.procedure.map(t => (
+                    <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,180,216,0.12)', color: '#7dd8e8', border: '1px solid rgba(0,180,216,0.25)' }}>{t}</span>
+                  ))}
+                  {c.tags.lesion.map(t => (
+                    <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.25)' }}>{t}</span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([
+                    { key: 'malleus', label: 'ツ', status: c.ossicularStatus.malleus },
+                    { key: 'incus',   label: 'キ', status: c.ossicularStatus.incus },
+                    { key: 'stapes',  label: 'ア', status: c.ossicularStatus.stapes },
+                  ] as const).map(({ key, label, status }) => {
+                    const absent = status === 'absent';
+                    const partial = status === 'partial' || status === 'footplate-only';
+                    const color = absent ? '#f87171' : partial ? '#ffd166' : '#4ade80';
+                    const bg = absent ? 'rgba(248,113,113,0.12)' : partial ? 'rgba(255,209,102,0.12)' : 'rgba(74,222,128,0.12)';
+                    const statusLabel = absent ? '欠損' : partial ? '部分' : '温存';
+                    return (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 5, background: bg, border: `1px solid ${color}44` }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color }}>{label}</span>
+                        <span style={{ fontSize: 9, color, opacity: 0.85 }}>{statusLabel}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, marginTop: 6 }}>{c.description}</p>
+              </>
+            )}
           </div>
         ))}
       </div>
