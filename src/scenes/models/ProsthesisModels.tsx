@@ -275,44 +275,48 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 }
 
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
-//   STL scan 2026-06-24: flat disc with 3 large oval fenestrations
-//   - Outer dia ~4.5mm, disc thickness ~0.5mm
-//   - 3 oval holes at 120° for tissue ingrowth / weight reduction
-//   - Short collar below disc connects to shaft
-//   Uses ExtrudeGeometry (not LatheGeometry) for fenestrated disc
+//   Physical prosthesis photo 2026-06-24:
+//   - Outer shape: PORTRAIT OVAL (taller than wide, ~4:3 H:W ratio)
+//   - 2 asymmetric fenestrations separated by thin horizontal bridge:
+//       Upper: small rounded oval (1/3 disc height)
+//       Lower: large oval (~1/2 disc height, wider)
+//   - Center knob on top surface = shaft connection point
+//   Uses ExtrudeGeometry; shape in XY, rotated so Y→Z, extrusion→Y+
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
   const discGeo = useMemo<THREE.BufferGeometry>(() => {
-    // Outer disc boundary
+    // Outer portrait oval: rx=0.68(narrow), ry=0.90(tall)
     const shape = new THREE.Shape();
-    shape.absarc(0, 0, 0.90, 0, Math.PI * 2, false);
+    shape.absellipse(0, 0, 0.68, 0.90, 0, Math.PI * 2, false, 0);
 
-    // 3 large oval fenestrations at 120° intervals
-    // STL: holes are large — ~50% of disc area, thin bridges between
-    for (let i = 0; i < 3; i++) {
-      const angle = (i / 3) * Math.PI * 2 + Math.PI / 6;
-      const cx = Math.cos(angle) * 0.48;  // center at r=0.48 (near outer rim)
-      const cy = Math.sin(angle) * 0.48;
-      const hole = new THREE.Path();
-      // Large oval: rx=0.26(tangential) ry=0.40(radial)
-      // Hole extends ~0.08→0.88 from disc center (very large opening)
-      hole.absellipse(cx, cy, 0.26, 0.40, 0, Math.PI * 2, false, angle - Math.PI / 2);
-      shape.holes.push(hole);
-    }
+    // Upper fenestration: small rounded oval in upper third
+    const holeTop = new THREE.Path();
+    holeTop.absellipse(0, 0.48, 0.26, 0.18, 0, Math.PI * 2, false, 0);
+    shape.holes.push(holeTop);
 
-    // Extrude thin disc (depth = disc thickness)
+    // Lower fenestration: large oval in lower half
+    // Top edge ~y=0.24, leaving thin bridge between the two holes
+    const holeBot = new THREE.Path();
+    holeBot.absellipse(0, -0.18, 0.48, 0.42, 0, Math.PI * 2, false, 0);
+    shape.holes.push(holeBot);
+
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
   }, []);
 
   return (
     <group>
-      {/* Fenestrated disc — rotated so extrusion goes Y+ (toward TM) */}
+      {/* Portrait oval disc with 2 fenestrations */}
       <mesh geometry={discGeo} rotation={[Math.PI / 2, 0, 0]}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Short collar: disc underside → shaft top */}
+      {/* Center knob on top surface (shaft connection point, bridge center) */}
+      <mesh position={[0, 0.14, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.06, 8]} />
+        <TitaniumMatDS ghost={ghost} />
+      </mesh>
+      {/* Collar: shaft top → disc underside */}
       <mesh position={[0, -0.07, 0]}>
-        <cylinderGeometry args={[0.22, 0.22, 0.13, 12]} />
+        <cylinderGeometry args={[0.12, 0.12, 0.13, 12]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
     </group>
