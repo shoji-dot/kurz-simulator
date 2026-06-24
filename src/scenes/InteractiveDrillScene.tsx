@@ -125,7 +125,7 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp }: D
   );
 }
 
-// ── DrillCursor: ドリルバー 3D モデル ─────────────────────────────────
+// ── DrillCursor: Round Carbide Bur #8 (8枚刃 球形バー) ───────────────
 function DrillCursor({ groupRef, rotation }: {
   groupRef: React.RefObject<THREE.Group>;
   rotation: 'CW' | 'CCW';
@@ -133,37 +133,59 @@ function DrillCursor({ groupRef, rotation }: {
   const burrRef = useRef<THREE.Group>(null!);
   const dir = rotation === 'CW' ? 1 : -1;
 
+  // 8枚螺旋フルート: 球面上を120°螺旋するTubeGeometry
+  const fluteGeos = useMemo(() => {
+    const R = DRILL_RADIUS;
+    return Array.from({ length: 8 }, (_, idx) => {
+      const baseAngle = (idx / 8) * Math.PI * 2;
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        // phi: 南極付近(0.12π) → 北極付近(0.88π)
+        const phi = Math.PI * (0.12 + 0.76 * t);
+        // theta: 1刃あたり120°螺旋
+        const theta = baseAngle + t * (2 * Math.PI / 3);
+        pts.push(new THREE.Vector3(
+          R * Math.sin(phi) * Math.cos(theta),
+          R * Math.cos(phi),
+          R * Math.sin(phi) * Math.sin(theta),
+        ));
+      }
+      return new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(pts), 14, 0.075, 4, false
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useFrame((_, delta) => {
-    // 8万RPM → rad/s ≈ 8378 → in 3D 視覚上は 60 rad/s で十分
     if (burrRef.current) burrRef.current.rotation.y += dir * 60 * delta;
   });
 
   return (
     <group ref={groupRef} visible={false}>
       <group ref={burrRef}>
-        {/* ダイヤモンドバー球 */}
+        {/* タングステンカーバイド球体 */}
         <mesh>
           <sphereGeometry args={[DRILL_RADIUS, 24, 16]} />
-          <meshStandardMaterial color="#d4e4f0" metalness={0.95} roughness={0.04} transparent opacity={0.80} />
+          <meshStandardMaterial color="#b0afa0" metalness={0.82} roughness={0.22} />
         </mesh>
-        {/* ダイヤモンド粒子フルート 8 本 */}
-        {[0,45,90,135,180,225,270,315].map((deg) => {
-          const r = (deg * Math.PI) / 180;
-          return (
-            <mesh key={deg}
-              position={[Math.cos(r)*1.1, 0, Math.sin(r)*1.1]}
-              rotation={[0, -r, 0.5]}
-            >
-              <cylinderGeometry args={[0.04, 0.04, 1.8, 4]} />
-              <meshStandardMaterial color="#a8b8c4" metalness={0.9} roughness={0.08} />
-            </mesh>
-          );
-        })}
+        {/* 8枚螺旋フルート（球面上の刃） */}
+        {fluteGeos.map((geo, i) => (
+          <mesh key={i} geometry={geo}>
+            <meshStandardMaterial color="#787870" metalness={0.90} roughness={0.12} />
+          </mesh>
+        ))}
       </group>
+      {/* ネック（球→シャフト接続部）*/}
+      <mesh position={[0, DRILL_RADIUS + 0.7, 0]}>
+        <cylinderGeometry args={[0.18, 0.30, 1.4, 10]} />
+        <meshStandardMaterial color="#b8b8a8" metalness={0.88} roughness={0.14} />
+      </mesh>
       {/* シャフト */}
-      <mesh position={[0, DRILL_RADIUS + 4, 0]}>
-        <cylinderGeometry args={[0.22, 0.28, 7, 10]} />
-        <meshStandardMaterial color="#b0bcc8" metalness={0.88} roughness={0.12} />
+      <mesh position={[0, DRILL_RADIUS + 5.0, 0]}>
+        <cylinderGeometry args={[0.22, 0.30, 8.0, 12]} />
+        <meshStandardMaterial color="#c0c0b0" metalness={0.88} roughness={0.12} />
       </mesh>
       {/* アクティブ時グローリング */}
       <mesh rotation={[Math.PI/2, 0, 0]} renderOrder={2}>
@@ -184,19 +206,20 @@ type V3 = [number, number, number];
 
 const GUIDE = {
   // MacEwen Triangle (Suprameatal Triangle) ── 外側皮質面上の三角
-  CENTER:    [-2.5,  6,   15] as V3,
-  SUPERIOR:  [-2.5, 10,   15] as V3,  // 上角: Temporal Line
-  ANTERIOR:  [ 2.0,  3.5, 15] as V3,  // 前角: Posterior EAC Wall
-  POSTERIOR: [-8.0,  4,   15] as V3,  // 後角: Predicted sigmoid line
+  // ⚠ Z値は Bone.glb 実測値（2026-06-24 pygltflib計測）
+  CENTER:    [-2.5,  6,   26] as V3,
+  SUPERIOR:  [-2.5, 10,   19] as V3,  // 上角: Temporal Line (Z実測≈19)
+  ANTERIOR:  [ 2.0,  3.5, 29] as V3,  // 前角: Posterior EAC Wall (Z実測≈29)
+  POSTERIOR: [-7.0,  4,   22] as V3,  // 後角: Predicted sigmoid line (Z実測≈23)
 
   // Mastoidectomy Start Zone（MacEwen 周囲の安全削開域）
   START_ZONE: [
-    [-2.5, 10, 15], [ 4.0, 10, 14], [-11,  9.5, 13],
-    [-11,  1, 13],  [ 3,   1, 15],
+    [-2.5, 10, 19], [ 4.0, 10, 22], [-11,  9.5, 10],
+    [-11,  1, 10],  [ 3,   1, 29],
   ] as V3[],
 
   // Saucerization Volume（すり鉢状削開ガイド）
-  SURFACE_Z:   15,    // 外側皮質面 Z
+  SURFACE_Z:   26,    // 外側皮質面 Z（Bone.glb 実測値）
   DEPTH:       14,    // 削開深度 mm
   OUTER_R:     5.0,   // 外側開口半径
   INNER_R:     1.5,   // 深部半径
@@ -204,7 +227,7 @@ const GUIDE = {
   DEPTH_RINGS: [
     { depth: 5,  color: '#4ade80' },
     { depth: 10, color: '#fbbf24' },
-    { depth: 15, color: '#f97316' },
+    { depth: 14, color: '#f97316' },
   ],
   ANTRUM_DEPTH: 13,
 } as const;
@@ -269,7 +292,7 @@ function MastoidGuide() {
       </mesh>
 
       {/* Temporal Line（青バー）*/}
-      <mesh position={[(-12 + 4) / 2, GUIDE.SUPERIOR[1], sz - 0.5]}>
+      <mesh position={[(-12 + 4) / 2, GUIDE.SUPERIOR[1], GUIDE.SUPERIOR[2] - 0.5]}>
         <boxGeometry args={[16, 0.28, 0.28]} />
         <meshBasicMaterial color="#60a5fa" />
       </mesh>
