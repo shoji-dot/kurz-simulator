@@ -297,21 +297,27 @@ function BellTop({ ghost }: { ghost?: boolean }) {
       return pts;
     };
 
-    // Outer portrait oval
-    const shape = new THREE.Shape(ellipsePoints(0, 0, 0.72, 0.90));
+    // Outer portrait oval — center shifted (+0.08, -0.12) from shaft axis so that
+    // the shaft (at shape origin) sits superior-left of disc geometric center,
+    // matching real TTP-VARIAC PORP asymmetric design.
+    const shape = new THREE.Shape(ellipsePoints(+0.08, -0.12, 0.72, 0.90));
 
-    // Fenestration 1 — top (small oval, center of upper third)
-    const hole1 = new THREE.Path(ellipsePoints(0, 0.52, 0.26, 0.20));
+    // Fenestration 1 — UPPER: horizontally elongated bean shape
+    // Wide (rx=0.44) and short (ry=0.20); occupies upper third of disc.
+    // Thin-strut locking rib runs below this opening toward shaft.
+    const hole1 = new THREE.Path(ellipsePoints(+0.03, +0.38, 0.44, 0.20));
     shape.holes.push(hole1);
 
-    // Fenestration 2 — bottom-left (large oval)
-    // Top edge y=0.24 → thin horizontal bar above (strut: y=0.24~0.32)
-    // Right edge x=-0.04 → thin vertical connector to right hole
-    const hole2 = new THREE.Path(ellipsePoints(-0.26, -0.20, 0.22, 0.44));
+    // Fenestration 2 — LOWER-LEFT: narrow vertically elongated oval
+    // Thin (rx=0.13), tall (ry=0.40); extends close to left rim.
+    // Thin strut on left connects outer ring to shaft area.
+    const hole2 = new THREE.Path(ellipsePoints(-0.30, -0.34, 0.13, 0.40));
     shape.holes.push(hole2);
 
-    // Fenestration 3 — bottom-right (mirror of hole2)
-    const hole3 = new THREE.Path(ellipsePoints(+0.26, -0.20, 0.22, 0.44));
+    // Fenestration 3 — LOWER-RIGHT: largest opening, irregular rounded-oval
+    // Wide (rx=0.36), tall (ry=0.46); dominates lower-right quadrant (~40% open).
+    // Thick inferior strut below shaft; thin right-rim strut on far side.
+    const hole3 = new THREE.Path(ellipsePoints(+0.32, -0.36, 0.36, 0.46));
     shape.holes.push(hole3);
 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
@@ -319,16 +325,16 @@ function BellTop({ ghost }: { ghost?: boolean }) {
 
   return (
     <group>
-      {/* Portrait oval disc with 3 fenestrations — rotate so front face → Y+ (TM side) */}
+      {/* Asymmetric fenestrated disc — rotate front face → Y+ (TM side) */}
       <mesh geometry={discGeo} rotation={[Math.PI / 2, 0, 0]}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Shaft fixation pin on disc top surface (at strut center) */}
+      {/* Shaft fixation pin — centered on shaft axis (world origin of this group) */}
       <mesh position={[0, 0.13, 0]}>
         <cylinderGeometry args={[0.07, 0.05, 0.06, 8]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Collar: connects shaft top to disc underside */}
+      {/* Collar: shaft-to-disc junction piece */}
       <mesh position={[0, -0.07, 0]}>
         <cylinderGeometry args={[0.10, 0.10, 0.13, 12]} />
         <TitaniumMatDS ghost={ghost} />
