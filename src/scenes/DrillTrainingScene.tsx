@@ -264,7 +264,7 @@ function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid'
   // 削開アニメーション boneOpacity にユーザー選択を重ねる
   const boneOpacity = boneVis === 'hidden' ? 0
     : boneVis === 'ghost' ? boneGhostOpacity
-    : step.boneOpacity;
+    : 1.0;  // solid = 常に実体表示（削開ステップに依存しない）
 
   return (
     <group>

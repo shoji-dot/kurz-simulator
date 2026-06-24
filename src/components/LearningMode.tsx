@@ -214,6 +214,7 @@ export function LearningMode() {
   // ズームレベル
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
+  const [panMode, setPanMode] = useState(false);
 
   // 削開タブ状態
   const [drillScenario, setDrillScenario] = useState<'s1' | 's2' | 's3' | 's4' | 's5'>('s1');
@@ -356,6 +357,7 @@ export function LearningMode() {
               <AnatomyScene
                 vis={visForScene}
                 zoomLevel={zoomLevel}
+                panMode={panMode}
                 showTympanoCavity={showTympanoCavity}
                 viewMode={viewMode}
                 highlightedKey={highlightedStructure}
@@ -532,8 +534,14 @@ export function LearningMode() {
             );
           })()}
 
-          {/* ズームボタン（削開タブ以外）*/}
+          {/* 操作モードトグル + ズームボタン（削開タブ以外）*/}
           {learningTab !== 'drilling' && (
+            <>
+            {/* パンモードトグル */}
+            <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
+              <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--accent)' : 'rgba(255,255,255,0.08)', color: !panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>🔄 回転</button>
+              <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? '#4ade80' : 'rgba(255,255,255,0.08)', color: panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
+            </div>
             <div style={{
               position: 'absolute', bottom: 16, right: 16,
               display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10,
@@ -561,6 +569,7 @@ export function LearningMode() {
                 </button>
               ))}
             </div>
+            </>
           )}
 
           {/* 側頭骨不透明度スライダー（骨が ghost の場合）*/}
@@ -569,7 +578,7 @@ export function LearningMode() {
               <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
-                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as React.CSSProperties} />
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as unknown as React.CSSProperties} />
               <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}

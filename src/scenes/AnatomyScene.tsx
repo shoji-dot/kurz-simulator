@@ -153,6 +153,8 @@ interface AnatomySceneProps {
   onEndoscopeAlert?:  (alerts: EndoscopeAlert[]) => void;
   /** ダブルクリックで構造の表示モードを切替するコールバック */
   onStructureClick?:  (key: StructureKey) => void;
+  /** true = 左クリックで平行移動（デフォルト: false = 左クリックで回転） */
+  panMode?:           boolean;
 }
 
 export function AnatomyScene({
@@ -165,6 +167,7 @@ export function AnatomyScene({
   minDistance = 4,
   onEndoscopeAlert,
   onStructureClick,
+  panMode = false,
 }: AnatomySceneProps) {
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
 
@@ -235,6 +238,11 @@ export function AnatomyScene({
         minDistance={minDistance}
         maxDistance={90}
         autoRotate={false}
+        mouseButtons={{
+          LEFT:   panMode ? THREE.MOUSE.PAN    : THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT:  panMode ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
+        }}
       />
     </Canvas>
     </div>

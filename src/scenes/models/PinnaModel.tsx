@@ -27,7 +27,7 @@
 
 import { useMemo } from 'react';
 import { useLoader } from '@react-three/fiber';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import * as THREE from 'three';
 import { getPinnaUrl, getPatientById, PATIENTS } from '../../data/patients';
 

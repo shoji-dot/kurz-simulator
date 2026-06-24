@@ -45,6 +45,12 @@ interface StepDef {
   /** AnatomyScene の表示設定 */
   vis?: VisibilityMap;
   highlightedKey?: string;
+  /** プロテーゼ配置シミュレーターを表示 */
+  useSimScene?: boolean;
+  /** スコアビューを表示 */
+  useScoreView?: boolean;
+  /** サマリービューを表示 */
+  useSummaryView?: boolean;
 }
 
 const STEPS: StepDef[] = [
@@ -64,7 +70,7 @@ const STEPS: StepDef[] = [
     subtitle: '外耳道後壁を切開し鼓膜フラップを挙上',
     guide: '外耳道皮膚切開を行い、鼓膜を挙上して鼓室内を露出します。鼓膜を半透明表示に切り替えて中耳の様子を確認してください。',
     clinicalNote: 'フラップの挙上はツチ骨付着部から慎重に剥離。鼓索神経（黄色）は温存。過剰な牽引は鼓索神経麻痺の原因となる。',
-    vis: { bone: 'ghost', tympanic: 'ghost', malleus: 'solid', incus: 'solid', stapes: 'solid', facialNerve: 'solid', chordaTympani: 'solid', eac: 'ghost', roundWindow: 'solid' },
+    vis: { bone: 'solid', tympanic: 'ghost', malleus: 'solid', incus: 'solid', stapes: 'solid', facialNerve: 'solid', chordaTympani: 'solid', eac: 'ghost', roundWindow: 'solid' },
     highlightedKey: 'tympanic',
   },
   {
@@ -546,6 +552,7 @@ export function StepFlowMode() {
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
+  const [panMode, setPanMode] = useState(false);
 
   const [phase, setPhase] = useState<'setup' | 'flow'>('setup');
   const [flowCase, setFlowCase]       = useState<SurgicalCase | null>(null);
@@ -642,7 +649,6 @@ export function StepFlowMode() {
             <AnatomyScene
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', innerEar: 'ghost' }}
               highlightedKey="stapes"
-              patientId="T"
               zoomLevel={zoomLevel}
               boneGhostOpacity={boneGhostOpacity}
             />
@@ -650,22 +656,28 @@ export function StepFlowMode() {
             <AnatomyScene
               vis={visForScene}
               highlightedKey={step.highlightedKey}
-              patientId="T"
               zoomLevel={zoomLevel}
               boneGhostOpacity={boneGhostOpacity}
+              panMode={panMode}
             />
           )}
 
-          {/* ズームボタン */}
+          {/* 操作モードトグル + ズームボタン */}
           {!step.useSimScene && (
-            <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10 }}>
-              {[{ label: '＋', delta: 1 }, { label: '－', delta: -1 }].map(({ label, delta }) => (
-                <button key={label} onClick={() => setZoomLevel(z => z + delta)}
-                  style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(10,15,26,0.80)', color: '#c0d8e8', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            <>
+              <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)', zIndex: 10 }}>
+                <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--accent)' : 'rgba(255,255,255,0.08)', color: !panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>🔄 回転</button>
+                <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? '#4ade80' : 'rgba(255,255,255,0.08)', color: panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
+              </div>
+              <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10 }}>
+                {[{ label: '＋', delta: 1 }, { label: '－', delta: -1 }].map(({ label, delta }) => (
+                  <button key={label} onClick={() => setZoomLevel(z => z + delta)}
+                    style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(10,15,26,0.80)', color: '#c0d8e8', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           {/* 側頭骨不透明度スライダー（骨が ghost の場合） */}
@@ -674,7 +686,7 @@ export function StepFlowMode() {
               <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
-                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as React.CSSProperties} />
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as unknown as React.CSSProperties} />
               <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}

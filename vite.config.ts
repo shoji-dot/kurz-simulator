@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     chunkSizeWarningLimit: 1500,
+    emptyOutDir: false,
   },
   preview: {
     port: parseInt(process.env.PORT || '4173'),
