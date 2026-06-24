@@ -28,6 +28,13 @@ const DRILL_INTERVAL = 80;   // ms ごとに 1 ホール追加
 const WARN_DIST      = 4.5;  // 黄色警告距離 mm
 const DANGER_DIST    = 2.5;  // 赤危険距離 mm
 
+// 乳突洞（Mastoid Antrum）推定位置
+// 算出根拠: EAC後壁(X≈2)後方5.5mm, 側頭線(Y≈10)下方3mm, 外側皮質(Z≈26)深部13mm
+// Bone.glb 解剖学的実測値 2026-06-24
+const ANTRUM_POS          = new THREE.Vector3(-3.5, 7.0, 13.0);
+const ANTRUM_RADIUS       = 3.5;   // 乳突洞半径 mm（成人平均）
+const ANTRUM_REACHED_DIST = 2.5;   // 到達判定距離 mm
+
 // ── ドリルホールシェーダー注入ユーティリティ ─────────────────────────
 function applyDrillShader(
   mat: THREE.MeshStandardMaterial,
@@ -321,14 +328,14 @@ function MastoidGuide() {
         );
       })}
 
-      {/* Antrum Expected（13mm 深部）*/}
-      <mesh position={[cx, cy, sz - GUIDE.ANTRUM_DEPTH]}>
-        <sphereGeometry args={[1.9, 16, 12]} />
-        <meshBasicMaterial color="#4ade80" transparent opacity={0.28} />
+      {/* Mastoid Antrum: First Surgical Target */}
+      <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
+        <sphereGeometry args={[ANTRUM_RADIUS, 20, 14]} />
+        <meshBasicMaterial color="#4ade80" transparent opacity={0.22} />
       </mesh>
-      <mesh position={[cx, cy, sz - GUIDE.ANTRUM_DEPTH]}>
-        <sphereGeometry args={[1.95, 16, 12]} />
-        <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.65} />
+      <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
+        <sphereGeometry args={[ANTRUM_RADIUS + 0.1, 20, 14]} />
+        <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.70} />
       </mesh>
 
       {/* 削開方向矢印（黄色、外側→内側）*/}
@@ -372,10 +379,11 @@ interface DrillCanvas3DProps {
   rotation:     'CW' | 'CCW';
   onAlert:      (msg: string | null) => void;
   onHoleCount:  (n: number) => void;
+  onAntrumDist: (dist: number | null) => void;
   showGuide:    boolean;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, showGuide }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, showGuide }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
@@ -441,7 +449,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, showGuide }:
       cursorRef.current.visible = true;
     }
     checkDanger(e.point);
-  }, [checkDanger]);
+    onAntrumDist(e.point.distanceTo(ANTRUM_POS));
+  }, [checkDanger, onAntrumDist]);
 
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!drillMode || e.button !== 0) return;
@@ -458,7 +467,8 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, showGuide }:
     isDrillingRef.current = false;
     if (cursorRef.current) cursorRef.current.visible = false;
     onAlert(null);
-  }, [onAlert]);
+    onAntrumDist(null);
+  }, [onAlert, onAntrumDist]);
 
   return (
     <>
@@ -510,13 +520,15 @@ export function InteractiveDrillScene() {
   const [showGuide,  setShowGuide]  = useState(true);
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
-  const [holeCount, setHoleCount] = useState(0);
-  const [resetKey,  setResetKey]  = useState(0);
+  const [holeCount,  setHoleCount]  = useState(0);
+  const [antrumDist, setAntrumDist] = useState<number | null>(null);
+  const [resetKey,   setResetKey]   = useState(0);
 
   const handleReset = () => {
     setResetKey(k => k + 1);
     setHoleCount(0);
     setAlertMsg(null);
+    setAntrumDist(null);
   };
 
   return (
@@ -532,6 +544,7 @@ export function InteractiveDrillScene() {
           rotation={rotation}
           onAlert={setAlertMsg}
           onHoleCount={setHoleCount}
+          onAntrumDist={setAntrumDist}
           showGuide={showGuide}
         />
       </Canvas>
@@ -592,6 +605,27 @@ export function InteractiveDrillScene() {
           fontSize: 11, backdropFilter: 'blur(4px)',
         }}>
           削開: {holeCount} / {MAX_HOLES} ポイント
+        </div>
+      )}
+
+      {/* Distance to Antrum */}
+      {antrumDist !== null && (
+        <div style={{
+          position: 'absolute', top: 44, right: 10, zIndex: 10,
+          padding: '6px 12px', borderRadius: 7,
+          background: antrumDist < ANTRUM_REACHED_DIST
+            ? 'rgba(74,222,128,0.20)'
+            : 'rgba(0,0,0,0.65)',
+          border: antrumDist < ANTRUM_REACHED_DIST
+            ? '1px solid rgba(74,222,128,0.6)'
+            : '1px solid rgba(134,239,172,0.25)',
+          color: antrumDist < ANTRUM_REACHED_DIST ? '#4ade80' : '#86efac',
+          fontSize: 11, fontWeight: 700, backdropFilter: 'blur(4px)',
+          transition: 'all .2s',
+        }}>
+          {antrumDist < ANTRUM_REACHED_DIST
+            ? '🟢 Reached Antrum!'
+            : `🎯 Antrum: ${antrumDist.toFixed(1)} mm`}
         </div>
       )}
 
