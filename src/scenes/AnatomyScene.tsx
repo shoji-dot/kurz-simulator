@@ -94,7 +94,7 @@ import { TympanoCavityEdu } from './models/TympanoCavityModel';
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _ANAT_KEY = 'kurz_cam_anatomy';
 const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [2, 6, 50], target: [0, 0, 3],   // 手術顕微鏡ビュー（外耳道正面）
+  pos: [-3, 22, 62], target: [-3, 12, 0],  // 全体概観: 側頭骨視覚中心
 };
 function _loadAnatCam() {
   try {

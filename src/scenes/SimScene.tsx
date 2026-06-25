@@ -30,7 +30,7 @@ import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY = 'kurz_cam_sim';
 const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [2.84, 8.65, 50], target: [0.84, 2.65, 3],   // 手術顕微鏡ビュー（GLB_OFFSET補正済）
+  pos: [-2.16, 24.65, 64], target: [-2.16, 14.65, 2],  // 全体概観（GLB_OFFSET補正済）
 };
 function _loadSimCam() {
   try {
