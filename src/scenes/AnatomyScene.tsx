@@ -94,7 +94,7 @@ import { TympanoCavityEdu } from './models/TympanoCavityModel';
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _ANAT_KEY = 'kurz_cam_anatomy';
 const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [5, 70, 30], target: [0, 0, 4],
+  pos: [2, 6, 50], target: [0, 0, 3],   // 手術顕微鏡ビュー（外耳道正面）
 };
 function _loadAnatCam() {
   try {
@@ -124,6 +124,17 @@ export function resetAnatomyCam(): void {
     _anatOrbit.target.set(tx, ty, tz);
     _anatOrbit.update();
   }
+}
+/** カメラをプリセットビューにジャンプ */
+export function setAnatomyCameraView(view: import('./ViewPresets').CameraView): void {
+  if (!_anatOrbit) return;
+  const [px, py, pz] = view.pos;
+  const [tx, ty, tz] = view.target;
+  _anatOrbit.object.up.set(...(view.up ?? [0, 1, 0]) as [number,number,number]);
+  _anatOrbit.object.position.set(px, py, pz);
+  _anatOrbit.target.set(tx, ty, tz);
+  _anatOrbit.update();
+  _anatCam = { pos: [px, py, pz], target: [tx, ty, tz] };
 }
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
@@ -267,10 +278,12 @@ export function AnatomyScene({
         </group>
       </Suspense>
 
+      {/* ギズモ: X=前後, Y=上下, Z=外内 */}
       <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
         <GizmoViewport
-          axisColors={['#ff4444', '#44ff88', '#4488ff']}
+          axisColors={['#ff6655', '#88ee88', '#5599ff']}
           labelColor="#ffffff"
+          labels={['前', '上', '外']}
         />
       </GizmoHelper>
 

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
-import { AnatomyScene, saveAnatomyCam, resetAnatomyCam } from '../scenes/AnatomyScene';
+import { AnatomyScene, saveAnatomyCam, resetAnatomyCam, setAnatomyCameraView } from '../scenes/AnatomyScene';
+import { ViewPresetPanel } from './ViewPresetPanel';
 import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { InteractiveDrillScene } from '../scenes/InteractiveDrillScene';
@@ -808,6 +809,9 @@ export function LearningMode() {
                   >
                     デフォルトに戻す
                   </button>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <ViewPresetPanel onSelectView={setAnatomyCameraView} />
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
                   保存した視点は次回起動時から反映されます

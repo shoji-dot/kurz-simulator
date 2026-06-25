@@ -30,7 +30,7 @@ import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY = 'kurz_cam_sim';
 const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [5, 70, 30], target: [0.5, 0.5, 3],
+  pos: [2.84, 8.65, 50], target: [0.84, 2.65, 3],   // 手術顕微鏡ビュー（GLB_OFFSET補正済）
 };
 function _loadSimCam() {
   try {
@@ -58,6 +58,17 @@ export function resetSimCam(): void {
     _simOrbit.target.set(tx, ty, tz);
     _simOrbit.update();
   }
+}
+/** カメラをプリセットビューにジャンプ */
+export function setSimCameraView(view: import('./ViewPresets').CameraView): void {
+  if (!_simOrbit) return;
+  const [px, py, pz] = view.pos;
+  const [tx, ty, tz] = view.target;
+  _simOrbit.object.up.set(...(view.up ?? [0, 1, 0]) as [number,number,number]);
+  _simOrbit.object.position.set(px, py, pz);
+  _simOrbit.target.set(tx, ty, tz);
+  _simOrbit.update();
+  _simCam = { pos: [px, py, pz], target: [tx, ty, tz] };
 }
 import {
   RealAnatomy,
@@ -434,10 +445,12 @@ export function SimScene({
         </group>
       </Suspense>
 
+      {/* ギズモ: X=前後, Y=上下, Z=外内 */}
       <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
         <GizmoViewport
-          axisColors={['#ff4444', '#44ff88', '#4488ff']}
+          axisColors={['#ff6655', '#88ee88', '#5599ff']}
           labelColor="#ffffff"
+          labels={['前', '上', '外']}
         />
       </GizmoHelper>
 

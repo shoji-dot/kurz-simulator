@@ -34,7 +34,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 import { useSimStore, type JudgmentResult } from '../store/useSimStore';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
-import { SimScene, SIM_DEFAULT_VIS, type DragMode, saveSimCam, resetSimCam } from '../scenes/SimScene';
+import { SimScene, SIM_DEFAULT_VIS, type DragMode, saveSimCam, resetSimCam, setSimCameraView } from '../scenes/SimScene';
+import { ViewPresetPanel } from './ViewPresetPanel';
+import { shiftViewForSim } from '../scenes/ViewPresets';
 import {
   type OpacityMode,
   type StructureKey,
@@ -1038,6 +1040,12 @@ function PlacementStep() {
               })}
             </>
           )}
+        </div>
+
+        {/* ── 視点プリセット ── */}
+        <div className="card" style={{ padding: '10px 12px' }}>
+          <div className="section-title" style={{ marginBottom: 8, fontSize: 11 }}>視点プリセット</div>
+          <ViewPresetPanel onSelectView={v => setSimCameraView(shiftViewForSim(v))} />
         </div>
 
         {/* ── 視点保存 ── */}
