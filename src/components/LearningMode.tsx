@@ -419,31 +419,53 @@ export function LearningMode() {
             </div>
           )}
 
-          {/* ── ビューモードトグル（UIボタンはclipPath外 → 常時クリック可能）── */}
+          {/* ── ビューモードトグル + 操作モード切替 ── */}
           {learningTab === 'anatomy' && (
             <div style={{
               position: 'absolute', top: 12, right: 16, zIndex: 15,
-              display: 'flex', gap: 5,
+              display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end',
             }}>
-              {VIEW_MODES.map(({ mode, icon, label, desc }) => (
-                <button
-                  key={mode}
-                  title={desc}
-                  onClick={() => setViewMode(mode)}
-                  style={{
-                    padding: '5px 11px',
-                    borderRadius: 7,
-                    border: `1px solid ${viewMode === mode ? 'var(--accent)' : 'rgba(255,255,255,0.18)'}`,
-                    background: viewMode === mode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
-                    color: viewMode === mode ? 'var(--accent)' : '#7a8898',
-                    fontSize: 11, fontWeight: viewMode === mode ? 700 : 400,
-                    cursor: 'pointer', backdropFilter: 'blur(6px)',
-                    transition: 'all .15s',
-                  }}
-                >
-                  {icon} {label}
-                </button>
-              ))}
+              {/* ビューモード */}
+              <div style={{ display: 'flex', gap: 5 }}>
+                {VIEW_MODES.map(({ mode, icon, label, desc }) => (
+                  <button
+                    key={mode}
+                    title={desc}
+                    onClick={() => setViewMode(mode)}
+                    style={{
+                      padding: '5px 11px',
+                      borderRadius: 7,
+                      border: `1px solid ${viewMode === mode ? 'var(--accent)' : 'rgba(255,255,255,0.18)'}`,
+                      background: viewMode === mode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
+                      color: viewMode === mode ? 'var(--accent)' : '#7a8898',
+                      fontSize: 11, fontWeight: viewMode === mode ? 700 : 400,
+                      cursor: 'pointer', backdropFilter: 'blur(6px)',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
+              {/* 操作モード切替（回転 ↔ 平行移動） */}
+              <button
+                onClick={() => setPanMode(v => !v)}
+                title={panMode
+                  ? '平行移動モード中 — クリックで回転モードへ切替'
+                  : '回転モード中 — クリックで平行移動モードへ切替'}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 7,
+                  border: `1px solid ${panMode ? '#a78bfa' : 'rgba(255,255,255,0.18)'}`,
+                  background: panMode ? 'rgba(167,139,250,0.22)' : 'rgba(10,15,26,0.78)',
+                  color: panMode ? '#a78bfa' : '#7a8898',
+                  fontSize: 11, fontWeight: panMode ? 700 : 400,
+                  cursor: 'pointer', backdropFilter: 'blur(6px)',
+                  transition: 'all .15s',
+                }}
+              >
+                {panMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+              </button>
             </div>
           )}
 

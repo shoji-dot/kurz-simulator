@@ -42,27 +42,20 @@ const ENDO_ZONES: Array<{
   id:        string;
   nameJa:    string;
   severity:  'warning' | 'danger';
-  visKey?:   string;            // vis が hidden なら skip
+  visKey?:   string;
   center:    [number,number,number]; // world v2 space
-  radius:    number;            // mm
+  radius:    number;
 }> = [
-  // 耳小骨クラスター (GLB stapes head → world v2: [4.86, 2.65, 0.84])
   { id: 'ossicles',        nameJa: '耳小骨',           severity: 'warning', visKey: 'malleus',      center: [4.86,  2.65,  0.84], radius: 5.5 },
-  // 鼓膜・臍 (GLB[0,0,5.5] → world v2: [5.5, 0, 0])
   { id: 'tympanic',        nameJa: '鼓膜',              severity: 'warning', visKey: 'tympanic',     center: [5.5,   0.0,   0.0 ], radius: 4.5 },
-  // 顔面神経 鼓室部 (GLB[0,2.8,-1.5] → world v2: [-1.5,-2.8,0])
   { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）',  severity: 'danger', visKey: 'facialNerve',  center: [-1.5, -2.8,   0.0 ], radius: 5.5 },
-  // 顔面神経 第2膝部 (GLB[-4,1.5,-3] → world v2: [-3,-1.5,-4])
   { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: [-3.0, -1.5,  -4.0 ], radius: 5.0 },
-  // 鼓索神経 (GLB[0.5,-2.0,4.0] → world v2: [4.0,2.0,0.5])
   { id: 'chorda',          nameJa: '鼓索神経',           severity: 'danger', visKey: 'chordaTympani', center: [4.0,   2.0,   0.5 ], radius: 4.5 },
 ];
 
-// ── 硬性内視鏡近接モニター（Canvas内コンポーネント）─────────────────
+// ── 硬性内視鏡近接モニター ─────────────────────────────────────────
 function EndoscopeMonitor({
-  enabled,
-  vis,
-  onAlert,
+  enabled, vis, onAlert,
 }: {
   enabled: boolean;
   vis?: VisibilityMap;
@@ -77,34 +70,25 @@ function EndoscopeMonitor({
     if (!enabled) return;
     const pos = camera.position;
     const active: EndoscopeAlert[] = [];
-
     for (const z of ENDO_ZONES) {
-      // 対応する構造が hidden なら skip
       if (z.visKey && vis) {
         const mode = (vis as Record<string, string>)[z.visKey];
         if (mode === 'hidden') continue;
       }
-      const c = new THREE.Vector3(...z.center);
-      if (pos.distanceTo(c) < z.radius) {
+      if (pos.distanceTo(new THREE.Vector3(...z.center)) < z.radius) {
         active.push({ id: z.id, nameJa: z.nameJa, severity: z.severity });
       }
     }
-
     const key = active.map(a => a.id).join(',');
-    if (key !== lastKey.current) {
-      lastKey.current = key;
-      onAlertRef.current(active);
-    }
+    if (key !== lastKey.current) { lastKey.current = key; onAlertRef.current(active); }
   });
-
   return null;
 }
 
-// ── カメラデバッグトラッカー（Canvas内）────────────────────────────────
+// ── カメラデバッグトラッカー ───────────────────────────────────────
 function CameraDebugTracker({ divRef }: { divRef: React.RefObject<HTMLDivElement | null> }) {
   const { camera, controls } = useThree();
   const _tmp = useRef(new THREE.Vector3());
-
   useFrame(() => {
     const el = divRef.current;
     if (!el) return;
@@ -118,138 +102,142 @@ function CameraDebugTracker({ divRef }: { divRef: React.RefObject<HTMLDivElement
     const u = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
     const r = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
     const deg = (rad: number) => (rad * 180 / Math.PI).toFixed(1);
-    const v3  = (v: THREE.Vector3, dp = 1) =>
-      `[${v.x.toFixed(dp)}, ${v.y.toFixed(dp)}, ${v.z.toFixed(dp)}]`;
-
+    const v3  = (v: THREE.Vector3, dp = 1) => `[${v.x.toFixed(dp)}, ${v.y.toFixed(dp)}, ${v.z.toFixed(dp)}]`;
     el.textContent =
-      `Pos   : ${v3(p)}\n` +
-      `Target: ${v3(t)}\n` +
-      `Dist  : ${p.distanceTo(t).toFixed(1)} mm\n` +
-      `Fwd   : ${v3(f, 2)}\n` +
-      `Up    : ${v3(u, 2)}\n` +
-      `Right : ${v3(r, 2)}\n` +
+      `Pos   : ${v3(p)}\nTarget: ${v3(t)}\nDist  : ${p.distanceTo(t).toFixed(1)} mm\n` +
+      `Fwd   : ${v3(f, 2)}\nUp    : ${v3(u, 2)}\nRight : ${v3(r, 2)}\n` +
       `Euler : [${deg(e.x)}°, ${deg(e.y)}°, ${deg(e.z)}°]\n` +
       `Quat  : [${q.x.toFixed(3)}, ${q.y.toFixed(3)}, ${q.z.toFixed(3)}, ${q.w.toFixed(3)}]`;
   });
   return null;
 }
 
+// ── カメラ up ベクトル初期化（scene remount 時に localStorage の up を復元）────
+function CameraUpSetter({ up }: { up: [number, number, number] }) {
+  const { camera, controls } = useThree();
+  const applied = useRef(false);
+  useEffect(() => {
+    if (applied.current) return;
+    applied.current = true;
+    camera.up.set(up[0], up[1], up[2]);
+    (controls as any)?.update?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
 
-// ── カメラ視点 保存/復元 ────────────────────────────────────────
-// v2: 座標系変更に伴い、v1 キャッシュは自動クリア
+// ── カメラ視点 保存/復元 ────────────────────────────────────────────
+// v2: 座標系変更・up vector 保存対応
 const _ANAT_KEY     = 'kurz_cam_anatomy';
 const _ANAT_VERSION = 2;
-const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  // 外側（+X）＋やや上方から全体を見る
-  pos: [62, 22, -3], target: [0, 12, -3],
+const _ANAT_DEFAULT = {
+  pos:    [62, 22, -3] as [number, number, number],
+  target: [0,  12, -3] as [number, number, number],
+  up:     [0,  1,  0 ] as [number, number, number],
 };
+
 function _loadAnatCam() {
   try {
     const raw = localStorage.getItem(_ANAT_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d.version === _ANAT_VERSION && Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
-        return d as typeof _ANAT_DEFAULT;
+      if (d.version === _ANAT_VERSION &&
+          Array.isArray(d.pos)    && d.pos.length    === 3 &&
+          Array.isArray(d.target) && d.target.length === 3) {
+        return {
+          pos:    d.pos    as [number, number, number],
+          target: d.target as [number, number, number],
+          up:     (Array.isArray(d.up) && d.up.length === 3
+            ? d.up
+            : [0, 1, 0]) as [number, number, number],
+        };
+      }
     }
   } catch { /* */ }
-  return _ANAT_DEFAULT;
+  return { ..._ANAT_DEFAULT };
 }
-let _anatCam = { ..._ANAT_DEFAULT };
+
+let _anatCam: { pos: [number,number,number]; target: [number,number,number]; up: [number,number,number] } = { ..._ANAT_DEFAULT };
 let _anatOrbit: any = null;
-/** 現在のカメラ視点をlocalStorageに保存 */
+
 export function saveAnatomyCam(): void {
+  // pos/target/up を含む完全な状態を保存
   localStorage.setItem(_ANAT_KEY, JSON.stringify({ ..._anatCam, version: _ANAT_VERSION }));
 }
-/** カメラ視点をデフォルトにリセット */
 export function resetAnatomyCam(): void {
   localStorage.removeItem(_ANAT_KEY);
   _anatCam = { ..._ANAT_DEFAULT };
   if (_anatOrbit) {
     const [px, py, pz] = _ANAT_DEFAULT.pos;
     const [tx, ty, tz] = _ANAT_DEFAULT.target;
+    _anatOrbit.object.up.set(0, 1, 0);
     _anatOrbit.object.position.set(px, py, pz);
     _anatOrbit.target.set(tx, ty, tz);
     _anatOrbit.update();
   }
 }
-/** カメラをプリセットビューにジャンプ */
 export function setAnatomyCameraView(view: import('./ViewPresets').CameraView): void {
   if (!_anatOrbit) return;
   const [px, py, pz] = view.pos;
   const [tx, ty, tz] = view.target;
-  _anatOrbit.object.up.set(...(view.up ?? [0, 1, 0]) as [number,number,number]);
+  const up = (view.up ?? [0, 1, 0]) as [number, number, number];
+  _anatOrbit.object.up.set(up[0], up[1], up[2]);
   _anatOrbit.object.position.set(px, py, pz);
   _anatOrbit.target.set(tx, ty, tz);
   _anatOrbit.update();
-  _anatCam = { pos: [px, py, pz], target: [tx, ty, tz] };
+  _anatCam = { pos: [px, py, pz], target: [tx, ty, tz], up };
 }
+
 import type { OssicleStatus, StapesStatus } from '../data/cases';
 
 export type ViewMode = 'normal' | 'microscope' | 'endoscope';
 
-// ── 距離ベースのズームハンドラ（OrbitControlsのdollyと統一）─────
+// ── 距離ベースズームハンドラ ──────────────────────────────────────
 function ZoomHandler({ level }: { level: number }) {
   const { controls } = useThree();
   const prevLevel = useRef(0);
-
   useEffect(() => {
     if (!controls) return;
     const diff = level - prevLevel.current;
     if (diff === 0) return;
     const oc = controls as any;
     for (let i = 0; i < Math.abs(diff); i++) {
-      if (diff > 0) oc.dollyOut?.(1.35);
-      else oc.dollyIn?.(1.35);
+      if (diff > 0) oc.dollyOut?.(1.35); else oc.dollyIn?.(1.35);
     }
     oc.update?.();
     prevLevel.current = level;
   }, [level, controls]);
-
   return null;
 }
 
-// ── ビューモードコントローラー（Canvas内に置く）─────────────────
-const VIEW_FOV: Record<ViewMode, number> = {
-  normal:     46,
-  microscope: 11,
-  endoscope:  112,
-};
-
+// ── ビューモードコントローラー ────────────────────────────────────
+const VIEW_FOV: Record<ViewMode, number> = { normal: 46, microscope: 11, endoscope: 112 };
 function ViewModeController({ mode }: { mode: ViewMode }) {
   const { camera } = useThree();
-
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
     cam.fov = VIEW_FOV[mode];
     cam.updateProjectionMatrix();
   }, [mode, camera]);
-
   return null;
 }
 
 // ══════════════════════════════════════════════════════════════════
-// メイン解剖シーン（AnatomyScene）
+// メイン解剖シーン
 // ══════════════════════════════════════════════════════════════════
 interface AnatomySceneProps {
   vis?:               VisibilityMap;
   zoomLevel?:         number;
   showTympanoCavity?: boolean;
-  /** 手術用ビューモード（CSS オーバーレイは LearningMode 側で描画） */
   viewMode?:          ViewMode;
-  /** ハイライトする構造キー */
   highlightedKey?:    string | null;
-  /** 側頭骨ghost時不透明度（0–1） */
   boneGhostOpacity?:  number;
-  /** OrbitControls最小距離（内視鏡貫通防止に使用） */
   minDistance?:       number;
-  /** 内視鏡近接アラートコールバック */
   onEndoscopeAlert?:  (alerts: EndoscopeAlert[]) => void;
-  /** ダブルクリックで構造の表示モードを切替するコールバック */
   onStructureClick?:  (key: StructureKey) => void;
-  /** true = 左クリックで平行移動（デフォルト: false = 左クリックで回転） */
   panMode?:           boolean;
-  /** true = カメラデバッグ情報を画面左上に表示 */
   showCameraDebug?:   boolean;
 }
 
@@ -270,7 +258,6 @@ export function AnatomyScene({
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
   const debugDivRef = useRef<HTMLDivElement | null>(null);
 
-  // ⑧ ドラッグ中のダブルクリック誤発火を防ぐ
   const containerRef = useRef<HTMLDivElement>(null);
   const _pointerMoved = useRef(false);
   const _pStart = useRef({ x: 0, y: 0 });
@@ -289,17 +276,14 @@ export function AnatomyScene({
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-    {/* カメラデバッグオーバーレイ */}
     {showCameraDebug && (
-      <div
-        style={{
-          position: 'absolute', top: 8, left: 8, zIndex: 100,
-          background: 'rgba(0,0,0,0.72)', color: '#7fffb2',
-          fontFamily: 'monospace', fontSize: 10, padding: '6px 8px',
-          borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',
-          lineHeight: 1.55, userSelect: 'none',
-        }}
-      >
+      <div style={{
+        position: 'absolute', top: 8, left: 8, zIndex: 100,
+        background: 'rgba(0,0,0,0.72)', color: '#7fffb2',
+        fontFamily: 'monospace', fontSize: 10, padding: '6px 8px',
+        borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',
+        lineHeight: 1.55, userSelect: 'none',
+      }}>
         <div style={{ color: '#aaa', marginBottom: 2, fontSize: 9 }}>
           COORD v2: X+=右(Lateral) Y+=上(Sup) Z+=前(Ant)
         </div>
@@ -314,22 +298,15 @@ export function AnatomyScene({
     >
       <color attach="background" args={['#0a0f1a']} />
 
-      {/* ── ズームハンドラ（OrbitControls距離ベース） ── */}
-      <ZoomHandler level={zoomLevel} />
+      {/* ── localStorage の up ベクトルをカメラに適用 ── */}
+      <CameraUpSetter up={initCam.up} />
 
-      {/* ── ビューモードコントローラー ── */}
+      <ZoomHandler level={zoomLevel} />
       <ViewModeController mode={viewMode} />
 
-      {/* ── 硬性内視鏡近接モニター ── */}
       {viewMode === 'endoscope' && onEndoscopeAlert && (
-        <EndoscopeMonitor
-          enabled={true}
-          vis={vis}
-          onAlert={onEndoscopeAlert}
-        />
+        <EndoscopeMonitor enabled={true} vis={vis} onAlert={onEndoscopeAlert} />
       )}
-
-      {/* ── カメラデバッグトラッカー ── */}
       {showCameraDebug && <CameraDebugTracker divRef={debugDivRef} />}
 
       {/* ── ライティング ── */}
@@ -337,19 +314,16 @@ export function AnatomyScene({
       <directionalLight position={[18, 3, 2]}   intensity={0.9}  color="#ffe8d0" />
       <directionalLight position={[-12, 2, -4]} intensity={0.6}  color="#c0d8ff" />
       <directionalLight position={[5, -8, 0]}   intensity={0.25} color="#d0e4ff" />
-      <pointLight position={[-8, -2, 0]}  intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
-      <pointLight position={[4, 3, 1]}    intensity={2.0} color="#fff4e0" distance={14} decay={2} />
+      <pointLight position={[-8, -2, 0]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
+      <pointLight position={[4,   3, 1]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
         {/*
           座標系 v2: rotation=[π, -π/2, 0]
-          = Ry(-90°) * Rx(180°) → GLB[x,y,z] → world[z,-y,x]
-          X+=Lateral, Y+=Superior, Z+=Anterior
+          GLB[x,y,z] → world[z,-y,x]: X+=Lateral, Y+=Superior, Z+=Anterior
         */}
         <group rotation={[Math.PI, -Math.PI / 2, 0]}>
-          {/* 耳介は mergedVis.auricle で制御 */}
           <RealAnatomy vis={mergedVis} highlightedKey={highlightedKey} boneGhostOpacity={boneGhostOpacity} onStructureClick={handleStructureClick} />
-          {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>
       </Suspense>
@@ -380,7 +354,13 @@ export function AnatomyScene({
           if (!_anatOrbit) return;
           const p = _anatOrbit.object.position;
           const t = _anatOrbit.target;
-          _anatCam = { pos: [p.x, p.y, p.z], target: [t.x, t.y, t.z] };
+          const u = _anatOrbit.object.up;
+          // up を含めて追跡（保存時に up も含まれる）
+          _anatCam = {
+            pos:    [p.x, p.y, p.z],
+            target: [t.x, t.y, t.z],
+            up:     [u.x, u.y, u.z],
+          };
         }}
       />
     </Canvas>
