@@ -1,18 +1,23 @@
 /**
  * SimScene.tsx  ── シミュレーションモード 3D シーン（GLBリアルモデル版）
  *
- * ▼ 座標系（OssicleModels.tsx と共通）
- *   1 unit = 1 mm
- *   Z+ = 外耳道方向（カメラ側）
- *   Y+ = 上方
- *   Origin = 鼓室中央（手続き的モデル基準）
+ * ▼ 座標系 v2（world空間）
+ *   GLB[x, y, z] → world[z, -y, x]
+ *   X+ = 患者右側 / 外側 (Lateral)
+ *   Y+ = 頭頂側   (Superior)
+ *   Z+ = 顔面側   (Anterior)
+ *
+ * ▼ モデル変換
+ *   <group rotation={[Math.PI, -Math.PI/2, 0]}>
+ *   内包する全ての子（GLBモデル・プロテーゼ）に適用
  *
  * ▼ GLBオフセット
- *   GLB座標系の原点 = アブミ骨底板 = STAPES_FOOTPLATE [0.84, -2.65, 2.12]
- *   → GLBグループを STAPES_FOOTPLATE 位置にオフセットすることで整合
+ *   GLB座標系の原点 = アブミ骨底板 = ローカル[0.84, -2.65, 2.12]
+ *   → GLBグループを STAPES_FOOTPLATE (ローカル値) 位置にオフセット
+ *   → world v2 でのアブミ骨底板位置 = [2.12, 2.65, 0.84]
  *
  * ▼ TransformControls によるドラッグ配置
- *   プロテーゼを XZ 平面でドラッグ → mouseup 時に dragOffsetX/Z を更新
+ *   プロテーゼを world 空間でドラッグ → mouseup 時に dragOffset を更新
  *   OrbitControls はドラッグ中に無効化
  */
 
@@ -28,16 +33,18 @@ import {
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
-const _SIM_KEY = 'kurz_cam_sim';
+const _SIM_KEY     = 'kurz_cam_sim';
+const _SIM_VERSION = 2;
 const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [-2.16, 24.65, 64], target: [-2.16, 14.65, 2],  // 全体概観（GLB_OFFSET補正済）
+  // 外側（+X）＋やや上方から全体を見る（AnatomyScene DEFAULT + SIM_OFF[2.12,2.65,0.84]）
+  pos: [64, 24.65, -2.16], target: [2, 14.65, -2.16],
 };
 function _loadSimCam() {
   try {
     const raw = localStorage.getItem(_SIM_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
+      if (d.version === _SIM_VERSION && Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
         return d as typeof _SIM_DEFAULT;
     }
   } catch { /* */ }
@@ -46,7 +53,7 @@ function _loadSimCam() {
 let _simCam = { ..._SIM_DEFAULT };
 let _simOrbit: any = null;
 export function saveSimCam(): void {
-  localStorage.setItem(_SIM_KEY, JSON.stringify(_simCam));
+  localStorage.setItem(_SIM_KEY, JSON.stringify({ ..._simCam, version: _SIM_VERSION }));
 }
 export function resetSimCam(): void {
   localStorage.removeItem(_SIM_KEY);
@@ -262,7 +269,6 @@ function DraggableProsthesis({
   }, []);
 
   // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
-  // アンマウント→再マウントするとグループが再生成されて position がリセットされるため。
   const isMove = dragMode === 'move';
   return (
     <TransformControls
@@ -333,7 +339,6 @@ export function SimScene({
     status === 'partial' ? 0.45 : undefined;
 
   // 表示判定 — vis切替を最優先。absent骨も hidden → 切替で表示可能。
-  // absent/footplate-only 骨を表示する場合は「参照解剖」として薄いゴーストで表示。
   const showMalleus    = ossMode('malleus') !== 'hidden';
   const showIncus      = ossMode('incus')   !== 'hidden';
   const showStapesGLB  = ossMode('stapes')  !== 'hidden';
@@ -341,8 +346,6 @@ export function SimScene({
   const isCaseWithFootplate = stapStatus === 'footplate-only' || stapStatus === 'absent';
   const showFootplateHighlight = footplateVisMode !== 'hidden'
     && (footplateVisMode !== undefined || isCaseWithFootplate);
-  // absent/footplate-only 骨：ユーザーが表示切替した場合は見える不透明度を使用
-  // solid → 0.30（参照解剖として識別可能）, ghost → GHOST_OPACITY（薄い参照）
   const absentOpacity = (mode: OpacityMode): number =>
     mode === 'ghost' ? GHOST_OPACITY : 0.30;
   const malOpacity  = malStatus  === 'absent'
@@ -371,21 +374,26 @@ export function SimScene({
     >
       <color attach="background" args={['#050b15']} />
 
-      {/* ── ライティング ── */}
+      {/* ── ライティング (world v2 座標: X+=Lateral, Y+=Superior, Z+=Anterior) ── */}
       <directionalLight
-        position={[5, 15, 10]} intensity={1.8} color="#fff8f0"
+        position={[10, 15, 5]} intensity={1.8} color="#fff8f0"
         castShadow shadow-mapSize={[1024, 1024]}
       />
-      <directionalLight position={[2,  3, 18]}  intensity={0.9}  color="#ffe8d0" />
-      <directionalLight position={[-4, 2, -12]} intensity={0.6}  color="#c0d8ff" />
-      <directionalLight position={[0, -8,  5]}  intensity={0.25} color="#d0e4ff" />
-      <pointLight position={[0, -2, -8]}  intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
-      <pointLight position={[1,  3,  4]}  intensity={2.0} color="#fff4e0" distance={14} decay={2} />
-      <pointLight position={[3,  5, -5]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
+      <directionalLight position={[18, 3,  2]}  intensity={0.9}  color="#ffe8d0" />
+      <directionalLight position={[-12, 2, -4]} intensity={0.6}  color="#c0d8ff" />
+      <directionalLight position={[5, -8,  0]}  intensity={0.25} color="#d0e4ff" />
+      <pointLight position={[-8, -2, 0]}  intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
+      <pointLight position={[4,   3, 1]}  intensity={2.0} color="#fff4e0" distance={14} decay={2} />
+      <pointLight position={[-5,  5, 3]}  intensity={1.2} color="#aaccff" distance={18} decay={2} />
 
       <Suspense fallback={null}>
-        {/* Y軸反転グループ（GLBがY-down座標系のため） */}
-        <group scale={[1, -1, 1]}>
+        {/*
+          座標系 v2: rotation=[π, -π/2, 0]
+          GLB[x,y,z] → world[z,-y,x]
+          ここに含まれる全てのモデル（GLBリアル解剖・プロテーゼ・マーカー）は
+          この変換の内側にあり、すべて同じローカル座標系を共有する。
+        */}
+        <group rotation={[Math.PI, -Math.PI / 2, 0]}>
           {/* ── GLBリアルモデル ── */}
           <group position={GLB_OFFSET}>
             <RealAnatomy vis={mergedVis} onStructureClick={onStructureClick} />
@@ -445,12 +453,12 @@ export function SimScene({
         </group>
       </Suspense>
 
-      {/* ギズモ: X=前後, Y=上下, Z=外内 */}
+      {/* ギズモ v2: X=右(Lateral), Y=上(Superior), Z=前(Anterior) */}
       <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
         <GizmoViewport
           axisColors={['#ff6655', '#88ee88', '#5599ff']}
           labelColor="#ffffff"
-          labels={['前', '上', '外']}
+          labels={['右', '上', '前']}
         />
       </GizmoHelper>
 

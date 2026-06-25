@@ -1,10 +1,21 @@
 /**
  * AnatomyScene.tsx  ── 解剖学的中耳シーン（実モデル版）
  *
- * ▼ 座標系（GLB基準）
- *   アブミ骨底板 = 原点 (0,0,0)
- *   Z+ = 外耳道方向（カメラ側）
- *   Y+ = 上方
+ * ▼ 座標系 v2（world空間）
+ *   GLB[x, y, z] → world[z, -y, x]
+ *   X+ = 患者右側 / 外側 (Lateral)
+ *   Y+ = 頭頂側   (Superior)
+ *   Z+ = 顔面側   (Anterior)
+ *
+ * ▼ モデル変換
+ *   <group rotation={[Math.PI, -Math.PI/2, 0]}>
+ *   = Ry(-90°) * Rx(180°) → GLB[x,y,z] → world[z,-y,x]
+ *
+ * ▼ 主要ランドマーク (world v2)
+ *   アブミ骨底板 : [0, 0, 0]
+ *   アブミ骨頭   : [4.86, 2.65, 0.84]
+ *   鼓膜中心     : [5.5, 0, 0]
+ *   側頭骨中心   : [0, 12, -3]
  *
  * ▼ viewMode
  *   'normal'     : 通常ビュー（FOV 46°）
@@ -20,8 +31,7 @@ import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使
 import { RealAnatomy, type VisibilityMap, type AuricleTransform, type StructureKey } from './models/RealAnatomyModels';
 
 // ── 硬性内視鏡アラートゾーン定義 ────────────────────────────────────
-// 座標系: 世界空間（GLB Y-down を scale=[1,-1,1] で反転後）
-// GLB[x, y, z] → world[x, -y, z]
+// 座標系 v2: world[z,-y,x] (X+=Lateral, Y+=Superior, Z+=Anterior)
 export interface EndoscopeAlert {
   id:       string;
   nameJa:   string;
@@ -33,19 +43,19 @@ const ENDO_ZONES: Array<{
   nameJa:    string;
   severity:  'warning' | 'danger';
   visKey?:   string;            // vis が hidden なら skip
-  center:    [number,number,number]; // world space
+  center:    [number,number,number]; // world v2 space
   radius:    number;            // mm
 }> = [
-  // 耳小骨クラスター（world: GLB stapes head Y-flip）
-  { id: 'ossicles',        nameJa: '耳小骨',          severity: 'warning', visKey: 'malleus',      center: [0.84,  2.65, 4.86], radius: 5.5 },
-  // 鼓膜・臍（umbo）
-  { id: 'tympanic',        nameJa: '鼓膜',             severity: 'warning', visKey: 'tympanic',     center: [0.0,   0.0,  5.5],  radius: 4.5 },
-  // 顔面神経 鼓室部（world: GLB[0, 2.8, -1.5] → [0, -2.8, -1.5]）
-  { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）', severity: 'danger', visKey: 'facialNerve',  center: [0.0,  -2.8, -1.5], radius: 5.5 },
-  // 顔面神経 第2膝部（world: GLB[-4, 1.5, -3] → [-4, -1.5, -3]）
-  { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: [-4.0, -1.5, -3.0], radius: 5.0 },
-  // 鼓索神経（ossicle間を走行、大まかな推定位置）
-  { id: 'chorda',          nameJa: '鼓索神経',          severity: 'danger', visKey: 'chordaTympani', center: [0.5,  2.0,  4.0],  radius: 4.5 },
+  // 耳小骨クラスター (GLB stapes head → world v2: [4.86, 2.65, 0.84])
+  { id: 'ossicles',        nameJa: '耳小骨',           severity: 'warning', visKey: 'malleus',      center: [4.86,  2.65,  0.84], radius: 5.5 },
+  // 鼓膜・臍 (GLB[0,0,5.5] → world v2: [5.5, 0, 0])
+  { id: 'tympanic',        nameJa: '鼓膜',              severity: 'warning', visKey: 'tympanic',     center: [5.5,   0.0,   0.0 ], radius: 4.5 },
+  // 顔面神経 鼓室部 (GLB[0,2.8,-1.5] → world v2: [-1.5,-2.8,0])
+  { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）',  severity: 'danger', visKey: 'facialNerve',  center: [-1.5, -2.8,   0.0 ], radius: 5.5 },
+  // 顔面神経 第2膝部 (GLB[-4,1.5,-3] → world v2: [-3,-1.5,-4])
+  { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: [-3.0, -1.5,  -4.0 ], radius: 5.0 },
+  // 鼓索神経 (GLB[0.5,-2.0,4.0] → world v2: [4.0,2.0,0.5])
+  { id: 'chorda',          nameJa: '鼓索神経',           severity: 'danger', visKey: 'chordaTympani', center: [4.0,   2.0,   0.5 ], radius: 4.5 },
 ];
 
 // ── 硬性内視鏡近接モニター（Canvas内コンポーネント）─────────────────
@@ -89,19 +99,57 @@ function EndoscopeMonitor({
 
   return null;
 }
+
+// ── カメラデバッグトラッカー（Canvas内）────────────────────────────────
+function CameraDebugTracker({ divRef }: { divRef: React.RefObject<HTMLDivElement | null> }) {
+  const { camera, controls } = useThree();
+  const _tmp = useRef(new THREE.Vector3());
+
+  useFrame(() => {
+    const el = divRef.current;
+    if (!el) return;
+    const oc = controls as any;
+    const t  = oc?.target ?? new THREE.Vector3();
+    const p  = camera.position;
+    const q  = camera.quaternion;
+    const e  = camera.rotation;
+    camera.getWorldDirection(_tmp.current);
+    const f = _tmp.current;
+    const u = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const r = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const deg = (rad: number) => (rad * 180 / Math.PI).toFixed(1);
+    const v3  = (v: THREE.Vector3, dp = 1) =>
+      `[${v.x.toFixed(dp)}, ${v.y.toFixed(dp)}, ${v.z.toFixed(dp)}]`;
+
+    el.textContent =
+      `Pos   : ${v3(p)}\n` +
+      `Target: ${v3(t)}\n` +
+      `Dist  : ${p.distanceTo(t).toFixed(1)} mm\n` +
+      `Fwd   : ${v3(f, 2)}\n` +
+      `Up    : ${v3(u, 2)}\n` +
+      `Right : ${v3(r, 2)}\n` +
+      `Euler : [${deg(e.x)}°, ${deg(e.y)}°, ${deg(e.z)}°]\n` +
+      `Quat  : [${q.x.toFixed(3)}, ${q.y.toFixed(3)}, ${q.z.toFixed(3)}, ${q.w.toFixed(3)}]`;
+  });
+  return null;
+}
+
 import { TympanoCavityEdu } from './models/TympanoCavityModel';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
-const _ANAT_KEY = 'kurz_cam_anatomy';
+// v2: 座標系変更に伴い、v1 キャッシュは自動クリア
+const _ANAT_KEY     = 'kurz_cam_anatomy';
+const _ANAT_VERSION = 2;
 const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [-3, 22, 62], target: [-3, 12, 0],  // 全体概観: 側頭骨視覚中心
+  // 外側（+X）＋やや上方から全体を見る
+  pos: [62, 22, -3], target: [0, 12, -3],
 };
 function _loadAnatCam() {
   try {
     const raw = localStorage.getItem(_ANAT_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
+      if (d.version === _ANAT_VERSION && Array.isArray(d.pos) && d.pos.length === 3 && Array.isArray(d.target) && d.target.length === 3)
         return d as typeof _ANAT_DEFAULT;
     }
   } catch { /* */ }
@@ -111,7 +159,7 @@ let _anatCam = { ..._ANAT_DEFAULT };
 let _anatOrbit: any = null;
 /** 現在のカメラ視点をlocalStorageに保存 */
 export function saveAnatomyCam(): void {
-  localStorage.setItem(_ANAT_KEY, JSON.stringify(_anatCam));
+  localStorage.setItem(_ANAT_KEY, JSON.stringify({ ..._anatCam, version: _ANAT_VERSION }));
 }
 /** カメラ視点をデフォルトにリセット */
 export function resetAnatomyCam(): void {
@@ -201,6 +249,8 @@ interface AnatomySceneProps {
   onStructureClick?:  (key: StructureKey) => void;
   /** true = 左クリックで平行移動（デフォルト: false = 左クリックで回転） */
   panMode?:           boolean;
+  /** true = カメラデバッグ情報を画面左上に表示 */
+  showCameraDebug?:   boolean;
 }
 
 export function AnatomyScene({
@@ -214,9 +264,11 @@ export function AnatomyScene({
   onEndoscopeAlert,
   onStructureClick,
   panMode = false,
+  showCameraDebug = false,
 }: AnatomySceneProps) {
   const [initCam] = useState(() => _loadAnatCam());
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
+  const debugDivRef = useRef<HTMLDivElement | null>(null);
 
   // ⑧ ドラッグ中のダブルクリック誤発火を防ぐ
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,7 +288,24 @@ export function AnatomyScene({
   }, [onStructureClick]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+    {/* カメラデバッグオーバーレイ */}
+    {showCameraDebug && (
+      <div
+        style={{
+          position: 'absolute', top: 8, left: 8, zIndex: 100,
+          background: 'rgba(0,0,0,0.72)', color: '#7fffb2',
+          fontFamily: 'monospace', fontSize: 10, padding: '6px 8px',
+          borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',
+          lineHeight: 1.55, userSelect: 'none',
+        }}
+      >
+        <div style={{ color: '#aaa', marginBottom: 2, fontSize: 9 }}>
+          COORD v2: X+=右(Lateral) Y+=上(Sup) Z+=前(Ant)
+        </div>
+        <div ref={debugDivRef as any} />
+      </div>
+    )}
     <Canvas
       camera={{ position: initCam.pos, fov: 40 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
@@ -260,30 +329,37 @@ export function AnatomyScene({
         />
       )}
 
+      {/* ── カメラデバッグトラッカー ── */}
+      {showCameraDebug && <CameraDebugTracker divRef={debugDivRef} />}
+
       {/* ── ライティング ── */}
-      <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[2, 3, 18]}   intensity={0.9}  color="#ffe8d0" />
-      <directionalLight position={[-4, 2, -12]} intensity={0.6}  color="#c0d8ff" />
-      <directionalLight position={[0, -8, 5]}   intensity={0.25} color="#d0e4ff" />
-      <pointLight position={[0, -2, -8]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
-      <pointLight position={[1,  3,  4]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
+      <directionalLight position={[10, 15, 5]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
+      <directionalLight position={[18, 3, 2]}   intensity={0.9}  color="#ffe8d0" />
+      <directionalLight position={[-12, 2, -4]} intensity={0.6}  color="#c0d8ff" />
+      <directionalLight position={[5, -8, 0]}   intensity={0.25} color="#d0e4ff" />
+      <pointLight position={[-8, -2, 0]}  intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
+      <pointLight position={[4, 3, 1]}    intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       <Suspense fallback={null}>
-        {/* Y軸反転グループ（GLBがY-down座標系のため） */}
-        <group scale={[1, -1, 1]}>
-          {/* 耳介は mergedVis.auricle で制御（実スキャンGLB: ears/Auricle_${patientId}.glb） */}
+        {/*
+          座標系 v2: rotation=[π, -π/2, 0]
+          = Ry(-90°) * Rx(180°) → GLB[x,y,z] → world[z,-y,x]
+          X+=Lateral, Y+=Superior, Z+=Anterior
+        */}
+        <group rotation={[Math.PI, -Math.PI / 2, 0]}>
+          {/* 耳介は mergedVis.auricle で制御 */}
           <RealAnatomy vis={mergedVis} highlightedKey={highlightedKey} boneGhostOpacity={boneGhostOpacity} onStructureClick={handleStructureClick} />
           {/* 鼓室解剖モデル（学習モード: 鼓室タブで表示） */}
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>
       </Suspense>
 
-      {/* ギズモ: X=前後, Y=上下, Z=外内 */}
+      {/* ギズモ v2: X=右(Lateral), Y=上(Superior), Z=前(Anterior) */}
       <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
         <GizmoViewport
           axisColors={['#ff6655', '#88ee88', '#5599ff']}
           labelColor="#ffffff"
-          labels={['前', '上', '外']}
+          labels={['右', '上', '前']}
         />
       </GizmoHelper>
 
