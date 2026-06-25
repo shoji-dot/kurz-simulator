@@ -18,7 +18,7 @@
 
 import { Suspense, useRef, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, TransformControls } from '@react-three/drei';
+import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   STAPES_HEAD,
@@ -433,6 +433,13 @@ export function SimScene({
           />
         </group>
       </Suspense>
+
+      <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
+        <GizmoViewport
+          axisColors={['#ff4444', '#44ff88', '#4488ff']}
+          labelColor="#ffffff"
+        />
+      </GizmoHelper>
 
       <OrbitControls
         makeDefault

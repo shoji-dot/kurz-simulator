@@ -14,7 +14,7 @@
 
 import { Suspense, useRef, useEffect, useCallback, useState } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap, type AuricleTransform, type StructureKey } from './models/RealAnatomyModels';
@@ -266,6 +266,13 @@ export function AnatomyScene({
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>
       </Suspense>
+
+      <GizmoHelper alignment="bottom-right" margin={[70, 70]}>
+        <GizmoViewport
+          axisColors={['#ff4444', '#44ff88', '#4488ff']}
+          labelColor="#ffffff"
+        />
+      </GizmoHelper>
 
       <OrbitControls
         makeDefault
