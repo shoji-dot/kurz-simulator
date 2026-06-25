@@ -30,7 +30,7 @@ import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY = 'kurz_cam_sim';
 const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [80, 6, 2], target: [0.5, 0.5, 3],
+  pos: [5, 70, 30], target: [0.5, 0.5, 3],
 };
 function _loadSimCam() {
   try {

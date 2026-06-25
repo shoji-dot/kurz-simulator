@@ -94,7 +94,7 @@ import { TympanoCavityEdu } from './models/TympanoCavityModel';
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _ANAT_KEY = 'kurz_cam_anatomy';
 const _ANAT_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  pos: [80, 5, 0], target: [0, 0, 4],
+  pos: [5, 70, 30], target: [0, 0, 4],
 };
 function _loadAnatCam() {
   try {
