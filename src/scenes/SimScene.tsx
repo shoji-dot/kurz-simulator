@@ -9,7 +9,7 @@
  *
  * ▼ モデル変換
  *   <group rotation={[Math.PI, -Math.PI/2, 0]}>
- *   内包する全ての子（GLBモデル・プロテーゼ）に適用
+ *   内包する全ての子（GLBモデル・プロステーシス）に適用
  *
  * ▼ GLBオフセット
  *   GLB座標系の原点 = アブミ骨底板 = ローカル[0.84, -2.65, 2.12]
@@ -17,12 +17,12 @@
  *   → world v2 でのアブミ骨底板位置 = [2.12, 2.65, 0.84]
  *
  * ▼ TransformControls によるドラッグ配置
- *   プロテーゼを world 空間でドラッグ → mouseup 時に dragOffset を更新
+ *   プロステーシスを world 空間でドラッグ → mouseup 時に dragOffset を更新
  *   OrbitControls はドラッグ中に無効化
  */
 
 import { Suspense, useRef, useEffect, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -34,10 +34,10 @@ import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
-const _SIM_VERSION = 2;
+const _SIM_VERSION = 4;
 const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number] } = {
-  // 外側（+X）＋やや上方から全体を見る（AnatomyScene DEFAULT + SIM_OFF[2.12,2.65,0.84]）
-  pos: [64, 24.65, -2.16], target: [2, 14.65, -2.16],
+  // overview 方向（外側＋前方＋上方）+ SIM_OFF[2.12,2.65,0.84]
+  pos: [-37.88, -22.35, 45.84], target: [2.12, 14.65, -2.16],
 };
 function _loadSimCam() {
   try {
@@ -54,6 +54,10 @@ let _simCam = { ..._SIM_DEFAULT };
 let _simOrbit: any = null;
 export function saveSimCam(): void {
   localStorage.setItem(_SIM_KEY, JSON.stringify({ ..._simCam, version: _SIM_VERSION }));
+}
+/** 現在のカメラ視点を返す（ViewPresetPanel カスタム保存用） */
+export function getSimCam(): { pos: [number,number,number]; target: [number,number,number] } {
+  return { pos: [..._simCam.pos] as [number,number,number], target: [..._simCam.target] as [number,number,number] };
 }
 export function resetSimCam(): void {
   localStorage.removeItem(_SIM_KEY);
@@ -117,6 +121,47 @@ export const SIM_DEFAULT_VIS: VisibilityMap = {
 };
 
 export type DragMode = 'move' | 'view';
+export type SimViewMode = 'normal' | 'microscope' | 'endoscope';
+
+// ── 顕微鏡モード: FOV切替コントローラー ─────────────────────────────
+const SIM_VIEW_FOV: Record<SimViewMode, number> = { normal: 38, microscope: 11, endoscope: 112 };
+function SimViewModeController({ mode, fovOverride }: { mode: SimViewMode; fovOverride?: number }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    cam.fov = (mode === 'microscope' && fovOverride !== undefined) ? fovOverride : SIM_VIEW_FOV[mode];
+    cam.updateProjectionMatrix();
+  }, [mode, fovOverride, camera]);
+  return null;
+}
+
+// ── 顕微鏡同軸照明（カメラ位置に追従する点光源）──────────────────────────
+function MicroscopeLightController({ on, intensity }: { on: boolean; intensity: number }) {
+  const { camera } = useThree();
+  const ref = useRef<THREE.PointLight>(null);
+  useFrame(() => {
+    if (ref.current) ref.current.position.copy(camera.position);
+  });
+  if (!on) return null;
+  return <pointLight ref={ref} intensity={intensity * 7} distance={40} decay={2} color="#fffaf0" />;
+}
+
+// ── 観察フィルター（tone mapping exposure 調整）─────────────────────────
+type ScopeFilter = 'normal' | 'high_contrast' | 'bone' | 'soft_tissue';
+const FILTER_EXPOSURE: Record<ScopeFilter, number> = {
+  normal:        1.15,
+  high_contrast: 1.65,
+  bone:          1.90,
+  soft_tissue:   0.82,
+};
+function FilterController({ filter }: { filter: ScopeFilter }) {
+  const { gl } = useThree();
+  useEffect(() => {
+    gl.toneMappingExposure = FILTER_EXPOSURE[filter] ?? 1.15;
+    return () => { gl.toneMappingExposure = 1.15; }; // cleanup
+  }, [filter, gl]);
+  return null;
+}
 
 // ── 軟骨スライス（ヘッドプレートと鼓膜の間に挟む 2mm 厚カーリッジ）──────────
 interface CartilageSliceProps {
@@ -154,28 +199,30 @@ function CartilageSlice({
   const euler = new THREE.Euler().setFromQuaternion(quat);
   const tiltXRad = (angleTilt  * Math.PI) / 180;
   const tiltZRad = (angleTiltZ * Math.PI) / 180;
-  // BellTop 3Dモデルは外径 ry=0.90mm（カタログ寸法3.6mmの半スケール描画）
-  // headPlateDiameter / 4 = 3.6/4 = 0.90 でレンダリング外径に一致
-  const r = (product.headPlateDiameter ?? 3.0) / 4;
-  const THICK = 0.25; // 軟骨スライス厚さ 0.25mm（ユーザー指定）
+  // BELL_TOP: 楕円 rx=1.30mm（短辺2.6mm）× rz=1.80mm（長辺3.6mm） ← BellTopヘッドプレート実寸に一致
+  // その他: headPlateDiameter/4 の真円
+  const isBellTop = product.headType === 'BELL_TOP';
+  const RX = isBellTop ? 1.30 : (product.headPlateDiameter ?? 3.0) / 4;
+  const RZ = isBellTop ? 1.80 : RX;
+  const THICK = 0.25; // 軟骨スライス厚さ 0.25mm
 
   return (
     <group
       position={[center.x, center.y, center.z]}
       rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
     >
-      {/* 軟骨本体（2mm 厚） */}
-      <mesh>
-        <cylinderGeometry args={[r, r, THICK, 32]} />
+      {/* 軟骨本体 — scale で楕円化（unit cylinder × RX/RZ） */}
+      <mesh scale={[RX, 1, RZ]}>
+        <cylinderGeometry args={[1, 1, THICK, 32]} />
         <meshStandardMaterial color="#e8d5a0" transparent opacity={0.82} roughness={0.65} metalness={0} />
       </mesh>
       {/* 上面・下面の輪郭を強調 */}
-      <mesh position={[0,  THICK / 2, 0]}>
-        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
+      <mesh scale={[RX, 1, RZ]} position={[0,  THICK / 2, 0]}>
+        <cylinderGeometry args={[0.99, 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
-      <mesh position={[0, -THICK / 2, 0]}>
-        <cylinderGeometry args={[r * 0.99, r * 0.99, 0.06, 32]} />
+      <mesh scale={[RX, 1, RZ]} position={[0, -THICK / 2, 0]}>
+        <cylinderGeometry args={[0.99, 0.99, 0.06, 32]} />
         <meshStandardMaterial color="#c4a86a" transparent opacity={0.9} roughness={0.4} />
       </mesh>
     </group>
@@ -190,10 +237,26 @@ interface SimSceneProps {
   showCartilage?: boolean;
   /** 表示切替（学習モードと同一形式） */
   vis?:           VisibilityMap;
-  /** 操作モード: 'move'=プロテーゼ移動, 'view'=ビュー操作 */
+  /** 操作モード: 'move'=プロステーシス移動, 'view'=ビュー操作 */
   dragMode?:      DragMode;
   /** ダブルクリックで構造の表示モードを切替するコールバック */
   onStructureClick?: (key: StructureKey) => void;
+  /** 顕微鏡モード: FOV切替 + 回転ロック */
+  viewMode?: SimViewMode;
+  /** デバッグ: ランドマーク球マーカーを表示（黄=底板, シアン=頭部, マゼンタ=臍部） */
+  showDebugMarkers?: boolean;
+  /** カメラ位置変化コールバック（デバッグオーバーレイ用） */
+  onCameraChange?: (pos: [number,number,number], target: [number,number,number]) => void;
+  /** 顕微鏡モード: FOV 手動指定（ズームスライダー用） */
+  microscopeFov?: number;
+  /** 顕微鏡モード: 同軸照明 */
+  microscopeLight?: { on: boolean; intensity: number };
+  /** 顕微鏡モード: 観察フィルター */
+  microscopeFilter?: ScopeFilter;
+  /** 顕微鏡モード: Position モード（回転を許可） */
+  scopePositionMode?: boolean;
+  /** 顕微鏡移動中: 回転↔平行移動切替 */
+  panMode?: boolean;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -218,7 +281,7 @@ function PlacementMarker({ pos }: { pos: THREE.Vector3 }) {
   );
 }
 
-// ── ドラッグ可能プロテーゼ（TransformControls） ──────────────────────
+// ── ドラッグ可能プロステーシス（TransformControls） ──────────────────────
 interface DraggableProsthesisProps {
   product:        KurzProduct;
   selectedLength: number;
@@ -307,7 +370,9 @@ function clamp3(v: number): number {
 // SimScene
 // ══════════════════════════════════════════════════════════════════
 export function SimScene({
-  surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view', onStructureClick,
+  surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view', onStructureClick, viewMode = 'normal', showDebugMarkers = false, onCameraChange,
+  microscopeFov, microscopeLight, microscopeFilter, scopePositionMode = false,
+  panMode = false,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -373,6 +438,14 @@ export function SimScene({
       style={{ width: '100%', height: '100%' }}
     >
       <color attach="background" args={['#050b15']} />
+      <SimViewModeController mode={viewMode} fovOverride={microscopeFov} />
+      {/* ── 顕微鏡コントローラー ── */}
+      {viewMode === 'microscope' && microscopeLight && (
+        <MicroscopeLightController on={microscopeLight.on} intensity={microscopeLight.intensity / 100} />
+      )}
+      {viewMode === 'microscope' && microscopeFilter && (
+        <FilterController filter={microscopeFilter} />
+      )}
 
       {/* ── ライティング (world v2 座標: X+=Lateral, Y+=Superior, Z+=Anterior) ── */}
       <directionalLight
@@ -390,7 +463,7 @@ export function SimScene({
         {/*
           座標系 v2: rotation=[π, -π/2, 0]
           GLB[x,y,z] → world[z,-y,x]
-          ここに含まれる全てのモデル（GLBリアル解剖・プロテーゼ・マーカー）は
+          ここに含まれる全てのモデル（GLBリアル解剖・プロステーシス・マーカー）は
           この変換の内側にあり、すべて同じローカル座標系を共有する。
         */}
         <group rotation={[Math.PI, -Math.PI / 2, 0]}>
@@ -435,7 +508,7 @@ export function SimScene({
             />
           )}
 
-          {/* ── ドラッグ可能プロテーゼ ── */}
+          {/* ── ドラッグ可能プロステーシス ── */}
           <DraggableProsthesis
             product={product}
             selectedLength={selectedLength}
@@ -450,6 +523,26 @@ export function SimScene({
             dragOffsetZ={dragOffsetZ}
             dragMode={dragMode}
           />
+        {/* ── デバッグランドマーク（showDebugMarkers=true のとき表示）── */}
+          {showDebugMarkers && (
+            <>
+              {/* 黄色: アブミ骨底板 local[0.84,-2.65,2.12] → world[2.12,2.65,0.84] */}
+              <mesh position={[STAPES_FOOTPLATE.x, STAPES_FOOTPLATE.y, STAPES_FOOTPLATE.z]}>
+                <sphereGeometry args={[0.5, 12, 12]} />
+                <meshStandardMaterial color="#ffcc00" emissive="#ffcc00" emissiveIntensity={2} depthTest={false} />
+              </mesh>
+              {/* シアン: アブミ骨頭 local[0.84,-2.65,4.86] → world[4.86,2.65,0.84] */}
+              <mesh position={[STAPES_HEAD.x, STAPES_HEAD.y, STAPES_HEAD.z]}>
+                <sphereGeometry args={[0.5, 12, 12]} />
+                <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} depthTest={false} />
+              </mesh>
+              {/* マゼンタ: 臍部/鼓膜方向 local[0,0,5] → world[5,0,0] */}
+              <mesh position={[UMBO_POS.x, UMBO_POS.y, UMBO_POS.z]}>
+                <sphereGeometry args={[0.5, 12, 12]} />
+                <meshStandardMaterial color="#ff44ff" emissive="#ff44ff" emissiveIntensity={2} depthTest={false} />
+              </mesh>
+            </>
+          )}
         </group>
       </Suspense>
 
@@ -467,15 +560,23 @@ export function SimScene({
         ref={(r: any) => { (orbitRef as any).current = r; _simOrbit = r; }}
         target={initCam.target}
         enablePan={true}
+        enableRotate={viewMode !== 'microscope' || scopePositionMode}
+        enableZoom={true}
         minDistance={8}
         maxDistance={85}
         autoRotate={false}
         enabled={dragMode === 'view'}
+        mouseButtons={{
+          LEFT:   (viewMode === 'microscope' && scopePositionMode && panMode) ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT:  (viewMode === 'microscope' && scopePositionMode && panMode) ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
+        }}
         onChange={() => {
           if (!_simOrbit) return;
           const p = _simOrbit.object.position;
           const t = _simOrbit.target;
           _simCam = { pos: [p.x, p.y, p.z], target: [t.x, t.y, t.z] };
+          onCameraChange?.([p.x, p.y, p.z], [t.x, t.y, t.z]);
         }}
       />
     </Canvas>

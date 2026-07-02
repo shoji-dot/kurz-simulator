@@ -226,10 +226,11 @@ function FacialNerveHorizontal({ showLabels }: { showLabels: boolean }) {
 // 顔面神経から分岐し、鼓室内を前上方へ走行
 // ══════════════════════════════════════════════════════════════════
 function ChordaTympani({ showLabels }: { showLabels: boolean }) {
-  const from = new THREE.Vector3(-2.5, -0.6, 1.8);  // 顔面神経からの分岐
-  const mid1 = new THREE.Vector3(-1.0,  1.5, 3.5);  // 鼓室内（上方弧）
-  const mid2 = new THREE.Vector3( 1.0,  2.8, 4.5);  // ツチ骨頸部内側を通過
-  const to   = new THREE.Vector3( 2.5, -2.5, 5.2);  // 岩鼓裂へ
+  // 1.25倍延長: from固定、mid1/mid2/toをfromから1.25×スケール
+  const from = new THREE.Vector3(-2.5, -0.6,  1.8);  // 顔面神経からの分岐（固定）
+  const mid1 = new THREE.Vector3(-0.6,  2.0,  3.9);  // 鼓室内（上方弧）×1.25
+  const mid2 = new THREE.Vector3( 1.9,  3.7,  5.2);  // ツチ骨頸部内側×1.25
+  const to   = new THREE.Vector3( 3.75,-3.0,  6.05); // 岩鼓裂へ×1.25
 
   const tubeGeo = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([from, mid1, mid2, to]);

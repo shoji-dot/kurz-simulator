@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { kurzProducts } from '../data/products';
-import { AnatomyScene, saveAnatomyCam, resetAnatomyCam, setAnatomyCameraView } from '../scenes/AnatomyScene';
+import { AnatomyScene, saveAnatomyCam, resetAnatomyCam, setAnatomyCameraView, getAnatomyCam } from '../scenes/AnatomyScene';
 import { ViewPresetPanel } from './ViewPresetPanel';
 import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
+import { RealEarScene } from '../scenes/RealEarScene';
 import { InteractiveDrillScene } from '../scenes/InteractiveDrillScene';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
@@ -112,7 +113,7 @@ const ANATOMY_COURSES = [
   {
     level: 3,
     title: 'Level 3：顔面神経・鼓索神経',
-    goal: 'プロテーゼ設置経路と危険構造の立体的位置関係を学ぶ',
+    goal: 'プロステーシス設置経路と危険構造の立体的位置関係を学ぶ',
     vis: { bone: 'solid', eac: 'hidden', tympanic: 'ghost', auricle: 'hidden',
            malleus: 'ghost', incus: 'hidden', stapes: 'ghost',
            facialNerve: 'solid', chordaTympani: 'solid', innerEar: 'hidden', roundWindow: 'hidden' } as VisibilityMap,
@@ -132,7 +133,7 @@ const ANATOMY_COURSES = [
            facialNerve: 'ghost', chordaTympani: 'hidden', innerEar: 'solid', roundWindow: 'solid' } as VisibilityMap,
     quiz: {
       question: 'TORPフット部が卵円窓中央から偏心して設置された場合の主なリスクは？',
-      options: ['鼓膜穿孔', '術後めまい・内耳障害（外リンパ瘻）', 'プロテーゼの腐食'],
+      options: ['鼓膜穿孔', '術後めまい・内耳障害（外リンパ瘻）', 'プロステーシスの腐食'],
       correct: 1,
       explanation: 'TORPフット部の偏心は卵円窓縁への機械的刺激を引き起こし、外リンパ瘻や感音難聴のリスクとなります。フット部は底板の中央に設置することが鉄則です。',
     },
@@ -259,6 +260,9 @@ export function LearningMode() {
 
   // ── ビューモード（解剖タブ用）───────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
+  const [positionMode, setPositionMode] = useState(false);
+  const [cutterSizeMm, setCutterSizeMm] = useState<1|2|3>(3);
+  const [s6DrillActive, setS6DrillActive] = useState(false);
   const [endoscopeAlerts, setEndoscopeAlerts] = useState<EndoscopeAlert[]>([]);
   const handleEndoscopeAlert = useCallback((alerts: EndoscopeAlert[]) => {
     setEndoscopeAlerts(alerts);
@@ -267,12 +271,8 @@ export function LearningMode() {
   // 内視鏡モード終了時にアラートをクリア
   useEffect(() => {
     if (viewMode !== 'endoscope') setEndoscopeAlerts([]);
+    if (viewMode !== 'microscope') setPositionMode(false);
   }, [viewMode]);
-
-  // タブ変更時にビューモードをリセット
-  useEffect(() => {
-    if (learningTab !== 'anatomy') setViewMode('normal');
-  }, [learningTab]);
 
   const selProd = kurzProducts.find((p) => p.id === selectedProduct);
   const showTympanoCavity = highlightedStructure === 'tympanoCavity';
@@ -280,9 +280,10 @@ export function LearningMode() {
 
   const TAB_LIST = [
     { key: 'anatomy',   label: '🦴 解剖' },
-    { key: 'products',  label: '🔩 製品' },
+    { key: 'products',  label: '🔩 製品ガイド' },
     { key: 'procedure', label: '📋 術式' },
     { key: 'drilling',  label: '🔴 削開' },
+    { key: 'real-ear',  label: '📷 実モデル' },
   ] as const;
 
   // ── CSS オーバーレイ（顕微鏡/内視鏡効果）──────────────────────
@@ -340,6 +341,14 @@ export function LearningMode() {
 
       </div>
 
+      {/* ── 実モデルタブ（フルエリア使用） ── */}
+      {learningTab === 'real-ear' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <RealEarScene />
+        </div>
+      )}
+
+      {learningTab !== 'real-ear' && (
       <div className="layout-split" style={{ flex: 1 }}>
         {/* 3D Canvas */}
         <div className="canvas-wrapper" style={canvasWrapperStyle}>
@@ -347,7 +356,14 @@ export function LearningMode() {
           <div style={endoscopeClipStyle}>
             {learningTab === 'drilling' ? (
               drillScenario === 's6' ? (
-                <InteractiveDrillScene />
+                <InteractiveDrillScene
+                  viewMode={learningTab === 'drilling' ? viewMode : 'normal'}
+                  positionMode={positionMode}
+                  cutterSizeMm={cutterSizeMm}
+                  drillActive={s6DrillActive}
+                  onDrillToggle={() => setS6DrillActive(v => !v)}
+                  rightOverlayOffset={110}
+                />
               ) : (
               <DrillTrainingScene
                 scenario={drillScenario as 's1'|'s2'|'s3'|'s4'|'s5'}
@@ -358,6 +374,9 @@ export function LearningMode() {
                 onS3StepComplete={handleS3StepComplete}
                 boneVis={drillBoneVis}
                 boneGhostOpacity={boneGhostOpacity}
+                viewMode={learningTab === 'drilling' ? viewMode : 'normal'}
+                positionMode={positionMode}
+                cutterSizeMm={cutterSizeMm}
               />
               )
             ) : (
@@ -372,6 +391,7 @@ export function LearningMode() {
                 minDistance={endoscopeMinDist}
                 onEndoscopeAlert={handleEndoscopeAlert}
                 onStructureClick={cycleMode}
+                positionMode={positionMode}
               />
             )}
 
@@ -420,7 +440,7 @@ export function LearningMode() {
           )}
 
           {/* ── ビューモードトグル + 操作モード切替 ── */}
-          {learningTab === 'anatomy' && (
+          {(learningTab === 'anatomy' || learningTab === 'drilling') && (
             <div style={{
               position: 'absolute', top: 12, right: 16, zIndex: 15,
               display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end',
@@ -431,7 +451,11 @@ export function LearningMode() {
                   <button
                     key={mode}
                     title={desc}
-                    onClick={() => setViewMode(mode)}
+                    onClick={() => {
+                      setViewMode(mode);
+                      if (mode === 'microscope') setPositionMode(true);
+                      else setPositionMode(false);
+                    }}
                     style={{
                       padding: '5px 11px',
                       borderRadius: 7,
@@ -447,7 +471,63 @@ export function LearningMode() {
                   </button>
                 ))}
               </div>
-              {/* 操作モード切替（回転 ↔ 平行移動） */}
+              {/* 顕微鏡モード: 視点固定/移動切替 */}
+              {viewMode === 'microscope' && (
+                <button
+                  onClick={() => setPositionMode(v => !v)}
+                  title={positionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 7,
+                    border: `1px solid ${positionMode ? 'rgba(0,180,216,0.5)' : 'rgba(255,255,255,0.18)'}`,
+                    background: positionMode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
+                    color: positionMode ? '#00c4e8' : '#7a8898',
+                    fontSize: 11, fontWeight: positionMode ? 700 : 400,
+                    cursor: 'pointer', backdropFilter: 'blur(6px)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {positionMode ? '🔓 移動中' : '🔒 固定'}
+                </button>
+              )}
+              {/* カッターバーサイズ選択: 削開タブのみ */}
+              {learningTab === 'drilling' && (
+                <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                  {/* ドリル開始ボタン: 1mmの左 */}
+                  {drillScenario === 's6' && (
+                    <button
+                      onClick={() => setS6DrillActive(v => !v)}
+                      style={{
+                        padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
+                        fontSize: 11, fontWeight: 700,
+                        border: `1px solid ${s6DrillActive ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.18)'}`,
+                        background: s6DrillActive ? 'rgba(239,68,68,0.22)' : 'rgba(10,15,26,0.78)',
+                        color: s6DrillActive ? '#fca5a5' : '#7a8898',
+                        backdropFilter: 'blur(6px)', transition: 'all .15s',
+                      }}
+                    >🔴 {s6DrillActive ? '削開中' : 'ドリル開始'}</button>
+                  )}
+                  {([1,2,3] as const).map(mm => (
+                    <button
+                      key={mm}
+                      onClick={() => setCutterSizeMm(mm)}
+                      title={`カッターバー ${mm}mm`}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 7,
+                        border: `1px solid ${cutterSizeMm === mm ? '#ffd166' : 'rgba(255,255,255,0.18)'}`,
+                        background: cutterSizeMm === mm ? 'rgba(255,209,102,0.22)' : 'rgba(10,15,26,0.78)',
+                        color: cutterSizeMm === mm ? '#ffd166' : '#7a8898',
+                        fontSize: 11, fontWeight: cutterSizeMm === mm ? 700 : 400,
+                        cursor: 'pointer', backdropFilter: 'blur(6px)',
+                        transition: 'all .15s',
+                      }}
+                    >{mm}mm</button>
+                  ))}
+                </div>
+              )}
+              {/* 操作モード切替（回転 ↔ 平行移動）: 解剖タブのみ */}
+              {learningTab === 'anatomy' && (
               <button
                 onClick={() => setPanMode(v => !v)}
                 title={panMode
@@ -466,6 +546,7 @@ export function LearningMode() {
               >
                 {panMode ? '↔↕ 平行移動' : '↺↻ 回転'}
               </button>
+              )}
             </div>
           )}
 
@@ -486,7 +567,7 @@ export function LearningMode() {
           </div>
 
           {/* ビューモードラベル */}
-          {learningTab === 'anatomy' && viewMode !== 'normal' && (
+          {(learningTab === 'anatomy' || learningTab === 'drilling') && viewMode !== 'normal' && (
             <div className="canvas-overlay bottom-left">
               <div style={{
                 background: 'rgba(0,180,216,.12)', border: '1px solid var(--accent)',
@@ -833,7 +914,7 @@ export function LearningMode() {
                   </button>
                 </div>
                 <div style={{ marginTop: 10 }}>
-                  <ViewPresetPanel onSelectView={setAnatomyCameraView} />
+                  <ViewPresetPanel onSelectView={setAnatomyCameraView} getCamera={getAnatomyCam} collapsible />
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
                   保存した視点は次回起動時から反映されます
@@ -853,11 +934,11 @@ export function LearningMode() {
           {/* ── 製品タブ ── */}
           {learningTab === 'products' && (
             <>
-              {/* ── プロテーゼ選択ガイド ── */}
+              {/* ── プロステーシス選択ガイド ── */}
               <div className="card" style={{ padding: '14px' }}>
-                <div className="section-title">プロテーゼ選択ガイド</div>
+                <div className="section-title">プロステーシス選択ガイド</div>
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  術中所見から適切なプロテーゼを選択する臨床フロー
+                  術中所見から適切なプロステーシスを選択する臨床フロー
                 </p>
 
                 {/* Step 1: アブミ骨上部構造 */}
@@ -903,7 +984,7 @@ export function LearningMode() {
                   </div>
                   {[
                     { type: 'BELL', label: 'ベル型', color: '#60b8e0', desc: '標準PORP。アブミ骨頭部を包む形状。軟骨片を頭板下に追加。' },
-                    { type: 'CLIP', label: 'クリップ型', color: '#a78bfa', desc: 'アブミ骨頭部にクリッピング固定。軟骨不要。Dresden型。' },
+                    { type: 'CLIP', label: 'クリップ型', color: '#a78bfa', desc: 'ピストンをアブミ骨底板開窓部へ設置。ソフトクリップフックを用いてキヌタ骨長脚にかける。固定不要。' },
                     { type: 'FLAT', label: 'フラット型', color: '#f87171', desc: 'TORP専用。底板中央に設置。偏心厳禁。' },
                   ].map(({ type, label, color, desc }) => (
                     <div key={type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6, padding: '6px 8px', borderRadius: 6, background: `${color}10` }}>
@@ -997,30 +1078,35 @@ export function LearningMode() {
                 <div className="section-title">シナリオ選択</div>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                   {([
-                    { key: 's1', label: 'S1: 解剖探索',   desc: '自由に観察' },
-                    { key: 's2', label: 'S2: 危険部位',   desc: 'クリックで確認' },
-                    { key: 's3', label: 'S3: 削開動画',   desc: '5ステップ手術' },
-                    { key: 's4', label: 'S4: 削開範囲',   desc: '推奨限界壁' },
-                    { key: 's6', label: 'S6: 削開練習',   desc: 'インタラクティブ' },
-                    { key: 's5', label: 'S5: 削開完了後', desc: '確認ビュー' },
-                  ] as const).map(({ key, label, desc }) => (
+                    { key: 's1', label: 'S1: 解剖探索',   desc: '自由に観察',        comingSoon: false },
+                    { key: 's2', label: 'S2: 危険部位',   desc: 'クリックで確認',    comingSoon: false },
+                    { key: 's3', label: 'S3: 削開動画',   desc: '5ステップ手術',     comingSoon: false },
+                    { key: 's4', label: 'S4: 削開範囲',   desc: '推奨限界壁',        comingSoon: false },
+                    // FEATURE_DRILL_ENABLED = false: S6 は VR/WebXR 対応まで無効化
+                    { key: 's6', label: 'S6: 削開練習',   desc: 'VR / WebXR 対応予定', comingSoon: true },
+                    { key: 's5', label: 'S5: 削開完了後', desc: '確認ビュー',        comingSoon: false },
+                  ] as { key: 's1'|'s2'|'s3'|'s4'|'s5'|'s6'; label: string; desc: string; comingSoon: boolean }[]).map(({ key, label, desc, comingSoon }) => (
                     <button
                       key={key}
-                      onClick={() => {
+                      disabled={comingSoon}
+                      title={comingSoon ? 'ブラウザ操作では奥行き感の再現が困難なため、VR/WebXR 対応まで無効化しています' : undefined}
+                      onClick={comingSoon ? undefined : () => {
                         setDrillScenario(key);
                         setSelectedZoneId(null);
                         if (key === 's3') { setS3StepIndex(0); setS3IsPlaying(false); }
                       }}
                       style={{
-                        flex: '1 1 80px', padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
-                        border: `1px solid ${drillScenario === key ? 'var(--accent)' : 'var(--border)'}`,
-                        background: drillScenario === key ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
-                        color: drillScenario === key ? 'var(--accent)' : 'var(--text-secondary)',
+                        flex: '1 1 80px', padding: '10px 8px', borderRadius: 8,
+                        cursor: comingSoon ? 'not-allowed' : 'pointer',
+                        border: `1px solid ${comingSoon ? 'rgba(80,90,110,0.3)' : drillScenario === key ? 'var(--accent)' : 'var(--border)'}`,
+                        background: comingSoon ? 'rgba(255,255,255,0.02)' : drillScenario === key ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
+                        color: comingSoon ? '#3a4a5a' : drillScenario === key ? 'var(--accent)' : 'var(--text-secondary)',
                         fontSize: 11, textAlign: 'center', transition: 'all .15s',
+                        opacity: comingSoon ? 0.55 : 1,
                       }}
                     >
                       <div style={{ fontWeight: 700, marginBottom: 2 }}>{label}</div>
-                      <div style={{ fontSize: 10, opacity: 0.75 }}>{desc}</div>
+                      <div style={{ fontSize: 10, opacity: 0.75 }}>{comingSoon ? '🥽 Coming Soon' : desc}</div>
                     </button>
                   ))}
                 </div>
@@ -1480,6 +1566,7 @@ export function LearningMode() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

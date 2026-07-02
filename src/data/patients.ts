@@ -32,7 +32,7 @@ export interface PatientProfile {
   pinnaNotes: string;
   /** 中耳所見（教育用ケース） */
   middleEarFindings: string;
-  /** 推奨プロテーゼタイプ */
+  /** 推奨プロステーシスタイプ */
   recommendedProsthesis: 'PORP' | 'TORP';
   /** 推奨シャフト長 (mm) */
   recommendedShaftLength: number;

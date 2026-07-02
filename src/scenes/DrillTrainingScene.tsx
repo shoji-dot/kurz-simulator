@@ -29,6 +29,7 @@ import { kurzProducts } from '../data/products';
 
 // ── Props ─────────────────────────────────────────────────────────
 export interface DrillTrainingSceneProps {
+  cutterSizeMm?: 1 | 2 | 3;
   scenario: 's1' | 's2' | 's3' | 's4' | 's5';
   selectedZoneId: string | null;
   onZoneSelect: (id: string | null) => void;
@@ -40,6 +41,12 @@ export interface DrillTrainingSceneProps {
   boneVis?: 'solid' | 'ghost' | 'hidden';
   /** ghost 時の側頭骨不透明度（0–1） */
   boneGhostOpacity?: number;
+  /** ビューモード: 顕微鏡/内視鏡/通常 */
+  viewMode?: 'normal' | 'microscope' | 'endoscope';
+  /** 顕微鏡モード: true=移動可, false=固定 */
+  positionMode?: boolean;
+  /** 顕微鏡モードズームレベル（1-16、デフォルト4） */
+  microscopeZoom?: number;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -135,17 +142,14 @@ interface VirtualDrillProps {
   position: [number, number, number];
   direction: [number, number, number]; // tip → handle 方向（local +Y）
   isAnimating?: boolean;
+  cutterSizeMm?: 1 | 2 | 3;
 }
 
-function VirtualDrill({ position, direction, isAnimating = false }: VirtualDrillProps) {
+function VirtualDrill({ position, isAnimating = false, cutterSizeMm = 3 }: VirtualDrillProps) {
+  const { camera } = useThree();
   const burrRef  = useRef<THREE.Group>(null!);
   const groupRef = useRef<THREE.Group>(null!);
   const baseY    = useRef(position[1]);
-
-  // Compute orientation: local +Y → direction
-  const dir  = new THREE.Vector3(...direction).normalize();
-  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  const euler = new THREE.Euler().setFromQuaternion(quat);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -158,20 +162,28 @@ function VirtualDrill({ position, direction, isAnimating = false }: VirtualDrill
       const osc = Math.sin(t * 14) * 0.06 + Math.cos(t * 9) * 0.03;
       groupRef.current.position.y = baseY.current + osc;
     }
+    // シャフトをカメラ方向に向ける
+    if (groupRef.current) {
+      const drillPos = new THREE.Vector3(...position);
+      const toCamera = camera.position.clone().sub(drillPos).normalize();
+      groupRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), toCamera);
+    }
   });
 
   useEffect(() => {
     baseY.current = position[1];
   }, [position]);
 
+  // バーサイズ: 3mm=1.0, 2mm=0.667, 1mm=0.333
+  const burrScale = cutterSizeMm / 3;
+
   return (
     <group
       ref={groupRef}
       position={position}
-      rotation={[euler.x, euler.y, euler.z]}
     >
       {/* ── ダイヤモンドバー（スピンする）── */}
-      <group ref={burrRef}>
+      <group ref={burrRef} scale={[burrScale, burrScale, burrScale]}>
         {/* 主球 */}
         <mesh>
           <sphereGeometry args={[1.1, 22, 16]} />
@@ -254,9 +266,10 @@ interface S3AnimationSceneProps {
   controlsRef:      React.RefObject<any>;
   boneVis?:         'solid' | 'ghost' | 'hidden';
   boneGhostOpacity?: number;
+  cutterSizeMm?:    1 | 2 | 3;
 }
 
-function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid', boneGhostOpacity = 0.18 }: S3AnimationSceneProps) {
+function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid', boneGhostOpacity = 0.18, cutterSizeMm = 3 }: S3AnimationSceneProps) {
   const step = DRILL_STEPS[stepIndex];
   // PORP (BELLフット)を使用
   const porpProduct = kurzProducts.find((p) => p.footType === 'BELL') ?? kurzProducts[0];
@@ -304,6 +317,7 @@ function S3AnimationScene({ stepIndex, isPlaying, controlsRef, boneVis = 'solid'
           position={step.drillPos}
           direction={step.drillDir}
           isAnimating={isPlaying}
+          cutterSizeMm={cutterSizeMm as 1 | 2 | 3}
         />
       )}
 
@@ -418,6 +432,23 @@ function S2Content({
   );
 }
 
+
+// ── FOV コントローラー（顕微鏡/内視鏡モード） ──────────────────
+const DRILL_VIEW_FOV: Record<string, number> = { normal: 42, microscope: 11, endoscope: 112 };
+function DrillFovController({ viewMode, zoom }: { viewMode: string; zoom?: number }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    if (viewMode === 'microscope' && zoom !== undefined) {
+      cam.fov = 38 / zoom;
+    } else {
+      cam.fov = DRILL_VIEW_FOV[viewMode] ?? 42;
+    }
+    cam.updateProjectionMatrix();
+  }, [viewMode, zoom, camera]);
+  return null;
+}
+
 // ══════════════════════════════════════════════════════════════════
 // メインシーン
 // ══════════════════════════════════════════════════════════════════
@@ -429,12 +460,16 @@ export function DrillTrainingScene({
   s3IsPlaying,
   boneVis = 'solid',
   boneGhostOpacity = 0.18,
+  viewMode = 'normal',
+  positionMode = false,
+  microscopeZoom = 4,
+  cutterSizeMm = 3,
 }: DrillTrainingSceneProps) {
   const controlsRef = useRef<any>(null);
 
   return (
     <Canvas
-      camera={{ position: [6, 8, 45], fov: 42 }}
+      camera={{ position: [6, 8, 45], fov: DRILL_VIEW_FOV[viewMode] ?? 42 }}
       gl={{
         antialias: true,
         toneMapping: THREE.ACESFilmicToneMapping,
@@ -443,6 +478,7 @@ export function DrillTrainingScene({
       style={{ width: '100%', height: '100%' }}
     >
       <color attach="background" args={['#0a0f1a']} />
+      <DrillFovController viewMode={viewMode} zoom={microscopeZoom} />
 
       <directionalLight position={[5, 15, 10]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[2, 3, 18]}   intensity={0.9}  color="#ffe8d0" />
@@ -472,6 +508,7 @@ export function DrillTrainingScene({
               controlsRef={controlsRef}
               boneVis={boneVis}
               boneGhostOpacity={boneGhostOpacity}
+              cutterSizeMm={cutterSizeMm}
             />
           )}
 
@@ -511,6 +548,8 @@ export function DrillTrainingScene({
         ref={controlsRef}
         target={[0, 0, 0]}
         enablePan
+        enableZoom={true}
+        enableRotate={viewMode !== 'microscope' || positionMode}
         minDistance={3}
         maxDistance={90}
       />

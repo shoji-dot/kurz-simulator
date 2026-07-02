@@ -45,7 +45,7 @@ interface StepDef {
   /** AnatomyScene の表示設定 */
   vis?: VisibilityMap;
   highlightedKey?: string;
-  /** プロテーゼ配置シミュレーターを表示 */
+  /** プロステーシス配置シミュレーターを表示 */
   useSimScene?: boolean;
   /** スコアビューを表示 */
   useScoreView?: boolean;
@@ -106,7 +106,7 @@ const STEPS: StepDef[] = [
   {
     id: 6,
     icon: '🔩',
-    title: 'プロテーゼ設置',
+    title: 'プロステーシス設置',
     subtitle: '人工耳小骨を最適位置に配置',
     guide: '選択した KURZ 人工耳小骨をアブミ骨頭/底板上に設置します。矢印ハンドルをドラッグして位置を最適化してください。中央・垂直設置が目標です。',
     clinicalNote: 'ベル型フット（PORP）はアブミ骨頭を包む形で設置。フラット型（TORP）は底板中央に均等接触。頭板と鼓膜の間に軟骨片を必ず挿入する。',
@@ -330,7 +330,7 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: 24 }}>
         <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
-          STEP 6 でプロテーゼを設置してからスコアを計算してください。
+          STEP 6 でプロステーシスを設置してからスコアを計算してください。
         </p>
         <button className="btn btn-primary" onClick={computeScore}>
           📊 スコアを計算
@@ -466,7 +466,11 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
       <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--text-secondary)' }}>Step 1 — 症例を選択</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-        {surgicalCases.map(c => (
+        {[...surgicalCases].sort((a, b) => {
+          const numA = parseInt(a.id.replace('case-', ''), 10);
+          const numB = parseInt(b.id.replace('case-', ''), 10);
+          return numA - numB;
+        }).map(c => (
           <div
             key={c.id}
             className={`selectable-card ${selectedCaseId === c.id ? 'selected' : ''}`}
@@ -478,6 +482,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
                 padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700,
                 background: `${diffColor[c.difficulty]}15`, color: diffColor[c.difficulty],
                 border: `1px solid ${diffColor[c.difficulty]}44`,
+                whiteSpace: 'nowrap',
               }}>{diffLabel[c.difficulty]}</span>
             </div>
             {selectedCaseId === c.id && (

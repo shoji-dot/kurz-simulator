@@ -4,7 +4,7 @@ import type { SurgicalCase } from '../data/cases';
 
 export type Screen = 'home' | 'learning' | 'simulation' | 'stepflow' | 'drill';
 export type SimStep = 'case-select' | 'judgment' | 'product-select' | 'shaft-estimate' | 'placement' | 'score';
-export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling';
+export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling' | 'real-ear';
 
 export interface PlacementState {
   selectedLength: number;
@@ -73,11 +73,12 @@ interface SimStore {
   setDrillStep: (n: number) => void;
 }
 
+// H1: 採点ランクの境界を厳格化（スコア履歴のS/A/B/C/D表示のみに影響。旧: 90/75/60/45）
 function computeRank(total: number): 'S' | 'A' | 'B' | 'C' | 'D' {
-  if (total >= 90) return 'S';
-  if (total >= 75) return 'A';
-  if (total >= 60) return 'B';
-  if (total >= 45) return 'C';
+  if (total >= 95) return 'S';
+  if (total >= 85) return 'A';
+  if (total >= 70) return 'B';
+  if (total >= 50) return 'C';
   return 'D';
 }
 
@@ -133,8 +134,13 @@ export const useSimStore = create<SimStore>((set, get) => ({
     else sizeScore = 0;
 
     // Position score (25pts) — 症例別 idealLateralOffset 基準（3軸）
+    // 段階式: ±0.3mm以内=25点, ±0.6mm=18点, ±1.0mm=10点, それ以上=3点
     const posMag = Math.sqrt(lateralDeviation ** 2 + anteriorDeviation ** 2 + verticalDeviation ** 2);
-    let positionScore = Math.round(25 * Math.max(0, 1 - posMag * 1.5));
+    let positionScore = 0;
+    if (posMag <= 0.3) positionScore = 25;
+    else if (posMag <= 0.6) positionScore = 18;
+    else if (posMag <= 1.0) positionScore = 10;
+    else positionScore = 3;
 
     // Angle score (25pts) — 前後傾斜 + 左右傾斜の合成
     const angleDiffX = Math.abs(angleTilt  - idealAngle);
@@ -154,10 +160,111 @@ export const useSimStore = create<SimStore>((set, get) => ({
     const rank = computeRank(total);
 
     const feedback: string[] = [];
-    if (sizeScore < 25) feedback.push(`シャフト長：${selectedLength}mm → 推奨は${recommendedLength}mm（差${lengthDiff.toFixed(1)}mm）`);
-    if (positionScore < 20) feedback.push(`配置位置：理想位置から${posMag.toFixed(2)}mmのずれ（内外側理想: ${idealLateralOffset > 0 ? '+' : ''}${idealLateralOffset.toFixed(1)}mm）。`);
-    if (angleScore < 20) feedback.push(`傾斜角：前後${angleTilt}° 左右${angleTiltZ}° → 理想は前後${idealAngle}° 左右0°。`);
-    if (stabilityScore < 20) feedback.push('安定性：位置または角度を最適化して安定性を改善。');
+
+    // ── サイズフィードバック（方向 + 臨床的意味 + 改善策）──
+    if (sizeScore < 25) {
+      const diff = selectedLength - recommendedLength;
+      if (diff > 0) {
+        feedback.push(
+          `【シャフト長】${selectedLength}mmは推奨${recommendedLength}mmより${lengthDiff.toFixed(1)}mm長すぎます。` +
+          `長すぎると鼓膜（再建材）を押し上げ、張力過多による穿孔リスクが高まります。` +
+          `改善：術中サイザーで実測し、${recommendedLength}mmへ変更してください。`
+        );
+      } else {
+        feedback.push(
+          `【シャフト長】${selectedLength}mmは推奨${recommendedLength}mmより${lengthDiff.toFixed(1)}mm短すぎます。` +
+          `短すぎるとアブミ骨頭（または底板）との接触が不安定になり、音響伝達が低下します。` +
+          `改善：${recommendedLength}mmに変更してください。`
+        );
+      }
+    }
+
+    // ── 位置フィードバック（軸ごとの方向 + 臨床的意味）──
+    if (positionScore < 20) {
+      if (Math.abs(lateralDeviation) >= 0.4) {
+        if (lateralDeviation > 0) {
+          feedback.push(
+            `【位置・内外側】プロステーシスが内側に${Math.abs(lateralDeviation).toFixed(1)}mmずれています。` +
+            `内側すぎると鼓膜との接触面積が減少し、音響エネルギーの伝達効率が低下します。` +
+            `改善：外側（外耳道方向）へ${Math.abs(lateralDeviation).toFixed(1)}mm程度移動させてください。`
+          );
+        } else {
+          feedback.push(
+            `【位置・内外側】プロステーシスが外側に${Math.abs(lateralDeviation).toFixed(1)}mmずれています。` +
+            `外側すぎると鼓膜再建材への過剰圧となり、長期的な穿孔リスクが上昇します。` +
+            `改善：内側（アブミ骨頭中心軸方向）へ${Math.abs(lateralDeviation).toFixed(1)}mm程度引いてください。`
+          );
+        }
+      }
+      if (Math.abs(anteriorDeviation) >= 0.4) {
+        if (anteriorDeviation > 0) {
+          feedback.push(
+            `【位置・前後】プロステーシスが前方に${Math.abs(anteriorDeviation).toFixed(1)}mmずれています。` +
+            `前方偏位はツチ骨柄との干渉や可動性低下の原因となります。` +
+            `改善：後方へ調整してください。`
+          );
+        } else {
+          feedback.push(
+            `【位置・前後】プロステーシスが後方に${Math.abs(anteriorDeviation).toFixed(1)}mmずれています。` +
+            `後方偏位はアブミ骨頭への接触が偏り、安定性低下につながります。` +
+            `改善：前方へ調整してください。`
+          );
+        }
+      }
+      if (Math.abs(verticalDeviation) >= 0.4) {
+        if (verticalDeviation > 0) {
+          feedback.push(
+            `【位置・上下】プロステーシスが上方に${Math.abs(verticalDeviation).toFixed(1)}mmずれています。` +
+            `上方偏位はアブミ骨頭への接触過剰となり、可動性を制限する可能性があります。` +
+            `改善：下方（鼓室腔深部方向）へ調整してください。`
+          );
+        } else {
+          feedback.push(
+            `【位置・上下】プロステーシスが下方に${Math.abs(verticalDeviation).toFixed(1)}mmずれています。` +
+            `下方偏位はアブミ骨頭から浮いた状態となり、接触不安定・音響損失の原因となります。` +
+            `改善：上方へ調整し、アブミ骨頭との接触を確保してください。`
+          );
+        }
+      }
+    }
+
+    // ── 角度フィードバック ──
+    if (angleScore < 20) {
+      const tiltXErr = angleTilt - idealAngle;
+      if (Math.abs(tiltXErr) > 5) {
+        if (tiltXErr > 0) {
+          feedback.push(
+            `【角度・前後傾斜】前傾きが${angleTilt}°（推奨${idealAngle}°）。${Math.abs(tiltXErr).toFixed(0)}°過傾斜しています。` +
+            `前傾きすぎると頭部と鼓膜の接触面積が減少し、音響伝達効率が低下します。` +
+            `改善：後方に引いて傾斜を${idealAngle}°付近に修正してください。`
+          );
+        } else {
+          feedback.push(
+            `【角度・前後傾斜】後傾きが強い（${angleTilt}°、推奨${idealAngle}°）。` +
+            `後傾きすぎるとアブミ骨頭への圧が不均一になり、長期安定性が低下します。` +
+            `改善：前方に傾けて傾斜を${idealAngle}°付近に修正してください。`
+          );
+        }
+      }
+      if (Math.abs(angleTiltZ) > 8) {
+        feedback.push(
+          `【角度・左右傾斜】左右傾斜が${Math.abs(angleTiltZ).toFixed(0)}°あります（推奨0°）。` +
+          `左右傾斜は鼓室腔内での安定性を損ない、術後の脱落リスクを高めます。` +
+          `改善：左右傾斜をゼロに近づけてください。`
+        );
+      }
+    }
+
+    // ── 安定性フィードバック ──
+    if (stabilityScore < 20) {
+      feedback.push(
+        `【安定性】設置の安定性が不十分です（位置誤差${posMag.toFixed(1)}mm + 角度誤差${angleDiff.toFixed(0)}°の複合）。` +
+        `不安定な配置は術後のプロステーシス脱落リスクを高め、再手術の原因となります。` +
+        `改善：位置と角度の両方を最適化してください。`
+      );
+    }
+
+    // ── 総合評価 ──
     if (total >= 90) feedback.push('✓ 優秀な設置です。臨床でそのまま使用できるレベルです。');
     else if (total >= 75) feedback.push('✓ 良好な設置です。微調整でさらに改善できます。');
 

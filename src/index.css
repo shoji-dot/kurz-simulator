@@ -103,7 +103,14 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .canvas-overlay.top-right   { top: 8px;    right: 8px; }
 .canvas-overlay.bottom-left { bottom: 8px; left: 8px;  }
 .canvas-overlay.bottom-right{ bottom: 8px; right: 8px; }
-/* モバイルではヒントテキストを非表示（ビューモードボタンと重なるため）*/
+/* ツールバーは右上に移動したためtop-leftタグはモバイルでも表示 */
 @media (max-width: 768px) {
-  .canvas-overlay.top-left { display: none; }
+  .canvas-overlay.top-left { display: flex; flex-wrap: wrap; max-width: 55%; }
+}
+/* スマホ縦: placement-toolbar を canvas 下部に移動してタグと被らない */
+@media (max-width: 480px) {
+  .placement-toolbar {
+    top: auto !important;
+    bottom: 10px !important;
+  }
 }

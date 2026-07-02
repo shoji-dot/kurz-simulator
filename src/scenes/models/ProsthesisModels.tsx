@@ -21,7 +21,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { KurzProduct } from '../../data/products';
-import { STAPES_HEAD, STAPES_FOOTPLATE, UMBO_POS } from './OssicleModels';
+import { STAPES_HEAD, STAPES_FOOTPLATE, UMBO_POS, UMBO_POS_TORP } from './OssicleModels';
 
 // ── Materials ─────────────────────────────────────────────────────────────────
 
@@ -72,8 +72,8 @@ function HdpeMat({ ghost }: { ghost?: boolean }) {
 //   Head plate shape: egg-shaped oval (confirmed from 20x scale photos).
 // ================================================================
 function HeadPlateFenestrated({ ghost }: { ghost?: boolean }) {
-  const A          = 1.80;   // semi-major (long axis)
-  const B          = 1.35;   // semi-minor (short axis)
+  const A          = 1.80;   // semi-major (long axis)  3.60 mm = 71.6/20×½
+  const B          = 1.30;   // semi-minor (short axis) 2.60 mm = 52.0/20×½
   const hubR       = 0.30;
   const plateThick = 0.22;
   const rimTubeR   = 0.14;
@@ -134,8 +134,8 @@ function HeadPlateFenestrated({ ghost }: { ghost?: boolean }) {
 //   Uses ExtrudeGeometry with ellipse shape for accurate oval profile.
 // ================================================================
 function HeadPlateDisc({ ghost }: { ghost?: boolean }) {
-  const A     = 1.80;   // semi-major
-  const B     = 1.35;   // semi-minor
+  const A     = 1.80;   // semi-major  3.60 mm = 71.6/20×½
+  const B     = 1.30;   // semi-minor  2.60 mm = 52.0/20×½
   const THICK = 0.18;
 
   const geo = useMemo(() => {
@@ -276,7 +276,7 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
 //   Structure (ChatGPT + real photo analysis 2026-06-24):
-//   - Outer oval ring (portrait: rx=0.72, ry=0.90)
+//   - Outer oval ring (portrait: rx=1.30=short2.6mm, ry=1.80=long3.6mm)
 //   - 3 fenestrations:
 //       [1] Top:    small oval, center(0, +0.52)
 //       [2] BotL:   large oval, center(-0.26, -0.20)
@@ -297,27 +297,30 @@ function BellTop({ ghost }: { ghost?: boolean }) {
       return pts;
     };
 
-    // Outer portrait oval — center shifted (+0.08, -0.12) from shaft axis so that
-    // the shaft (at shape origin) sits superior-left of disc geometric center,
-    // matching real TTP-VARIAC PORP asymmetric design.
-    const shape = new THREE.Shape(ellipsePoints(+0.08, -0.12, 0.72, 0.90));
+    // ── Outer portrait oval ─────────────────────────────────────────────
+    // 20× caliper confirmed: H 71.6mm → 3.58mm (ry=1.80), W 51.5mm → 2.575mm (rx=1.30)
+    // Disc geometric center offset from shaft: (+0.14, -0.24) [unchanged]
+    const shape = new THREE.Shape(ellipsePoints(+0.14, -0.24, 1.30, 1.80));
 
-    // Fenestration 1 — UPPER: horizontally elongated bean shape
-    // Wide (rx=0.44) and short (ry=0.20); occupies upper third of disc.
-    // Thin-strut locking rib runs below this opening toward shaft.
-    const hole1 = new THREE.Path(ellipsePoints(+0.03, +0.38, 0.44, 0.20));
+    // ── Fenestration 1: UPPER (horizontal ellipse) ───────────────────────
+    // Caliper: W 25.6/20=1.28mm → rx=0.64; H 11.8/20=0.59mm → ry=0.295
+    // Top rim 6.2/20=0.31mm: disc_top(+1.56)−hole_top(+1.25)=0.31 ✓
+    // Disc-space center: (0, +1.195) → shaft-space: (+0.14, +0.955)
+    const hole1 = new THREE.Path(ellipsePoints(+0.14, +0.955, 0.64, 0.295));
     shape.holes.push(hole1);
 
-    // Fenestration 2 — LOWER-LEFT: narrow vertically elongated oval
-    // Thin (rx=0.13), tall (ry=0.40); extends close to left rim.
-    // Thin strut on left connects outer ring to shaft area.
-    const hole2 = new THREE.Path(ellipsePoints(-0.30, -0.34, 0.13, 0.40));
+    // ── Fenestration 2: LOWER-LEFT (vertical ellipse) ───────────────────
+    // Caliper: W 14.9/20=0.745mm → rx=0.37; H 25.9/20=1.295mm → ry=0.65
+    // Disc-space center: (-0.68, -0.65) → shaft-space: (-0.54, -0.89)
+    // Strut to hole3: 0.37mm horizontal gap ✓
+    const hole2 = new THREE.Path(ellipsePoints(-0.54, -0.89, 0.37, 0.65));
     shape.holes.push(hole2);
 
-    // Fenestration 3 — LOWER-RIGHT: largest opening, irregular rounded-oval
-    // Wide (rx=0.36), tall (ry=0.46); dominates lower-right quadrant (~40% open).
-    // Thick inferior strut below shaft; thin right-rim strut on far side.
-    const hole3 = new THREE.Path(ellipsePoints(+0.32, -0.36, 0.36, 0.46));
+    // ── Fenestration 3: LOWER-RIGHT (large vertical ellipse / D-shape) ──
+    // Caliper: W 19.5/20=0.975mm → rx=0.49; H 41.4/20=2.07mm → ry=1.035
+    // Strut below hole1: 0.15mm; bottom rim: 0.31mm ✓
+    // Disc-space center: (+0.55, -0.285) → shaft-space: (+0.69, -0.525)
+    const hole3 = new THREE.Path(ellipsePoints(+0.69, -0.525, 0.49, 1.035));
     shape.holes.push(hole3);
 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
@@ -331,7 +334,7 @@ function BellTop({ ghost }: { ghost?: boolean }) {
       </mesh>
       {/* Shaft fixation pin — centered on shaft axis (world origin of this group) */}
       <mesh position={[0, 0.13, 0]}>
-        <cylinderGeometry args={[0.07, 0.05, 0.06, 8]} />
+        <cylinderGeometry args={[0.13, 0.10, 0.04, 10]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
       {/* Collar: shaft-to-disc junction piece */}
@@ -343,26 +346,101 @@ function BellTop({ ghost }: { ghost?: boolean }) {
   );
 }
 
-// ── Soft Clip band (PISTON prosthesis head) ──────────────────────
-function SoftClipBand({ ghost }: { ghost?: boolean }) {
-  const BAND_R = 0.55; const BAND_ARC = Math.PI * 1.78; const STEPS = 40;
-  const band = useMemo<THREE.BufferGeometry>(() => {
-    const pts: THREE.Vector3[] = [];
-    const START = Math.PI / 2 - BAND_ARC / 2;
-    for (let i = 0; i <= STEPS; i++) {
-      const t = START + (i / STEPS) * BAND_ARC;
-      pts.push(new THREE.Vector3(Math.cos(t) * BAND_R, 0, Math.sin(t) * BAND_R));
-    }
+// ── SOFT CLIP head (Soft Clip Stapes Prosthesis) ─────────────────
+//   リバースエンジニアリング 2026-07-02: 20倍デモモデル
+//   (ノギス実測 + 6方向写真 + Scaniverse GLBスキャン、Phase1-3レポート)
+//
+//   確定寸法（実物 = ノギス値 ÷20、優先度①②で確定）:
+//     帯材(ワイヤー)断面    : 幅0.235mm × 厚み0.095mm  [ノギス実測flat stock片。カタログ"0.25mm"と誤差6%で一致]
+//     フック(先端ループ)幅  : 0.195mm                   [ノギス実測 "3.9"/20]
+//     ブリッジ〜シャフト高さ: 0.56mm                    [ノギス実測 "11.2"/20]
+//     シャフト/コラー径     : 既存ProsthesisModel実装(Φ0.4mm)を維持（カラー実測7.9-8.0/20≈0.40mmと一致）
+//
+//   暫定値（要追加ノギス計測、③④のみで組み立て・フラグ付き）:
+//     全体スパン(両ウィング先端間): 約1.8mm  [GLB点群概算のみ、ノギス未実測]
+//     ウィング/フックの曲率半径R  : 未確定  [写真・GLBとも複雑形状のため特定不可、形状は写真プロポーション参考]
+//     ブリッジ波形振幅            : 写真からの概算
+//   → 上記3点はPhase4監査で「要追加計測」として報告し、実測値取得後に再調整する。
+//
+//   Feature Tree 相当（将来的な真CADポーティング用）:
+//     1) Sketch  : ウィング中心線スプライン（片側のみ）
+//     2) Sweep   : 矩形断面(0.235×0.095mm)を中心線に沿って掃引 → 片側ウィング
+//     3) Mirror  : シャフト軸を含む対称面でミラー → 対辺ウィング
+//     4) Sketch+Sweep: ブリッジ（ウィング基部間の波状接続材、同断面）
+//     5) Revolve : 中央ステム（円柱、ブリッジ〜シャフト接続）
+//   ※Three.js実装注記: 矩形断面をExtrudeGeometry+extrudePathで掃引すると
+//     急カーブでFrenetフレームが破綻し黒い塊状ジオメトリになったため、
+//     見た目優先でTubeGeometry(円形断面, R≈0.10mm)に暫定変更(2026-07-02)。
+//     真の矩形断面(0.235×0.095mm)はCAD化時に再現する。
+// ================================================================
+// ワイヤー半径: 断面0.235×0.095mmの平均的な太さを円形チューブで近似
+// （ExtrudeGeometry+extrudePathは急カーブでFrenetフレームが破綻し
+//   黒い塊状ジオメトリになる不具合があったため、TubeGeometryに変更 2026-07-02）
+const CLIP_WIRE_R = 0.10;
+
+// ステム高さ（実測0.56mmのうちステム分を暫定按分、残りはウィング/ブリッジ側）
+const CLIP_STEM_H = 0.20;
+
+function SoftClipWing({ side, ghost }: { side: 1 | -1; ghost?: boolean }) {
+  const geo = useMemo(() => {
+    // 暫定パス（要実測R確認）: ブリッジ基部→外側へ展開→緩やかなフック
+    // 急激な反転(180°ターン)はTubeGeometryでも歪みの原因になるため、
+    // カーブは単調外側→内側への緩やかな巻き込みに留める。
+    const pts = [
+      new THREE.Vector3(side * 0.03, 0.540, 0.00),
+      new THREE.Vector3(side * 0.28, 0.565, 0.05),
+      new THREE.Vector3(side * 0.55, 0.520, 0.09),
+      new THREE.Vector3(side * 0.78, 0.420, 0.05),
+      new THREE.Vector3(side * 0.90, 0.300, -0.02),
+      new THREE.Vector3(side * 0.86, 0.200, -0.08),
+      new THREE.Vector3(side * 0.74, 0.180, -0.06),
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.4);
+    return new THREE.TubeGeometry(curve, 48, CLIP_WIRE_R, 8, false);
+  }, [side]);
+
+  return (
+    <mesh geometry={geo}>
+      <TitaniumMat ghost={ghost} />
+    </mesh>
+  );
+}
+
+function SoftClipBridge({ ghost }: { ghost?: boolean }) {
+  const geo = useMemo(() => {
+    const pts = [
+      new THREE.Vector3(-0.03, 0.540, 0.000),
+      new THREE.Vector3(-0.015, 0.565, 0.015),
+      new THREE.Vector3( 0.00, 0.545, 0.000),
+      new THREE.Vector3( 0.015, 0.565, 0.015),
+      new THREE.Vector3( 0.03, 0.540, 0.000),
+    ];
     const curve = new THREE.CatmullRomCurve3(pts, false);
-    return new THREE.TubeGeometry(curve, 40, 0.105, 7, false);
+    return new THREE.TubeGeometry(curve, 24, CLIP_WIRE_R, 8, false);
   }, []);
   return (
+    <mesh geometry={geo}>
+      <TitaniumMat ghost={ghost} />
+    </mesh>
+  );
+}
+
+function SoftClipStem({ ghost }: { ghost?: boolean }) {
+  return (
+    <mesh position={[0, CLIP_STEM_H / 2, 0]}>
+      <cylinderGeometry args={[0.06, 0.07, CLIP_STEM_H, 10]} />
+      <TitaniumMat ghost={ghost} />
+    </mesh>
+  );
+}
+
+function SoftClipHead({ ghost }: { ghost?: boolean }) {
+  return (
     <group>
-      <mesh geometry={band}><TitaniumMat ghost={ghost} /></mesh>
-      <mesh position={[0, -0.22, 0]}>
-        <cylinderGeometry args={[0.15, 0.12, 0.28, 10]} />
-        <TitaniumMat ghost={ghost} />
-      </mesh>
+      <SoftClipStem   ghost={ghost} />
+      <SoftClipBridge ghost={ghost} />
+      <SoftClipWing side={ 1} ghost={ghost} />
+      <SoftClipWing side={-1} ghost={ghost} />
     </group>
   );
 }
@@ -376,7 +454,7 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
     case 'OVAL_RING': return <HeadPlateOvalRing  ghost={ghost} />;
     case 'DOME_4FIN': return <HeadPlateDome4Fin  ghost={ghost} />;
     case 'BELL_TOP':  return <BellTop            ghost={ghost} />;
-    case 'SOFT_CLIP': return <SoftClipBand ghost={ghost} />;
+    case 'SOFT_CLIP': return <SoftClipHead ghost={ghost} />;
     default:          return <HeadPlateFenestrated ghost={ghost} />;
   }
 }
@@ -386,47 +464,122 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
 // ================================================================
 
 // ── BELL foot (TTP-VARIAC PORP) ─────────────────────────────────
-//   STL scan 2026-06-24: compact rounded cup at distal end
-//   - Small cup (max r ~0.52) that cradles stapes capitulum
-//   - Total height ~0.82 (much less than old 1.38)
-//   - 4-slit pattern for stapedius tendon clearance
+//   Reverse-engineered from physical specimen (2026-07-01).
+//   Parametric CAD model — all dimensions from direct measurement.
+//
+//   Measured (as-built):
+//     Outer dia at rim      : 2.15 mm  → R_rim  = 1.075 mm
+//     Outer dia at slit top : 1.62 mm  → R_slit = 0.810 mm
+//     Total height          : 1.48 mm
+//     Slit height (from rim): 0.97 mm
+//     Slit width at top     : 0.80 mm  (wider — tapered)
+//     Slit width at rim     : 0.60 mm  (narrower)
+//     Wall thickness        : 0.13 mm  (uniform)
+//     Slits                 : 4 × 90°, tapered
+//
+//   Derived geometry:
+//     Lower 0.97 mm : conical frustum  (half-angle 15.3° from axis)
+//     Upper 0.51 mm : spherical cap    (R_outer = 0.898, Y_center = 0.582)
+//     Inner shell   : concentric surfaces offset −0.13 mm
+//     Rim ring      : annular closure at open bottom
+//
+//   Slit angles (4 equal, referenced at rim):
+//     slit  = 31.98° (0.558 rad) each
+//     solid = 58.02° (1.013 rad) each sector
 // ================================================================
 function BellFoot({ ghost }: { ghost?: boolean }) {
-  const petalPoints = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.22,  0.00),   // shaft attachment collar
-    new THREE.Vector2(0.28,  0.13),   // begin flare
-    new THREE.Vector2(0.40,  0.32),
-    new THREE.Vector2(0.50,  0.52),
-    new THREE.Vector2(0.54,  0.66),   // max flare
-    new THREE.Vector2(0.50,  0.76),   // rim outer
-    new THREE.Vector2(0.40,  0.80),   // rim inner
-    new THREE.Vector2(0.26,  0.72),   // inner wall
-    new THREE.Vector2(0.10,  0.52),
-    new THREE.Vector2(0.00,  0.30),   // bowl center
+  // ── Parameters scaled to 1/20 from 20× physical model ───────
+  // 20× model: bottom dia 31.8 mm → 1/20 = 1.59 mm (dia), R = 0.795
+  // Scale factor: 0.795 / 1.075 = 0.7395  (applied uniformly to all dims)
+  const BELL_H     = 1.095;   // total bell height         (1.48 × 0.7395)
+  const RIM_R      = 0.795;   // outer radius at rim       (dia 1.59 mm, from 20× model)
+  const SLIT_TOP_R = 0.599;   // outer radius at slit top  (0.810 × 0.7395)
+  const SLIT_H     = 0.717;   // slit height from rim      (0.97 × 0.7395)
+  const WALL_T     = 0.096;   // uniform wall thickness    (0.13 × 0.7395)
+  const SLIT_W_BOT = 0.444;   // slit chord width at rim   (0.60 × 0.7395)
+  // SLIT_W_TOP ≈ 0.592       // slit chord width at slit-top (0.80 × 0.7395)
+
+  // ── Derived geometry ─────────────────────────────────────────
+  const CAP_H  = BELL_H - SLIT_H;   // 0.51 mm
+  // Sphere through apex (r=0,y=BELL_H) and junction (r=SLIT_TOP_R,y=SLIT_H):
+  //   SLIT_TOP_R² = CAP_H · (BELL_H + SLIT_H − 2·Y_C)  → Y_C
+  const Y_C    = (BELL_H + SLIT_H - (SLIT_TOP_R * SLIT_TOP_R) / CAP_H) / 2; // ≈ 0.582
+  const R_SPH  = BELL_H - Y_C;      // outer sphere radius ≈ 0.898 mm
+  const R_SPHI = R_SPH - WALL_T;    // inner sphere radius ≈ 0.768 mm
+
+  // ── Slit / sector angles ──────────────────────────────────────
+  // 4 equal slits centered at 0°/90°/180°/270°; reference width at rim
+  const SLIT_ANG = SLIT_W_BOT / RIM_R;                        // 0.558 rad (32.0°)
+  const SECT_ANG = (Math.PI * 2 - 4 * SLIT_ANG) / 4;          // 1.013 rad (58.0°)
+
+  // ── Profile segment counts ────────────────────────────────────
+  const N_CONE = 12;   // conical frustum segments
+  const N_CAP  = 18;   // spherical cap segments
+  const N_ANG  = 24;   // angular subdivisions per sector
+
+  // ── Outer shell profile: rim (y=0) → junction → apex ─────────
+  const outerProfile = useMemo<THREE.Vector2[]>(() => {
+    const pts: THREE.Vector2[] = [];
+    // Conical frustum
+    for (let i = 0; i <= N_CONE; i++) {
+      const t = i / N_CONE;
+      pts.push(new THREE.Vector2(RIM_R + (SLIT_TOP_R - RIM_R) * t, t * SLIT_H));
+    }
+    // Spherical cap
+    for (let i = 1; i <= N_CAP; i++) {
+      const y = SLIT_H + (i / N_CAP) * CAP_H;
+      const r = Math.sqrt(Math.max(0, R_SPH * R_SPH - (y - Y_C) * (y - Y_C)));
+      pts.push(new THREE.Vector2(r, y));
+    }
+    return pts;
+  }, []);
+
+  // ── Inner shell profile (wall offset −WALL_T) ─────────────────
+  const innerProfile = useMemo<THREE.Vector2[]>(() => {
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i <= N_CONE; i++) {
+      const t = i / N_CONE;
+      const r = Math.max(0.02, RIM_R + (SLIT_TOP_R - RIM_R) * t - WALL_T);
+      pts.push(new THREE.Vector2(r, t * SLIT_H));
+    }
+    for (let i = 1; i <= N_CAP; i++) {
+      const y = SLIT_H + (i / N_CAP) * CAP_H;
+      const r = Math.sqrt(Math.max(0, R_SPHI * R_SPHI - (y - Y_C) * (y - Y_C)));
+      pts.push(new THREE.Vector2(r, y));
+    }
+    return pts;
+  }, []);
+
+  // ── Rim annular strip: closes open bottom (inner→outer) ───────
+  const rimProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(RIM_R - WALL_T, 0),
+    new THREE.Vector2(RIM_R,          0),
   ], []);
 
-  // Slit widths (confirmed measurements, shaft Ø0.2mm for reference):
-  //   Narrow (vertical):   0.4mm → angle at rim = 0.4/1.3 = 0.308 rad (17.7°)
-  //   Wide   (horizontal): 0.6mm → angle at rim = 0.6/1.3 = 0.462 rad (26.5°)
-  //   Alternating: narrow → sector → wide → sector → narrow → ...
-  const GAP_N  = 0.308;
-  const GAP_W  = 0.462;
-  const SECTOR = (Math.PI * 2 - 2 * GAP_N - 2 * GAP_W) / 4;  // ≈1.186 rad (67.9°)
-
-  // Precompute each sector's phiStart
-  const S0 = GAP_N;
-  const S1 = S0 + SECTOR + GAP_W;
-  const S2 = S1 + SECTOR + GAP_N;
-  const S3 = S2 + SECTOR + GAP_W;
-
   return (
-    <group rotation={[Math.PI, 0, 0]}>
-      {[S0, S1, S2, S3].map((start, i) => (
-        <mesh key={i}>
-          <latheGeometry args={[petalPoints, 12, start, SECTOR]} />
-          <TitaniumMatDS ghost={ghost} />
-        </mesh>
-      ))}
+    <group>
+      {[0, 1, 2, 3].map((i) => {
+        const phiStart = i * (Math.PI / 2) + SLIT_ANG / 2;
+        return (
+          <group key={i}>
+            {/* Outer wall */}
+            <mesh>
+              <latheGeometry args={[outerProfile, N_ANG, phiStart, SECT_ANG]} />
+              <TitaniumMatDS ghost={ghost} />
+            </mesh>
+            {/* Inner wall */}
+            <mesh>
+              <latheGeometry args={[innerProfile, N_ANG, phiStart, SECT_ANG]} />
+              <TitaniumMatDS ghost={ghost} />
+            </mesh>
+            {/* Rim ring (annular closure) */}
+            <mesh>
+              <latheGeometry args={[rimProfile, N_ANG, phiStart, SECT_ANG]} />
+              <TitaniumMatDS ghost={ghost} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -567,9 +720,11 @@ export function ProsthesisModel({
   base.y += verticalOffset;
   base.z += anteriorOffset;
 
+  // FLAT/PISTON（TORP/Stapedotomy）は底板真上方向（垂直）を自然方向とする
+  const _umboTarget = ['FLAT', 'PISTON'].includes(product.footType) ? UMBO_POS_TORP : UMBO_POS;
   const dir = direction
     ? direction.clone().normalize()
-    : new THREE.Vector3().subVectors(UMBO_POS, base).normalize();
+    : new THREE.Vector3().subVectors(_umboTarget, base).normalize();
 
   const top  = base.clone().addScaledVector(dir, shaftLength);
   const mid  = base.clone().add(top).multiplyScalar(0.5);
@@ -650,6 +805,6 @@ export {
   BellFoot,
   FlatFoot,
   ClipFoot,
-  SoftClipBand,
+  SoftClipHead,
   PistonFoot,
 };

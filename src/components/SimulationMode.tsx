@@ -34,9 +34,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 import { useSimStore, type JudgmentResult } from '../store/useSimStore';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
-import { SimScene, SIM_DEFAULT_VIS, type DragMode, saveSimCam, resetSimCam, setSimCameraView } from '../scenes/SimScene';
+import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
 import { ViewPresetPanel } from './ViewPresetPanel';
-import { shiftViewForSim } from '../scenes/ViewPresets';
+import { shiftViewForSim, SURGICAL_VIEWS } from '../scenes/ViewPresets';
 import {
   type OpacityMode,
   type StructureKey,
@@ -204,16 +204,9 @@ function AdjRow({
 }
 
 // ─── Step 1: Case selection ───────────────────────────────────────────────
-function CaseSelect() {
+function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSkip: () => void }) {
   const { selectedCase, setSelectedCase, setSimStep } = useSimStore();
   const [diffFilter, setDiffFilter] = useState<string>('all');
-  const [skipQuiz, setSkipQuiz] = useState<boolean>(loadSkipQuiz);
-
-  const handleSkipToggle = () => {
-    const next = !skipQuiz;
-    setSkipQuiz(next);
-    saveSkipQuiz(next);
-  };
 
   const filtered = diffFilter === 'all' ? surgicalCases : surgicalCases.filter(c => c.difficulty === diffFilter);
 
@@ -257,9 +250,9 @@ function CaseSelect() {
               className={`selectable-card ${isSelected ? 'selected' : ''}`}
               onClick={() => setSelectedCase(c)}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{c.title}</span>
-                <span className={`badge ${diffBadge[c.difficulty]}`}>{diffLabel[c.difficulty]}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 14, flex: 1, minWidth: 0 }}>{c.title}</span>
+                <span className={`badge ${diffBadge[c.difficulty]}`} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{diffLabel[c.difficulty]}</span>
               </div>
               {isSelected && (
                 <>
@@ -282,7 +275,7 @@ function CaseSelect() {
         {/* 判断クイズスキップ設定 */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)' }}>
           <div
-            onClick={handleSkipToggle}
+            onClick={onToggleSkip}
             style={{
               width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer', flexShrink: 0,
               background: skipQuiz ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
@@ -321,7 +314,7 @@ function deriveSurgicalType(sc: SurgicalCase): string {
   return 'その他';
 }
 
-/** recommendedProductId からプロテーゼ種別を導出 */
+/** recommendedProductId からプロステーシス種別を導出 */
 function deriveProsthesisType(productId: string): string {
   if (productId.includes('torp')) return 'TORP';
   if (productId.includes('soft-clip')) return 'Soft Clip (PISTON)';
@@ -331,7 +324,7 @@ function deriveProsthesisType(productId: string): string {
 /** 症例の ossicularStatus から確認すべき解剖構造を導出 */
 function deriveFocusStructures(sc: SurgicalCase): { key: string; label: string; reason: string }[] {
   const structures: { key: string; label: string; reason: string }[] = [
-    { key: 'facialNerve', label: '顔面神経', reason: 'プロテーゼ設置の最重要危険構造。水平部はアブミ骨直上を走行。' },
+    { key: 'facialNerve', label: '顔面神経', reason: 'プロステーシス設置の最重要危険構造。水平部はアブミ骨直上を走行。' },
     { key: 'chordaTympani', label: '鼓索神経', reason: 'ツチ骨柄内側を通過。PORP設置経路と交差することがある。' },
   ];
   if (sc.ossicularStatus.stapes === 'footplate-only') {
@@ -341,6 +334,26 @@ function deriveFocusStructures(sc: SurgicalCase): { key: string; label: string; 
     structures.push({ key: 'stapes', label: 'アブミ骨上部構造', reason: 'PORPのベル型フット設置目標。頭部の可動性を確認。' });
   }
   return structures;
+}
+
+/** 鼓室形成型の臨床根拠（不正解時の説明） */
+function deriveTypeExplanation(sc: SurgicalCase): string {
+  const type = deriveSurgicalType(sc);
+  const os = sc.ossicularStatus;
+  if (type === 'IV型') {
+    return 'ツチ骨・キヌタ骨・アブミ骨上部構造がすべて欠損し底板のみ残存するためIV型（TORP適応）となります。';
+  }
+  if (type === 'III型') {
+    const hasM = os.malleus === 'intact' ? 'ツチ骨柄温存' : 'ツチ骨柄欠損';
+    return `${hasM}・キヌタ骨欠損でアブミ骨上部構造が温存されているためIII型（PORP適応）となります。`;
+  }
+  if (type === 'II型') {
+    return 'キヌタ骨のみ欠損し、ツチ骨柄とアブミ骨上部構造が温存されているためII型となります。';
+  }
+  if (type === 'アブミ骨手術') {
+    return 'アブミ骨底板固着（耳硬化症または奇形）が主病変のためStapedotomy適応となります。';
+  }
+  return '術式分類は耳小骨連鎖の現存状態に基づいて決定されます。';
 }
 
 /** 選択肢をシャッフル（Fisher-Yates） */
@@ -393,7 +406,7 @@ function JudgmentStep() {
   // ── 解剖確認ガイド画面 ──
   if (phase === 'anatomy-guide') {
     return (
-      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
         <div className="card">
           <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
             🔬 術前解剖確認
@@ -440,7 +453,7 @@ function JudgmentStep() {
     });
 
     return (
-      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
         {/* 症例サマリ */}
         <div className="card" style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>症例情報</div>
@@ -478,9 +491,9 @@ function JudgmentStep() {
           ))}
         </div>
 
-        {/* Q2: プロテーゼ種別 */}
+        {/* Q2: プロステーシス種別 */}
         <div className="card">
-          <div className="section-title">Q2. 適切なプロテーゼ種類は？</div>
+          <div className="section-title">Q2. 適切なプロステーシス種類は？</div>
           {productOptions.map(opt => (
             <div key={opt} style={optionStyle(opt, productSelected)} onClick={() => setProductSelected(opt)}>
               {opt}
@@ -503,7 +516,11 @@ function JudgmentStep() {
   }
 
   // ── 結果フィードバック画面 ──
-  const ResultBadge = ({ correct, label, answer, correct_answer }: { correct: boolean; label: string; answer: string; correct_answer: string }) => (
+  const recommendedProduct = kurzProducts.find(p => p.id === selectedCase.recommendedProductId);
+  const typeExplanation    = deriveTypeExplanation(selectedCase);
+  const productExplanation = recommendedProduct?.selectionRationale;
+
+  const ResultBadge = ({ correct, label, answer, correct_answer, explanation }: { correct: boolean; label: string; answer: string; correct_answer: string; explanation?: string }) => (
     <div style={{
       padding: '12px 16px', marginBottom: 12, borderRadius: 8,
       background: correct ? 'rgba(74,222,128,0.08)' : 'rgba(255,100,100,0.08)',
@@ -519,11 +536,20 @@ function JudgmentStep() {
           <span> → 正解：<span style={{ color: '#4ade80', fontWeight: 700 }}>{correct_answer}</span></span>
         )}
       </div>
+      {!correct && explanation && (
+        <div style={{
+          marginTop: 10, paddingTop: 10,
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          fontSize: 11, color: '#fbbf24', lineHeight: 1.65,
+        }}>
+          📖 {explanation}
+        </div>
+      )}
     </div>
   );
 
   return (
-    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
       <div className="card">
         <div className="section-title" style={{ marginBottom: 16 }}>
           {typeCorrect && productCorrect ? '🎉 完全正解！' : typeCorrect || productCorrect ? '⚡ 部分正解' : '📚 要復習'}
@@ -533,17 +559,26 @@ function JudgmentStep() {
           label="Q1. 鼓室形成型"
           answer={typeSelected!}
           correct_answer={correctType}
+          explanation={typeExplanation}
         />
         <ResultBadge
           correct={productCorrect}
-          label="Q2. プロテーゼ種別"
+          label="Q2. プロステーシス種別"
           answer={productSelected!}
           correct_answer={correctProduct}
+          explanation={productExplanation}
         />
-        {/* Teaching point（最初の1件だけ表示） */}
-        {selectedCase.teachingPoints[0] && (
-          <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            💡 {selectedCase.teachingPoints[0]}
+        {/* Teaching points 全件表示 */}
+        {selectedCase.teachingPoints.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '.04em' }}>
+              💡 学習ポイント
+            </div>
+            {selectedCase.teachingPoints.map((tp, i) => (
+              <div key={i} style={{ padding: '7px 12px', marginBottom: 6, borderRadius: 7, background: 'rgba(0,180,216,0.06)', borderLeft: '2px solid rgba(0,180,216,0.3)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                {tp}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -552,7 +587,7 @@ function JudgmentStep() {
           やり直す
         </button>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>
-          プロテーゼ選択へ →
+          プロステーシス選択へ →
         </button>
       </div>
     </div>
@@ -565,6 +600,8 @@ function ProductSelect() {
   // 症例選択時にsetSelectedCaseがrecommendedLengthをplacementにセット済み → それを初期値に使う
   const [selectedLength, setSelectedLength] = useState<number | null>(placement.selectedLength ?? null);
 
+  const recommendedId = selectedCase?.recommendedProductId;
+  const recommendedProduct = kurzProducts.find(p => p.id === recommendedId);
 
   return (
     <div style={{ padding: 20, maxWidth: 800, margin: '0 auto' }}>
@@ -584,27 +621,96 @@ function ProductSelect() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
         {kurzProducts.map((p) => {
           const isSelected = selectedProduct?.id === p.id;
+          const isRecommended = p.id === recommendedId;
+          const isWrongChoice = isSelected && !isRecommended;
+
           return (
             <div key={p.id}>
               <div
                 className={`selectable-card ${isSelected ? 'selected' : ''}`}
                 onClick={() => { setSelectedProduct(p); setSelectedLength(placement.selectedLength); }}
+                style={isRecommended ? { borderColor: 'rgba(74,222,128,.4)' } : undefined}
               >
+                {/* Header row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700 }}>{p.name}</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <span className={`badge badge-${p.type === 'PORP' ? 'blue' : 'green'}`}>{p.type}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700 }}>{p.name}</span>
+                    {isRecommended && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 7px',
+                        borderRadius: 10, background: 'rgba(74,222,128,.15)',
+                        color: '#4ade80', border: '1px solid rgba(74,222,128,.3)',
+                        whiteSpace: 'nowrap',
+                      }}>✓ この症例に推奨</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <span className={`badge badge-${p.type === 'PORP' ? 'blue' : p.type === 'TORP' ? 'green' : 'yellow'}`}>{p.type}</span>
                     <span className="badge" style={{ background: 'rgba(255,255,255,.06)', color: 'var(--text-secondary)' }}>
                       {p.footType}
                     </span>
                   </div>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{p.description}</p>
+
+                {/* Description */}
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{p.description}</p>
+
+                {/* Indications chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {p.indications.map((ind, i) => (
+                    <span key={i} style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                      background: 'rgba(255,255,255,.05)', color: 'var(--text-secondary)',
+                      border: '1px solid var(--border)',
+                    }}>{ind}</span>
+                  ))}
+                </div>
+
+                {/* Selected: 選択根拠 + 主な特徴 */}
+                {isSelected && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    {p.selectionRationale && (
+                      <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.6 }}>
+                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>選択根拠：</span>{p.selectionRationale}
+                      </div>
+                    )}
+                    {p.keyFeatures && p.keyFeatures.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>主な特徴</div>
+                        {p.keyFeatures.map((f, i) => (
+                          <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 3, paddingLeft: 8 }}>
+                            • {f}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* 誤選択警告 */}
+              {isWrongChoice && recommendedProduct && (
+                <div style={{
+                  padding: '10px 14px', marginTop: -2,
+                  background: 'rgba(255,200,100,.07)', border: '1px solid rgba(255,200,100,.25)',
+                  borderTop: 'none', borderRadius: '0 0 8px 8px', fontSize: 12, lineHeight: 1.6,
+                }}>
+                  <div style={{ fontWeight: 600, color: '#ffd166', marginBottom: 4 }}>
+                    ⚠️ この症例には <span style={{ color: 'var(--text-primary)' }}>{recommendedProduct.name}</span> が推奨されます
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>
+                    {recommendedProduct.selectionRationale}
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                    <span style={{ fontWeight: 600 }}>この製品が適さない場面：</span>
+                    {p.notForWhen.slice(0, 2).join('／')}
+                  </div>
+                </div>
+              )}
 
               {/* Length selector */}
               {isSelected && (
-                <div style={{ padding: '12px 14px', background: 'rgba(0,180,216,.08)', border: '1px solid var(--accent)', borderTop: 'none', borderRadius: '0 0 10px 10px', marginTop: -2 }}>
+                <div style={{ padding: '12px 14px', background: 'rgba(0,180,216,.08)', border: '1px solid var(--accent)', borderTop: 'none', borderRadius: '0 0 10px 10px', marginTop: isWrongChoice ? 0 : -2 }}>
                   <div className="section-title" style={{ marginBottom: 8 }}>シャフト長を選択</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {p.shaftLengths.map((l) => (
@@ -672,7 +778,7 @@ function ShaftEstimateStep() {
   const lengthOptions = selectedProduct.shaftLengths;
 
   return (
-    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
       <div className="card">
         <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
           📏 シャフト長 推定トレーニング
@@ -688,6 +794,76 @@ function ShaftEstimateStep() {
             {selectedCase.clinicalNotes}
           </div>
         </div>
+
+        {/* AC サイザー使用ガイド */}
+        <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,100,80,0.12)', border:'1px solid rgba(0,200,150,0.25)', marginBottom:16 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#4de8b8', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{fontSize:14}}>📐</span> ACサイザー使用手順
+          </div>
+          {/* SVG: サイザー模式図 */}
+          <svg viewBox="0 0 280 90" style={{ width:'100%', height:'auto', display:'block', marginBottom:10 }}>
+            {/* 解剖断面背景 */}
+            <rect x="0" y="0" width="280" height="90" rx="6" fill="rgba(0,20,30,0.6)" />
+            {/* 底板 / アブミ骨頭 */}
+            <ellipse cx="60" cy="72" rx="14" ry="4" fill="#8b6030" opacity="0.9" />
+            <text x="60" y="84" textAnchor="middle" fontSize="7" fill="#c4944a">底板</text>
+            <ellipse cx="60" cy="38" rx="8" ry="3" fill="#9a7040" opacity="0.8" />
+            <text x="60" y="30" textAnchor="middle" fontSize="7" fill="#c4944a">鼓膜側</text>
+            {/* ACサイザー本体 */}
+            <rect x="54" y="40" width="12" height="30" rx="2" fill="none" stroke="#4de8b8" strokeWidth="1.5" />
+            <line x1="48" y1="40" x2="72" y2="40" stroke="#4de8b8" strokeWidth="1.2" />
+            <line x1="48" y1="70" x2="72" y2="70" stroke="#4de8b8" strokeWidth="1.2" />
+            {/* 双方向矢印 */}
+            <line x1="78" y1="40" x2="78" y2="70" stroke="#ffd166" strokeWidth="1.2" />
+            <polygon points="78,36 75,43 81,43" fill="#ffd166" />
+            <polygon points="78,74 75,67 81,67" fill="#ffd166" />
+            <text x="84" y="57" fontSize="9" fill="#ffd166" fontWeight="bold">L mm</text>
+            {/* 目盛り */}
+            {[0,1,2,3,4,5].map((i) => null)}
+            <line x1="56" y1="45" x2="60" y2="45" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="50" x2="60" y2="50" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="55" x2="60" y2="55" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="60" x2="60" y2="60" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="65" x2="60" y2="65" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            {/* テキスト説明 */}
+            <text x="105" y="22" fontSize="8.5" fill="#c8e0f0" fontWeight="600">ACサイザー計測手順</text>
+            <text x="105" y="36" fontSize="8" fill="#8899aa">① サイザーを鼓膜グラフト下面に当てる</text>
+            <text x="105" y="48" fontSize="8" fill="#8899aa">② 下端をアブミ骨頭（PORP）または</text>
+            <text x="105" y="58" fontSize="8" fill="#8899aa">　 底板（TORP）まで伸ばす</text>
+            <text x="105" y="70" fontSize="8" fill="#8899aa">③ 目盛りを読み、0.25mm単位で記録</text>
+            <text x="105" y="82" fontSize="8" fill="#4de8b8">④ 読んだ値 = シャフト長の基準</text>
+          </svg>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontSize:10, color:'#6a9a8a', lineHeight:1.5 }}>
+              術中計測値は体位・軟骨補強厚さによって変動します。<br />
+              <span style={{ color:'#ffd166' }}>軟骨補強ありの場合：実測値 +0.25〜0.5mm を推奨長として加算</span>
+            </div>
+            {submitted && (
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontSize:9, color:'#4de8b8', marginBottom:2 }}>この症例の正解</div>
+                <div style={{ fontSize:22, fontWeight:800, color:'#4ade80' }}>{recommended} mm</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+
+        {/* TTP-VARIAC シャフト長調整手順（Soft Clip 以外で表示） */}
+        {selectedProduct.id !== 'soft-clip-stapes' && (
+          <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,60,120,0.14)', border:'1px solid rgba(0,140,220,0.28)', marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#60b8f8', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{fontSize:14}}>🔧</span> TTP-VARIAC® シャフト長調整手順（サイザーディスク使用）
+            </div>
+            <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:'#8899aa', lineHeight:1.8 }}>
+              <li>Micro Scissors でサイザーを shaft 付着部から切り取り、中耳腔に挿入する</li>
+              <li>Head plate を鼓膜・ツチ骨柄側、foot part をアブミ骨側（PORP: 頭部 / TORP: 底板）に位置合わせする</li>
+              <li>軟骨補強を使用する場合は軟骨の厚さを考慮して最適な長さを決定する</li>
+              <li>プロステーシスを生食で湿らし、Titanium Tweezers で head plate を持って、<span style={{color:'#60b8f8', fontWeight:600}}>目的の長さの溝にシャフトを挿入する</span></li>
+              <li>Micro Closing Forceps で head plate を固定する<br/><span style={{color:'#ffd166'}}>（INSIDE 面を head plate 内側に、OUTSIDE 面を外側に合わせて挟む）</span></li>
+              <li>Cutting Forceps で外側に突き出たシャフトを切断する<br/><span style={{color:'var(--text-muted)', fontSize:10}}>※ head plate から少しシャフトが飛び出すが、これは軟骨固定に使用する</span></li>
+            </ol>
+          </div>
+        )}
 
         {/* 推定入力（まだ未回答の場合） */}
         {!submitted ? (
@@ -753,20 +929,114 @@ function ShaftEstimateStep() {
 
             <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 8 }}>
               💡 実際に選択したサイズ（<strong style={{ color: 'var(--text-secondary)' }}>{selected} mm</strong>）で配置を行います。
-              推定と異なる場合は「プロテーゼ選択に戻る」で変更できます。
+              推定と異なる場合は「プロステーシス選択に戻る」で変更できます。
             </div>
           </>
         )}
       </div>
 
       <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>← プロテーゼ選択に戻る</button>
+        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>← プロステーシス選択に戻る</button>
         {submitted && (
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>
             配置調整へ →
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── PlacementFeedback：リアルタイム配置状況 ───────────────────────────────
+interface SafePlacement {
+  selectedLength: number;
+  lateralOffset: number; anteriorOffset: number; verticalOffset: number;
+  angleTilt: number; angleTiltZ: number;
+  dragOffsetX: number; dragOffsetY: number; dragOffsetZ: number;
+}
+
+type PFLevel = 'ok' | 'warn' | 'err';
+
+function pfLevel(absVal: number, warnT: number, errT: number): PFLevel {
+  if (absVal <= warnT) return 'ok';
+  if (absVal <= errT) return 'warn';
+  return 'err';
+}
+
+const PF_COLOR: Record<PFLevel, string> = { ok: '#4ade80', warn: '#ffd166', err: '#ff6666' };
+const PF_TAG:   Record<PFLevel, string> = { ok: '✓ 適切', warn: '▲ 要調整', err: '✗ 要修正' };
+
+function posHint(latDev: number, antDev: number, vertDev: number): string {
+  const la = Math.abs(latDev), aa = Math.abs(antDev), va = Math.abs(vertDev);
+  if (la >= aa && la >= va) return latDev > 0 ? '外側方向にずれ / 内側へ移動' : '内側方向にずれ / 外側へ移動';
+  if (aa >= va)             return antDev > 0 ? '前方にずれ / 後方へ移動'    : '後方にずれ / 前方へ移動';
+  return vertDev > 0 ? '上方にずれ / 下方へ移動' : '下方にずれ / 上方へ移動';
+}
+
+function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCase }) {
+  const lengthDiff = safeP.selectedLength - sc.recommendedLength;
+  const latDev  = (safeP.lateralOffset + safeP.dragOffsetX) - sc.idealLateralOffset;
+  const antDev  = safeP.anteriorOffset + safeP.dragOffsetZ;
+  const vertDev = safeP.verticalOffset + safeP.dragOffsetY;
+  const posErr  = Math.sqrt(latDev * latDev + antDev * antDev + vertDev * vertDev);
+  const aDiff   = Math.abs(safeP.angleTilt - sc.idealAngle);
+  const rDiff   = Math.abs(safeP.angleTiltZ);
+
+  const lv = pfLevel(Math.abs(lengthDiff), 0.25, 0.5);
+  const pv = pfLevel(posErr, 0.3, 0.7);
+  const av = pfLevel(aDiff + rDiff * 0.5, 5, 15);
+
+  const lengthDetail = Math.abs(lengthDiff) < 0.01
+    ? safeP.selectedLength.toFixed(2) + 'mm（推奨と一致）'
+    : safeP.selectedLength.toFixed(2) + 'mm（推奨比 ' + (lengthDiff > 0 ? '+' : '') + lengthDiff.toFixed(2) + 'mm）';
+  const lengthHint = lv === 'ok' ? '' : lengthDiff > 0
+    ? '長すぎ / 鼓膜再建材への張力過多リスク'
+    : '短すぎ / アブミ骨頭との接触が不安定';
+
+  const posDetail = posErr < 0.01 ? '理想位置と一致'
+    : '理想位置まで ' + posErr.toFixed(2) + 'mm のずれ';
+  const posHintStr = pv === 'ok' ? '' : posHint(latDev, antDev, vertDev);
+
+  const tiltFwd = safeP.angleTilt > sc.idealAngle ? '前傾' : '後傾';
+  const tiltLR  = safeP.angleTiltZ > 0 ? '右傾' : '左傾';
+  const angleParts: string[] = [];
+  if (aDiff >= 1) angleParts.push('前後 ' + tiltFwd + ' ' + aDiff.toFixed(0) + '°');
+  if (rDiff >= 1) angleParts.push('左右 ' + tiltLR + ' ' + rDiff.toFixed(0) + '°');
+  const angleDetail = aDiff < 1 && rDiff < 1 ? '適切な角度' : angleParts.join(' / ');
+  const angleHint = av === 'ok' ? '' : '傾きすぎ / 音響伝達効率が低下します';
+
+  const allLevels: PFLevel[] = [lv, pv, av];
+  const overall: PFLevel = allLevels.includes('err') ? 'err' : allLevels.includes('warn') ? 'warn' : 'ok';
+  const overallLabel = overall === 'ok' ? '配置良好' : overall === 'warn' ? '要調整' : '要修正';
+
+  const rows = [
+    { label: 'シャフト長', lv, detail: lengthDetail, hint: lengthHint },
+    { label: '設置位置',   lv: pv, detail: posDetail,    hint: posHintStr },
+    { label: '設置角度',   lv: av, detail: angleDetail,  hint: angleHint },
+  ];
+
+  return (
+    <div className="card" style={{ borderColor: PF_COLOR[overall] + '44', background: PF_COLOR[overall] + '08', padding: '12px 14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '.04em' }}>配置状況</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: PF_COLOR[overall], padding: '3px 10px', borderRadius: 99, background: PF_COLOR[overall] + '18' }}>
+          {overallLabel}
+        </div>
+      </div>
+      {rows.map((row) => (
+        <div key={row.label} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: PF_COLOR[row.lv], padding: '1px 7px', borderRadius: 99, background: PF_COLOR[row.lv] + '18' }}>
+              {PF_TAG[row.lv]}
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{row.detail}</div>
+          {row.hint !== '' && (
+            <div style={{ marginTop: 3, fontSize: 10, color: PF_COLOR[row.lv], lineHeight: 1.4 }}>{row.hint}</div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -789,7 +1059,15 @@ function PlacementStep() {
     return init;
   });
   const [dragMode, setDragMode] = useState<DragMode>('view');
+  const [viewMode, setViewMode] = useState<SimViewMode>('normal');
   const [vis3dOpen, setVis3dOpen] = useState(false);
+  const [showCamDebug, setShowCamDebug] = useState(false);
+  const [camInfo, setCamInfo] = useState<{pos:[number,number,number];target:[number,number,number]} | null>(null);
+
+  // ── 顕微鏡モード: 視点固定/移動切替（解剖モードと同仕様）────────────
+  const [microscopePositionMode, setMicroscopePositionMode] = useState(false);
+  // ── 顕微鏡モード: 回転↔平行移動切替（シム専用）─────────────────────
+  const [simPanMode, setSimPanMode] = useState(false);
 
   if (!selectedCase || !selectedProduct) return null;
 
@@ -821,6 +1099,8 @@ function PlacementStep() {
     if (!_simPMoved.current) cycleVis(key);
   }, [cycleVis]);
 
+  // (wheel zoom removed — microscope now matches anatomy mode: simple vignette + position lock)
+
   // 防御的な placement フィールド取得（undefined が混入しても NaN クラッシュしない）
   const safeP = {
     selectedLength: placement.selectedLength ?? 2.5,
@@ -838,6 +1118,8 @@ function PlacementStep() {
     <div className="layout-split" style={{ height: '100%' }}>
       {/* 3D Scene */}
       <div className="canvas-wrapper" ref={simCanvasRef}>
+        {/* 内視鏡モード: 円形クリップを3Dシーンのみに適用 */}
+        <div style={viewMode === 'endoscope' ? { position: 'absolute', inset: 0, clipPath: 'circle(43% at center)', background: 'black' } : { position: 'absolute', inset: 0 }}>
         <ErrorBoundary>
         <SimScene
           surgicalCase={selectedCase}
@@ -847,55 +1129,197 @@ function PlacementStep() {
           showCartilage={showCartilage}
           vis={simVis}
           dragMode={dragMode}
+          viewMode={viewMode}
           onStructureClick={guardedCycleVis}
+          showDebugMarkers={showCamDebug}
+          onCameraChange={(p, t) => setCamInfo({ pos: p, target: t })}
+          scopePositionMode={microscopePositionMode}
+          panMode={simPanMode}
         />
         </ErrorBoundary>
+        </div>{/* /endoscope clip div */}
+        {/* 顕微鏡モード ビネットオーバーレイ */}
+        {viewMode === 'microscope' && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+            background: 'radial-gradient(circle at center, transparent 28%, rgba(0,0,0,0.55) 52%, rgba(0,0,0,0.90) 68%, black 82%)',
+          }} />
+        )}
+        {/* 内視鏡モード: 円形ビネット + 青みフィルター */}
+        {viewMode === 'endoscope' && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+            background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
+          }} />
+        )}
+        {viewMode === 'endoscope' && (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+            background: 'rgba(10, 25, 60, 0.08)',
+          }} />
+        )}
+
+
+        {/* カメラデバッグオーバーレイ */}
+        {showCamDebug && camInfo && (
+          <div style={{
+            position: 'absolute', bottom: 80, left: 12, zIndex: 20, pointerEvents: 'none',
+            background: 'rgba(0,0,0,.85)', padding: '6px 10px', borderRadius: 6,
+            fontFamily: 'monospace', fontSize: 10, color: '#7dd8e8',
+            backdropFilter: 'blur(4px)', border: '1px solid rgba(0,180,216,0.35)',
+            lineHeight: 1.6,
+          }}>
+            <div style={{fontWeight:700, marginBottom:2, fontSize:11}}>📐 カメラ座標 (world)</div>
+            <div>pos&nbsp;&nbsp;&nbsp;: [{camInfo.pos.map(v=>v.toFixed(1)).join(', ')}]</div>
+            <div>target: [{camInfo.target.map(v=>v.toFixed(1)).join(', ')}]</div>
+            <div style={{marginTop:4, fontSize:9, color:'rgba(255,255,255,0.5)'}}>
+              🟡底板 🔵頭部 🟣臍部
+            </div>
+          </div>
+        )}
         <div className="canvas-overlay top-left">
           <ContextTagBar
             procedureTags={selectedCase.tags.procedure}
             lesionTags={selectedCase.tags.lesion}
           />
         </div>
-        <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          {/* 操作モード切替 */}
-          <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)' }}>
-            <button
-              onClick={() => setDragMode('move')}
-              style={{
-                padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                background: dragMode === 'move' ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                color: dragMode === 'move' ? '#fff' : 'var(--text-muted)',
-                transition: 'all .15s',
-              }}
-            >
-              移動
-            </button>
-            <button
-              onClick={() => setDragMode('view')}
-              style={{
-                padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                background: dragMode === 'view' ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                color: dragMode === 'view' ? '#fff' : 'var(--text-muted)',
-                transition: 'all .15s',
-              }}
-            >
-              視点
-            </button>
+        {/* ── Top toolbar: top-right, 3 pills, wraps on mobile ── */}
+        <div className="placement-toolbar" style={{
+          position: 'absolute', top: 10, right: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 40, gap: 4,
+          maxWidth: 'calc(100% - 20px)',
+        }}>
+          {/* Row 1: 3 pills — wrap on narrow screens */}
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+
+            {/* Pill A: 操作モード [移動|視点] */}
+            <div style={{
+              display: 'flex', gap: 3, alignItems: 'center',
+              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
+              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              {(['move', 'view'] as const).map(m => (
+                <button key={m}
+                  onClick={() => setDragMode(m)}
+                  style={{
+                    padding: '5px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    background: dragMode === m ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
+                    color: dragMode === m ? '#fff' : 'var(--text-muted)',
+                    transition: 'all .15s',
+                  }}
+                >{m === 'move' ? '移動' : '視点'}</button>
+              ))}
+            </div>
+
+            {/* Pill B: 視野モード [通常|顕微鏡|内視鏡] */}
+            <div style={{
+              display: 'flex', gap: 3, alignItems: 'center',
+              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
+              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              {([
+                { mode: 'normal' as SimViewMode,     icon: '👁',  label: '通常',   activeColor: 'rgba(255,255,255,0.15)', activeText: '#c8d0e0' },
+                { mode: 'microscope' as SimViewMode, icon: '🔬', label: '顕微鏡', activeColor: 'rgba(255,209,102,0.22)', activeText: '#ffd166' },
+                { mode: 'endoscope' as SimViewMode,  icon: '🔭', label: '内視鏡', activeColor: 'rgba(100,200,100,0.22)', activeText: '#80e080' },
+              ]).map(({ mode, icon, label, activeColor, activeText }) => (
+                <button key={mode}
+                  onClick={() => {
+                    setViewMode(mode);
+                    if (mode === 'microscope') {
+                      setDragMode('view');
+                      setMicroscopePositionMode(false);
+                      setSimPanMode(false);
+                    }
+                  }}
+                  style={{
+                    padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    background: viewMode === mode ? activeColor : 'rgba(255,255,255,0.07)',
+                    color: viewMode === mode ? activeText : 'var(--text-muted)',
+                    border: viewMode === mode ? `1px solid ${activeText}55` : '1px solid transparent',
+                    transition: 'all .15s',
+                  }}
+                  title={`${label}モード`}
+                >{icon} {label}</button>
+              ))}
+            </div>
+
+            {/* Pill C: 理想位置 + 軟骨スライス */}
+            <div style={{
+              display: 'flex', gap: 3, alignItems: 'center',
+              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
+              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              <button
+                onClick={() => setShowIdeal(!showIdeal)}
+                style={{
+                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  background: showIdeal ? 'rgba(6,214,160,0.2)' : 'rgba(255,255,255,0.07)',
+                  color: showIdeal ? '#06d6a0' : 'var(--text-muted)',
+                  border: showIdeal ? '1px solid rgba(6,214,160,0.45)' : '1px solid transparent',
+                  transition: 'all .15s',
+                }}
+                title="理想配置位置を表示/非表示"
+              >📍 理想位置</button>
+              <button
+                onClick={() => setShowCartilage(!showCartilage)}
+                style={{
+                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  background: showCartilage ? 'rgba(255,150,80,0.2)' : 'rgba(255,255,255,0.07)',
+                  color: showCartilage ? '#ffb366' : 'var(--text-muted)',
+                  border: showCartilage ? '1px solid rgba(255,150,80,0.45)' : '1px solid transparent',
+                  transition: 'all .15s',
+                }}
+                title="軟骨スライスを表示/非表示"
+              >🩺 軟骨</button>
+            </div>
           </div>
-          {/* 理想位置トグル */}
-          <button
-            className={`btn btn-sm ${showIdeal ? 'btn-secondary' : 'btn-ghost'}`}
-            onClick={() => setShowIdeal(!showIdeal)}
-          >
-            {showIdeal ? '理想位置を非表示' : '理想位置を表示'}
-          </button>
-          {/* 軟骨スライストグル */}
-          <button
-            className={`btn btn-sm ${showCartilage ? 'btn-secondary' : 'btn-ghost'}`}
-            onClick={() => setShowCartilage(!showCartilage)}
-          >
-            {showCartilage ? '軟骨スライスを非表示' : '軟骨スライスを表示'}
-          </button>
+
+          {/* Row 2: 顕微鏡時のみ — 固定/移動中 + 回転/平行移動 */}
+          {viewMode === 'microscope' && (
+            <div style={{
+              display: 'flex', gap: 3, alignItems: 'center',
+              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
+              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+            }}>
+              <button
+                onClick={() => setMicroscopePositionMode(v => !v)}
+                title={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
+                style={{
+                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  background: microscopePositionMode ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.07)',
+                  color: microscopePositionMode ? '#00c4e8' : 'var(--text-muted)',
+                  border: microscopePositionMode ? '1px solid rgba(0,180,216,0.5)' : '1px solid transparent',
+                  transition: 'all .15s',
+                }}
+              >
+                {microscopePositionMode ? '🔓 移動中' : '🔒 固定'}
+              </button>
+              {microscopePositionMode && (
+                <>
+                  <div style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 2px' }} />
+                  <button
+                    onClick={() => setSimPanMode(v => !v)}
+                    title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+                    style={{
+                      padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                      background: simPanMode ? 'rgba(167,139,250,0.22)' : 'rgba(255,255,255,0.07)',
+                      color: simPanMode ? '#a78bfa' : 'var(--text-muted)',
+                      border: simPanMode ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1042,10 +1466,25 @@ function PlacementStep() {
           )}
         </div>
 
+        {/* ── リアルタイム教育フィードバック ── */}
+        <PlacementFeedback safeP={safeP} sc={selectedCase} />
+
         {/* ── 視点プリセット ── */}
         <div className="card" style={{ padding: '10px 12px' }}>
           <div className="section-title" style={{ marginBottom: 8, fontSize: 11 }}>視点プリセット</div>
-          <ViewPresetPanel onSelectView={v => setSimCameraView(shiftViewForSim(v))} />
+          <ViewPresetPanel
+              onSelectView={v => setSimCameraView(shiftViewForSim(v))}
+              surgicalKeys={['overview', 'tympanic_membrane', 'tympanoplasty', 'ossicles']}
+              showAnatomical={false}
+              getCamera={() => {
+                const c = getSimCam();
+                // SIM_OFF = [2.12, 2.65, 0.84] を逆適用して未シフト座標に変換
+                return {
+                  pos:    [c.pos[0]-2.12, c.pos[1]-2.65, c.pos[2]-0.84] as [number,number,number],
+                  target: [c.target[0]-2.12, c.target[1]-2.65, c.target[2]-0.84] as [number,number,number],
+                };
+              }}
+            />
         </div>
 
         {/* ── 視点保存 ── */}
@@ -1065,6 +1504,7 @@ function PlacementStep() {
             視点リセット
           </button>
         </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
           <button className="btn btn-ghost" onClick={() => setSimStep('product-select')}>← 戻る</button>
           <button className="btn btn-primary" onClick={handleConfirm}>評価する →</button>
@@ -1115,7 +1555,7 @@ function ScoreStep() {
   ];
 
   return (
-    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+    <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
       {/* ── ABG改善量グラフ（主評価指標）── */}
       <div className="card" style={{ padding: '20px' }}>
         <div style={{ fontSize: 11, letterSpacing: '.08em', color: 'var(--text-muted)', marginBottom: 14 }}>
@@ -1167,7 +1607,7 @@ function ScoreStep() {
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: `${abgColor}10`, borderLeft: `3px solid ${abgColor}88`, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6, fontWeight: 500 }}>
               {abg.clinicalInterpretation}
             </div>
             <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
@@ -1201,6 +1641,54 @@ function ScoreStep() {
         ))}
       </div>
 
+      {/* ── 総合レビューカード（P4） ── */}
+      {(() => {
+        const scoreItems = [
+          { key: 'size',     label: 'サイズ選択', score: scoreResult.sizeScore,      max: 25,
+            goodNote: '適切なシャフト長を選択。過長・過短による押出しや振動伝達不良のリスクを回避できました。',
+            improveTip: 'サイザーで鼓膜グラフト下面〜アブミ骨頭部（PORP）または底板（TORP）の距離を実測し、0.25mm単位で選択します。' },
+          { key: 'position', label: '設置位置',   score: scoreResult.positionScore,  max: 25,
+            goodNote: 'プロステーシスの中心位置が解剖学的に適切。アブミ骨との接触面積が最大化されています。',
+            improveTip: 'フット中心をアブミ骨頭部／底板の中心に合わせ、外側・内側へのずれを最小化します。' },
+          { key: 'angle',    label: '設置角度',   score: scoreResult.angleScore,     max: 25,
+            goodNote: '設置角度が鼓膜〜アブミ骨軸に沿っており、振動伝達効率が高い状態です。',
+            improveTip: '鼓膜面に対してシャフトが垂直に近い角度が理想です。前後・左右の傾きを確認してください。' },
+          { key: 'stability',label: '安定性',     score: scoreResult.stabilityScore, max: 25,
+            goodNote: 'プロステーシスが安定設置されており、術後の位置ずれリスクが低い状態です。',
+            improveTip: '設置後に軽く触れて安定性を確認します。TTP-VARIACはBELLエキスパンダーを適切に展開してください。' },
+        ];
+        const goodItems = scoreItems.filter(s => s.score === s.max);
+        const worstItem = [...scoreItems].sort((a, b) => (a.score / a.max) - (b.score / b.max))[0];
+        if (goodItems.length === 0 && worstItem.score === worstItem.max) return null;
+        return (
+          <div className="card" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="section-title" style={{ marginBottom: 12 }}>総合レビュー</div>
+            {goodItems.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#4ade80', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  ✓ 良かった点
+                </div>
+                {goodItems.map(item => (
+                  <div key={item.key} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '5px 0 5px 8px', borderLeft: '2px solid rgba(74,222,128,.4)', marginBottom: 6, lineHeight: 1.6 }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}：</span>{item.goodNote}
+                  </div>
+                ))}
+              </div>
+            )}
+            {worstItem.score < worstItem.max && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#ffd166', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  📌 次回意識するポイント
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '5px 0 5px 8px', borderLeft: '2px solid rgba(255,209,102,.4)', lineHeight: 1.6 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{worstItem.label}（{worstItem.score}/{worstItem.max}点）：</span>{worstItem.improveTip}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {scoreResult.feedback.length > 0 && (
         <div className="card">
           <div className="section-title">フィードバック</div>
@@ -1212,12 +1700,29 @@ function ScoreStep() {
         </div>
       )}
 
+      {selectedCase && selectedCase.teachingPoints.length > 0 && (
+        <div className="card" style={{ borderColor: 'rgba(0,180,216,0.2)', background: 'rgba(0,180,216,0.03)' }}>
+          <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
+            📚 この症例から学ぶこと
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+            {selectedCase.clinicalNotes}
+          </div>
+          {selectedCase.teachingPoints.map((tp, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 12, flexShrink: 0, minWidth: 20 }}>{i + 1}.</span>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{tp}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {judgmentResult && (
         <div className="card">
           <div className="section-title">適応判断 結果</div>
           {[
             { label: '鼓室形成型', correct: judgmentResult.typeCorrect, answer: judgmentResult.typeAnswer },
-            { label: 'プロテーゼ', correct: judgmentResult.productCorrect, answer: judgmentResult.productAnswer },
+            { label: 'プロステーシス', correct: judgmentResult.productCorrect, answer: judgmentResult.productAnswer },
           ].map(({ label, correct, answer }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
               <span style={{ color: 'var(--text-muted)' }}>{label}</span>
@@ -1301,6 +1806,83 @@ function ScoreStep() {
         </div>
       )}
 
+      {/* ── 次の推奨症例 ── */}
+      {(() => {
+        const score = scoreResult.total;
+        const currentDiff = selectedCase.difficulty;
+        const currentId   = selectedCase.id;
+
+        // 推奨ロジック: 低スコア→同症例、中→同難易度別症例、高→上難易度
+        let nextCase: SurgicalCase | undefined;
+        let reason = '';
+
+        if (score < 60) {
+          nextCase = selectedCase;
+          reason = 'スコアアップを目指してもう一度チャレンジ';
+        } else {
+          const nextDiff = score >= 80 && currentDiff !== 'advanced'
+            ? (currentDiff === 'beginner' ? 'intermediate' : 'advanced')
+            : currentDiff;
+          nextCase = surgicalCases.find(c => c.difficulty === nextDiff && c.id !== currentId);
+          if (!nextCase) nextCase = surgicalCases.find(c => c.id !== currentId);
+          reason = score >= 80 && currentDiff !== 'advanced'
+            ? `高スコア達成！次の難易度（${nextDiff}）に挑戦`
+            : '同難易度の別症例で定着度を確認';
+        }
+
+        if (!nextCase) return null;
+
+        const diffColor: Record<string, string> = { beginner: '#06d6a0', intermediate: '#ffd166', advanced: '#ff6b6b' };
+        const diffLabel: Record<string, string> = { beginner: '入門', intermediate: '中級', advanced: '上級' };
+
+        return (
+          <div style={{
+            margin: '0 4px 8px',
+            padding: '14px 16px',
+            background: 'linear-gradient(135deg, rgba(0,80,120,0.18) 0%, rgba(0,40,80,0.12) 100%)',
+            border: '1px solid rgba(0,180,216,0.2)',
+            borderRadius: 12,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#00b4d8', letterSpacing: '.05em', marginBottom: 10 }}>
+              次の推奨症例
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 4 }}>
+                  {nextCase.title}
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+                    background: `${diffColor[nextCase.difficulty] ?? '#888'}20`,
+                    border: `1px solid ${diffColor[nextCase.difficulty] ?? '#888'}50`,
+                    color: diffColor[nextCase.difficulty] ?? '#888',
+                  }}>{diffLabel[nextCase.difficulty] ?? nextCase.difficulty}</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#4a6a8a', lineHeight: 1.5 }}>{reason}</div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const { setSelectedCase, resetSimulation } = useSimStore.getState();
+                resetSimulation();
+                setSelectedCase(nextCase!);
+              }}
+              style={{
+                width: '100%', padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: 'rgba(0,180,216,0.18)', color: '#00b4d8',
+                fontSize: 12, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.02em',
+                transition: 'background .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,180,216,0.30)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,180,216,0.18)'; }}
+            >
+              この症例を始める →
+            </button>
+          </div>
+        );
+      })()}
+
       <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
         <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>← やり直す</button>
         <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => resetSimulation()}>別の症例へ</button>
@@ -1323,17 +1905,23 @@ const SIM_STEPS = [
 
 export function SimulationMode() {
   const { simStep } = useSimStore();
+  const [skipQuiz, setSkipQuiz] = useState<boolean>(loadSkipQuiz);
+  const handleSkipToggle = () => {
+    const next = !skipQuiz;
+    setSkipQuiz(next);
+    saveSkipQuiz(next);
+  };
   const currentIdx = SIM_STEPS.findIndex(s => s.id === simStep);
 
   const stepContent = (() => {
     switch (simStep) {
-      case 'case-select':     return <CaseSelect />;
+      case 'case-select':     return <CaseSelect skipQuiz={skipQuiz} onToggleSkip={handleSkipToggle} />;
       case 'judgment':        return <JudgmentStep />;
       case 'product-select':  return <ProductSelect />;
       case 'shaft-estimate':  return <ShaftEstimateStep />;
       case 'placement':       return <PlacementStep />;
       case 'score':           return <ScoreStep />;
-      default:                return <CaseSelect />;
+      default:                return <CaseSelect skipQuiz={skipQuiz} onToggleSkip={handleSkipToggle} />;
     }
   })();
 
@@ -1379,6 +1967,18 @@ export function SimulationMode() {
             </React.Fragment>
           );
         })}
+        {skipQuiz && (
+          <div
+            title="設定でスキップされています。症例選択画面のトグルで解除できます。"
+            style={{
+              marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center',
+              padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 700,
+              background: 'rgba(255,209,102,0.14)', border: '1px solid rgba(255,209,102,0.35)', color: '#ffd166',
+            }}
+          >
+            判断クイズ: OFF（設定）
+          </div>
+        )}
       </div>
       {/* ── ステップコンテンツ ── */}
       <div style={{ flex: 1, minHeight: 0, overflow: simStep === 'placement' ? 'hidden' : 'auto' }}>

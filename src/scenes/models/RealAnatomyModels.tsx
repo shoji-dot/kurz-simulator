@@ -220,7 +220,9 @@ export function RealFacialNerve({ opacityOverride, highlighted }: StructureProps
 }
 export function RealChordaTympani({ opacityOverride, highlighted }: StructureProps) {
   return (
-    <GLBMesh url="/models/Chorda_Tympani.glb" matKey="chorda" castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
+    <group scale={[1.25, 1.25, 1.25]}>
+      <GLBMesh url="/models/Chorda_Tympani.glb" matKey="chorda" castShadow={false} opacityOverride={opacityOverride} highlighted={highlighted} />
+    </group>
   );
 }
 
@@ -322,7 +324,52 @@ export function StapesFootplateHighlight() {
   );
 }
 
+/** スケルトン側頭骨: ghost時に外枠エッジ + 極薄fillで骨格表示 */
+function SkeletonTemporalBone() {
+  const { scene } = useGLTF('/models/Bone.glb');
+
+  const skeletonScene = useMemo(() => {
+    const c = scene.clone(true);
+    const meshes: THREE.Mesh[] = [];
+    c.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) meshes.push(child as THREE.Mesh);
+    });
+    meshes.forEach((mesh) => {
+      // 極薄フィル（内部を透かす）
+      mesh.material = new THREE.MeshStandardMaterial({
+        color: '#f2ead8',
+        transparent: true,
+        opacity: 0.04,
+        depthWrite: false,
+        roughness: 0.42,
+        metalness: 0.05,
+        side: THREE.FrontSide,
+      });
+      mesh.renderOrder = 0;
+      // 外枠エッジライン
+      const edgeGeo = new THREE.EdgesGeometry(mesh.geometry, 18);
+      const edges = new THREE.LineSegments(
+        edgeGeo,
+        new THREE.LineBasicMaterial({
+          color: '#c8b890',
+          transparent: true,
+          opacity: 0.50,
+        })
+      );
+      edges.renderOrder = 1;
+      mesh.parent?.add(edges);
+    });
+    return c;
+  }, [scene]);
+
+  return <primitive object={skeletonScene} />;
+}
+
 export function RealTemporalBone({ opacityOverride, highlighted }: StructureProps) {
+  // ghost（半透明）時 → スケルトン表示
+  if (opacityOverride !== undefined) {
+    return <SkeletonTemporalBone />;
+  }
   return (
     <GLBMesh
       url="/models/Bone.glb"

@@ -131,9 +131,9 @@ import { TympanoCavityEdu } from './models/TympanoCavityModel';
 // ── カメラ視点 保存/復元 ────────────────────────────────────────────
 // v2: 座標系変更・up vector 保存対応
 const _ANAT_KEY     = 'kurz_cam_anatomy';
-const _ANAT_VERSION = 2;
+const _ANAT_VERSION = 4;
 const _ANAT_DEFAULT = {
-  pos:    [62, 22, -3] as [number, number, number],
+  pos:    [-40, -25, 45] as [number, number, number],
   target: [0,  12, -3] as [number, number, number],
   up:     [0,  1,  0 ] as [number, number, number],
 };
@@ -165,6 +165,10 @@ let _anatOrbit: any = null;
 export function saveAnatomyCam(): void {
   // pos/target/up を含む完全な状態を保存
   localStorage.setItem(_ANAT_KEY, JSON.stringify({ ..._anatCam, version: _ANAT_VERSION }));
+}
+/** 現在のカメラ視点を返す（ViewPresetPanel カスタム保存用） */
+export function getAnatomyCam(): import('./ViewPresets').CameraView {
+  return { pos: [..._anatCam.pos] as [number,number,number], target: [..._anatCam.target] as [number,number,number], up: [..._anatCam.up] as [number,number,number] };
 }
 export function resetAnatomyCam(): void {
   localStorage.removeItem(_ANAT_KEY);
@@ -239,6 +243,8 @@ interface AnatomySceneProps {
   onStructureClick?:  (key: StructureKey) => void;
   panMode?:           boolean;
   showCameraDebug?:   boolean;
+  /** 顕微鏡モード: true=移動可, false=固定（OrbitControls無効） */
+  positionMode?:      boolean;
 }
 
 export function AnatomyScene({
@@ -253,6 +259,7 @@ export function AnatomyScene({
   onStructureClick,
   panMode = false,
   showCameraDebug = false,
+  positionMode = false,
 }: AnatomySceneProps) {
   const [initCam] = useState(() => _loadAnatCam());
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
@@ -341,7 +348,9 @@ export function AnatomyScene({
         makeDefault
         ref={(r: any) => { _anatOrbit = r; }}
         target={initCam.target}
-        enablePan={true}
+        enablePan={panMode}
+        enableRotate={!panMode && (viewMode !== 'microscope' || positionMode)}
+        enableZoom={true}
         minDistance={minDistance}
         maxDistance={90}
         autoRotate={false}

@@ -14,7 +14,7 @@
  *   アブミ骨頭 : [0.84, -2.65, 4.86]  ← PORP シャフト下端
  *   アブミ骨底板: [0.84, -2.65, 2.12] ← TORP シャフト下端
  *
- * ▼ プロテーゼ長の意味（3D 実測値）
+ * ▼ プロステーシス長の意味（3D 実測値）
  *   PORP シャフト長 = |臍部 − アブミ骨頭| → 2.78 mm
  *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm
  *   ※ 耳小骨連鎖は主に Y 方向（下方）に走行、Z 差は最小
@@ -257,8 +257,14 @@ export function Incus({
 export const STAPES_FOOTPLATE = new THREE.Vector3(0.84, -2.65, 2.12);
 /** アブミ骨頭（capitulum）の世界座標（OpenEar ALPHA 実測: |臍部→頭部| = 2.78 mm） */
 export const STAPES_HEAD      = new THREE.Vector3(0.84, -2.65, 4.86);
-/** 臍部（umbo）の世界座標 ── プロテーゼ上端の基準 */
+/** 臍部（umbo）の世界座標 ── プロステーシス上端の基準 */
 export const UMBO_POS         = new THREE.Vector3(0.0,   0.0,  5.0);
+
+/** TORPおよびPISTONの自然方向用ターゲット：底板の真上（垂直方向）。
+ *  底板 [0.84,-2.65,2.12] から真上 5mm → [0.84, 2.35, 2.12]
+ *  この座標への方向 [0,1,0] = Y+ (垂直) により、
+ *  angleTilt=0 のとき TORP/PISTON が完全垂直に立つ。 */
+export const UMBO_POS_TORP    = new THREE.Vector3(0.84,  2.35, 2.12);
 
 // ── アブミ骨弓チューブ（CatmullRomCurve3 で自然な弓形）──────────────
 function StapesCrus({

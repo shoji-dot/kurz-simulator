@@ -13,12 +13,29 @@
  */
 
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { DANGER_ZONES } from '../data/dangerZones';
+
+
+// ── FovController: 顕微鏡モード FOV 切替 ─────────────────────────────
+const DRILL_VIEW_FOV: Record<string, number> = {
+  normal:     38,
+  microscope: 12,
+  endoscope:  110,
+};
+function FovController({ viewMode }: { viewMode: string }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    cam.fov = DRILL_VIEW_FOV[viewMode] ?? 38;
+    cam.updateProjectionMatrix();
+  }, [viewMode, camera]);
+  return null;
+}
 
 // ── 定数 ──────────────────────────────────────────────────────────────
 const MAX_HOLES      = 200;  // シェーダー配列サイズ（WebGL2上限内で200まで実用的）
@@ -46,7 +63,7 @@ function applyDrillShader(
   uniforms: {
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
-    drillRadius:    { value: number };
+    drillHoleRadii: { value: number[] };
   }
 ) {
   mat.onBeforeCompile = (shader) => {
@@ -63,17 +80,17 @@ function applyDrillShader(
         '#include <fog_vertex>\nvDrillWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;'
       );
 
-    // Fragment: discard inside drill holes
+    // Fragment: discard inside drill holes (per-hole radius)
     shader.fragmentShader = shader.fragmentShader.replace(
       'void main() {',
       `varying vec3 vDrillWorldPos;
 uniform int  drillHoleCount;
-uniform float drillRadius;
+uniform float drillHoleRadii[${MAX_HOLES}];
 uniform vec3 drillHoles[${MAX_HOLES}];
 void main() {
   for (int i = 0; i < ${MAX_HOLES}; i++) {
     if (i >= drillHoleCount) break;
-    if (distance(vDrillWorldPos, drillHoles[i]) < drillRadius) discard;
+    if (distance(vDrillWorldPos, drillHoles[i]) < drillHoleRadii[i]) discard;
   }`
     );
   };
@@ -88,7 +105,7 @@ interface DrillBoneProps {
   uniformsRef: React.MutableRefObject<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
-    drillRadius:    { value: number };
+    drillHoleRadii: { value: number[] };
   } | null>;
   onPointerMove: (e: ThreeEvent<PointerEvent>) => void;
   onPointerDown: (e: ThreeEvent<PointerEvent>) => void;
@@ -105,7 +122,7 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp, bon
     const uniforms = {
       drillHoles:     { value: sentinels },
       drillHoleCount: { value: 0 },
-      drillRadius:    { value: DRILL_RADIUS },
+      drillHoleRadii: { value: new Array(MAX_HOLES).fill(0.0) as number[] },
     };
     uniformsRef.current = uniforms;
     matRefs.current = [];
@@ -140,14 +157,15 @@ function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp, bon
     const opacity    = boneVis === 'ghost' ? 0.18 : 1.0;
     const depthWrite = boneVis !== 'ghost';
     matRefs.current.forEach(mat => {
-      mat.opacity    = opacity;
+      mat.opacity     = opacity;
       mat.transparent = boneVis === 'ghost';
-      mat.depthWrite = depthWrite;
+      mat.depthWrite  = depthWrite;
+      // キャッシュキーに透明度を含めてシェーダー再コンパイルを強制
+      mat.customProgramCacheKey = () => `drill-bone-${MAX_HOLES}-${boneVis}`;
       mat.needsUpdate = true;
     });
-  }, [boneVis]);
-
-  if (boneVis === 'hidden') return null;
+    if (cloned) cloned.visible = boneVis !== 'hidden';
+  }, [boneVis, cloned]);
 
   return (
     <primitive
@@ -286,10 +304,12 @@ function DrillNerves({ mode }: { mode: VisMode }) {
 }
 
 // ── DrillCursor: Round Carbide Bur #8 (8枚刃 球形バー) ───────────────
-function DrillCursor({ groupRef, rotation }: {
+function DrillCursor({ groupRef, rotation, sizeMm = 3 }: {
   groupRef: React.RefObject<THREE.Group>;
   rotation: 'CW' | 'CCW';
+  sizeMm?: 1 | 2 | 3;
 }) {
+  const burrScaleVal = sizeMm / 3;
   const burrRef = useRef<THREE.Group>(null!);
   const dir = rotation === 'CW' ? 1 : -1;
 
@@ -323,7 +343,7 @@ function DrillCursor({ groupRef, rotation }: {
   });
 
   return (
-    <group ref={groupRef} visible={false}>
+    <group ref={groupRef} visible={false} scale={[burrScaleVal, burrScaleVal, burrScaleVal]}>
       <group ref={burrRef}>
         {/* タングステンカーバイド球体 */}
         <mesh>
@@ -629,13 +649,16 @@ interface DrillCanvas3DProps {
   boneVis:          VisMode;
   ossicleVis:       VisMode;
   nerveVis:         VisMode;
+  viewMode?:        'normal' | 'microscope' | 'endoscope';
+  positionMode?:    boolean;
+  cutterSizeMm?:    1 | 2 | 3;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode, boneVis, ossicleVis, nerveVis }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, showGuide, expertMode, boneVis, ossicleVis, nerveVis, viewMode = 'normal', positionMode = false, cutterSizeMm = 3 }: DrillCanvas3DProps) {
   const uniformsRef    = useRef<{
     drillHoles:     { value: THREE.Vector3[] };
     drillHoleCount: { value: number };
-    drillRadius:    { value: number };
+    drillHoleRadii: { value: number[] };
   } | null>(null);
   const holeCountRef   = useRef(0);
   const isDrillingRef  = useRef(false);
@@ -644,7 +667,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
   const cursorRef      = useRef<THREE.Group>(null!);
   const orbitRef       = useRef<any>(null);
 
-  // ドリルホール追加
+  // ドリルホール追加（穴ごとにカッターサイズを記録）
   const addHole = useCallback((point: THREE.Vector3) => {
     const u = uniformsRef.current;
     if (!u || holeCountRef.current >= MAX_HOLES) return;
@@ -652,10 +675,11 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     if (last && last.distanceTo(point) < MIN_HOLE_DIST) return;
     const idx = holeCountRef.current;
     u.drillHoles.value[idx].copy(point);
+    u.drillHoleRadii.value[idx] = DRILL_RADIUS * (cutterSizeMm / 3);
     holeCountRef.current = idx + 1;
     u.drillHoleCount.value = idx + 1;
     lastHolePosRef.current = point.clone();
-  }, []);
+  }, [cutterSizeMm]);
 
   // 危険部位チェック
   const checkDanger = useCallback((point: THREE.Vector3) => {
@@ -678,9 +702,9 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     }
   }, [onAlert]);
 
-  // useFrame: ドリル中は一定間隔でホール追加
+  // useFrame: ドリル中は一定間隔でホール追加（positionMode時は中断）
   useFrame((_, delta) => {
-    if (!isDrillingRef.current || !cursorRef.current?.visible) return;
+    if (!isDrillingRef.current || !cursorRef.current?.visible || !drillMode) return;
     lastDrillTime.current += delta * 1000;
     if (lastDrillTime.current >= DRILL_INTERVAL) {
       lastDrillTime.current = 0;
@@ -751,7 +775,10 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
       {showGuide && <MastoidGuide expertMode={expertMode} />}
 
       {/* ドリルカーソル */}
-      <DrillCursor groupRef={cursorRef} rotation={rotation} />
+      <DrillCursor groupRef={cursorRef} rotation={rotation} sizeMm={cutterSizeMm} />
+
+      {/* FovController: viewMode に応じてカメラFOVを切替 */}
+      <FovController viewMode={viewMode} />
 
       {/* OrbitControls */}
       <OrbitControls
@@ -762,7 +789,9 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
           MIDDLE: THREE.MOUSE.DOLLY,
           RIGHT:  THREE.MOUSE.ROTATE,
         }}
-        enablePan={!drillMode}
+        enableRotate={viewMode !== 'microscope' || positionMode}
+        enablePan={!drillMode && (viewMode !== 'microscope' || positionMode)}
+        enableZoom={true}
         target={[0, 0, 2]}
       />
     </>
@@ -770,8 +799,29 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
 }
 
 // ── InteractiveDrillScene: 外部コンポーネント ─────────────────────────
-export function InteractiveDrillScene() {
-  const [drillMode, setDrillMode] = useState(false);
+export interface InteractiveDrillSceneProps {
+  viewMode?:           'normal' | 'microscope' | 'endoscope';
+  positionMode?:       boolean;
+  cutterSizeMm?:       1 | 2 | 3;
+  drillActive?:        boolean;      // 親が制御するとき
+  onDrillToggle?:      () => void;   // 親が制御するとき
+  rightOverlayOffset?: number;       // 右オーバーレイを下にずらすpx
+}
+
+export function InteractiveDrillScene({
+  viewMode = 'normal',
+  positionMode = false,
+  cutterSizeMm = 3,
+  drillActive,
+  onDrillToggle,
+  rightOverlayOffset = 0,
+}: InteractiveDrillSceneProps = {}) {
+  const [internalDrillMode, setInternalDrillMode] = useState(false);
+  // 制御モード判定
+  const isControlled = onDrillToggle !== undefined;
+  const drillMode    = isControlled ? !!drillActive : internalDrillMode;
+  // 実効ドリル: 移動中（positionMode=true）は中断
+  const effectiveDrill = drillMode && !positionMode;
   const [showGuide,  setShowGuide]  = useState(true);
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
@@ -801,7 +851,7 @@ export function InteractiveDrillScene() {
         gl={{ antialias: true }}
       >
         <DrillCanvas3D
-          drillMode={drillMode}
+          drillMode={effectiveDrill}
           rotation={rotation}
           onAlert={setAlertMsg}
           onHoleCount={setHoleCount}
@@ -812,29 +862,63 @@ export function InteractiveDrillScene() {
           boneVis={boneVis}
           ossicleVis={ossicleVis}
           nerveVis={nerveVis}
+          viewMode={viewMode}
+          positionMode={positionMode}
+          cutterSizeMm={cutterSizeMm}
         />
       </Canvas>
 
+      {/* 顕微鏡ビネットオーバーレイ */}
+      {viewMode === 'microscope' && (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+          background: 'radial-gradient(circle at center, transparent 26%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.92) 68%, black 82%)',
+        }} />
+      )}
+
+      {/* ドリル開始 — スタンドアロン時のみ中央CTAを表示 */}
+      {!isControlled && !drillMode && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 15, pointerEvents: 'none',
+        }}>
+          <button
+            onClick={() => setInternalDrillMode(true)}
+            style={{
+              pointerEvents: 'auto',
+              padding: '14px 32px', borderRadius: 12, border: '2px solid rgba(239,68,68,0.7)',
+              cursor: 'pointer', fontSize: 15, fontWeight: 800,
+              background: 'rgba(239,68,68,0.18)', color: '#f87171',
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 0 24px rgba(239,68,68,0.3)',
+              transition: 'all .15s',
+            }}
+          >🔴 ドリル開始</button>
+        </div>
+      )}
+
       {/* オーバーレイ UI */}
-      {/* ドリルモードトグル */}
+      {/* ドリルモードトグル（スタンドアロン時）+ 回転/リセット */}
       <div style={{
         position: 'absolute', top: 10, left: 10,
-        display: 'flex', gap: 6, zIndex: 10,
+        display: 'flex', gap: 6, zIndex: 10, alignItems: 'center',
       }}>
-        <button
-          onClick={() => setDrillMode(v => !v)}
-          style={{
-            padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            fontSize: 12, fontWeight: 700,
-            background: drillMode ? '#ef4444' : 'rgba(255,255,255,0.10)',
-            color: drillMode ? '#fff' : 'rgba(255,255,255,0.7)',
-            backdropFilter: 'blur(4px)',
-            transition: 'all .15s',
-          }}
-        >
-          🔴 {drillMode ? '削開中 ─ クリックで停止' : 'ドリル開始'}
-        </button>
-        {drillMode && (
+        {!isControlled && (
+          <button
+            onClick={() => setInternalDrillMode(v => !v)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700,
+              background: drillMode ? '#ef4444' : 'rgba(255,255,255,0.10)',
+              color: drillMode ? '#fff' : 'rgba(255,255,255,0.7)',
+              backdropFilter: 'blur(4px)',
+              transition: 'all .15s',
+            }}
+          >
+            🔴 {drillMode ? '削開中 ─ クリックで停止' : 'ドリル開始'}
+          </button>
+        )}
+        {effectiveDrill && (
           <>
             <button
               onClick={() => setRotation(r => r === 'CW' ? 'CCW' : 'CW')}
@@ -860,12 +944,20 @@ export function InteractiveDrillScene() {
             </button>
           </>
         )}
+        {drillMode && !effectiveDrill && positionMode && (
+          <span style={{
+            padding: '5px 10px', borderRadius: 7,
+            background: 'rgba(251,191,36,0.12)',
+            border: '1px solid rgba(251,191,36,0.35)',
+            color: '#fbbf24', fontSize: 11, fontWeight: 600,
+          }}>⏸ 移動中は一時中断</span>
+        )}
       </div>
 
       {/* ホール数表示 */}
       {holeCount > 0 && (
         <div style={{
-          position: 'absolute', top: 10, right: 10, zIndex: 10,
+          position: 'absolute', top: 10 + rightOverlayOffset, right: 10, zIndex: 10,
           padding: '5px 10px', borderRadius: 7,
           background: 'rgba(0,0,0,0.65)', color: '#7dd8e8',
           fontSize: 11, backdropFilter: 'blur(4px)',
@@ -877,7 +969,7 @@ export function InteractiveDrillScene() {
       {/* Distance to Antrum（専門医モードでは非表示）*/}
       {!expertMode && antrumDist !== null && (
         <div style={{
-          position: 'absolute', top: 44, right: 10, zIndex: 10,
+          position: 'absolute', top: 44 + rightOverlayOffset, right: 10, zIndex: 10,
           padding: '6px 12px', borderRadius: 7,
           background: antrumDist < ANTRUM_REACHED_DIST
             ? 'rgba(74,222,128,0.20)'
@@ -898,7 +990,7 @@ export function InteractiveDrillScene() {
       {/* 削開方向ガイド（専門医モードでは非表示）*/}
       {!expertMode && drillDirection && antrumDist !== null && antrumDist >= ANTRUM_REACHED_DIST && (
         <div style={{
-          position: 'absolute', top: 76, right: 10, zIndex: 10,
+          position: 'absolute', top: 76 + rightOverlayOffset, right: 10, zIndex: 10,
           padding: '5px 10px', borderRadius: 7,
           background: 'rgba(0,0,0,0.65)',
           border: '1px solid rgba(251,191,36,0.35)',
@@ -1021,7 +1113,7 @@ export function InteractiveDrillScene() {
       </div>
 
       {/* 操作ガイド（ドリルOFF時）*/}
-      {!drillMode && (
+      {!effectiveDrill && (
         <div style={{
           position: 'absolute', bottom: 10, left: 10, zIndex: 10,
           padding: '6px 10px', borderRadius: 7,
@@ -1032,7 +1124,7 @@ export function InteractiveDrillScene() {
           左ドラッグ: 回転　右ドラッグ: 回転　スクロール: ズーム
         </div>
       )}
-      {drillMode && (
+      {effectiveDrill && (
         <div style={{
           position: 'absolute', bottom: 10, left: 10, zIndex: 10,
           padding: '6px 10px', borderRadius: 7,
