@@ -1549,6 +1549,7 @@ function PlacementStep() {
 function ScoreStep() {
   const { selectedCase, selectedProduct, placement, scoreResult, judgmentResult, resetSimulation, setSimStep, setScreen } = useSimStore();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [scoreDetailOpen, setScoreDetailOpen] = useState(false);
 
   useEffect(() => {
     if (scoreResult && selectedCase && selectedProduct) {
@@ -1720,6 +1721,17 @@ function ScoreStep() {
         );
       })()}
 
+      {/* ── 詳細情報（L2: 既定折りたたみ。学習ポイント/判断結果/スコア履歴は参照情報として二次表示） ── */}
+      <div
+        onClick={() => setScoreDetailOpen(v => !v)}
+        className="card"
+        style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', userSelect:'none', padding:'12px 16px' }}
+      >
+        <div className="section-title" style={{ margin: 0 }}>詳細情報（フィードバック・学習ポイント・スコア履歴）</div>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'inline-block', transform: scoreDetailOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▼</span>
+      </div>
+      {scoreDetailOpen && (
+        <>
       {scoreResult.feedback.length > 0 && (
         <div className="card">
           <div className="section-title">フィードバック</div>
@@ -1835,6 +1847,9 @@ function ScoreStep() {
             );
           })}
         </div>
+      )}
+
+        </>
       )}
 
       {/* ── 次の推奨症例 ── */}
