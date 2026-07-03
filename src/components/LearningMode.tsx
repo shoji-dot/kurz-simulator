@@ -143,9 +143,9 @@ const ANATOMY_COURSES = [
 type CourseLevel = 0 | 1 | 2 | 3 | 4;
 
 // ── ビューモード定義 ──────────────────────────────────────────────
+// M1(b): 顕微鏡モード選択肢を削除（設計変更書2026-07-03。教育的意味付け不足のため通常/内視鏡2択に縮小）
 const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[] = [
   { mode: 'normal',     icon: '👁',  label: '通常',   desc: '標準3Dビュー' },
-  { mode: 'microscope', icon: '🔬', label: '顕微鏡', desc: '手術用顕微鏡視野（狭FOV・ビネット）' },
   { mode: 'endoscope',  icon: '🔭', label: '内視鏡', desc: '硬性内視鏡視野（広角・円形）' },
 ];
 
@@ -153,6 +153,7 @@ const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [openProcedures, setOpenProcedures] = useState<Record<string, boolean>>({});
 
   // 3D表示モード
   const [vis, setVis] = useState<VisibilityMap>({ bone: 'solid', eac: 'solid' });
@@ -1045,19 +1046,35 @@ export function LearningMode() {
             </>
           )}
 
-          {/* ── 術式タブ ── */}
+          {/* ── 術式タブ（M4: 概要3行＋詳細アコーディオン） ── */}
           {learningTab === 'procedure' && (
             <>
-              {procedures.map((proc) => (
-                <div key={proc.title} className="card">
-                  <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>{proc.title}</div>
-                  <ol style={{ paddingLeft: 18 }}>
-                    {proc.steps.map((step, i) => (
-                      <li key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 6 }}>{step}</li>
-                    ))}
-                  </ol>
-                </div>
-              ))}
+              {procedures.map((proc) => {
+                const isOpen = openProcedures[proc.title] ?? false;
+                const previewSteps = proc.steps.slice(0, 3);
+                const restSteps = proc.steps.slice(3);
+                return (
+                  <div key={proc.title} className="card">
+                    <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>{proc.title}</div>
+                    <ol style={{ paddingLeft: 18 }}>
+                      {previewSteps.map((step, i) => (
+                        <li key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 6 }}>{step}</li>
+                      ))}
+                      {isOpen && restSteps.map((step, i) => (
+                        <li key={i + 3} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 6 }}>{step}</li>
+                      ))}
+                    </ol>
+                    {restSteps.length > 0 && (
+                      <button
+                        onClick={() => setOpenProcedures(o => ({ ...o, [proc.title]: !isOpen }))}
+                        style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 0', fontWeight: 600 }}
+                      >
+                        {isOpen ? '▾ 折りたたむ' : `▸ 続き（${restSteps.length}ステップ）を見る`}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               <div className="card">
                 <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ 重要な注意点</div>
                 <ul style={{ paddingLeft: 16, color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.8 }}>

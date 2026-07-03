@@ -759,6 +759,7 @@ function ShaftEstimateStep() {
   const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep } = useSimStore();
   const [estimated, setEstimated] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [sizerGuideOpen, setSizerGuideOpen] = useState(false);
 
   if (!selectedCase || !selectedProduct) return null;
 
@@ -795,13 +796,27 @@ function ShaftEstimateStep() {
           </div>
         </div>
 
-        {/* AC サイザー使用ガイド */}
+        {/* AC サイザー使用ガイド（M4: 概要3行＋詳細アコーディオン） */}
         <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,100,80,0.12)', border:'1px solid rgba(0,200,150,0.25)', marginBottom:16 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#4de8b8', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
-            <span style={{fontSize:14}}>📐</span> ACサイザー使用手順
+          <div
+            onClick={() => setSizerGuideOpen(v => !v)}
+            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}
+          >
+            <div style={{ fontSize:11, fontWeight:700, color:'#4de8b8', display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{fontSize:14}}>📐</span> ACサイザー使用手順
+            </div>
+            <span style={{ fontSize:11, color:'#4de8b8', display:'inline-block', transform: sizerGuideOpen ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>▾</span>
           </div>
+          {/* 概要3行（常時表示） */}
+          <div style={{ fontSize:10, color:'#8899aa', lineHeight:1.7, marginTop:8 }}>
+            ① サイザーを鼓膜グラフト下面〜アブミ骨頭部（PORP）/底板（TORP）に当てて実測<br />
+            ② 0.25mm単位で目盛りを読み記録（体位・軟骨補強厚で変動）<br />
+            ③ 軟骨補強ありの場合は実測値 +0.25〜0.5mm を推奨長として加算
+          </div>
+          {sizerGuideOpen && (
+            <>
           {/* SVG: サイザー模式図 */}
-          <svg viewBox="0 0 280 90" style={{ width:'100%', height:'auto', display:'block', marginBottom:10 }}>
+          <svg viewBox="0 0 280 90" style={{ width:'100%', height:'auto', display:'block', marginTop:10, marginBottom:10 }}>
             {/* 解剖断面背景 */}
             <rect x="0" y="0" width="280" height="90" rx="6" fill="rgba(0,20,30,0.6)" />
             {/* 底板 / アブミ骨頭 */}
@@ -833,23 +848,19 @@ function ShaftEstimateStep() {
             <text x="105" y="70" fontSize="8" fill="#8899aa">③ 目盛りを読み、0.25mm単位で記録</text>
             <text x="105" y="82" fontSize="8" fill="#4de8b8">④ 読んだ値 = シャフト長の基準</text>
           </svg>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-            <div style={{ fontSize:10, color:'#6a9a8a', lineHeight:1.5 }}>
-              術中計測値は体位・軟骨補強厚さによって変動します。<br />
-              <span style={{ color:'#ffd166' }}>軟骨補強ありの場合：実測値 +0.25〜0.5mm を推奨長として加算</span>
+            </>
+          )}
+          {submitted && (
+            <div style={{ textAlign:'right', marginTop: sizerGuideOpen ? 0 : 10 }}>
+              <div style={{ fontSize:9, color:'#4de8b8', marginBottom:2 }}>この症例の正解</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'#4ade80' }}>{recommended} mm</div>
             </div>
-            {submitted && (
-              <div style={{ textAlign:'right' }}>
-                <div style={{ fontSize:9, color:'#4de8b8', marginBottom:2 }}>この症例の正解</div>
-                <div style={{ fontSize:22, fontWeight:800, color:'#4ade80' }}>{recommended} mm</div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
 
-        {/* TTP-VARIAC シャフト長調整手順（Soft Clip 以外で表示） */}
-        {selectedProduct.id !== 'soft-clip-stapes' && (
+        {/* TTP-VARIAC シャフト長調整手順（Soft Clip 以外・詳細アコーディオン展開時のみ表示） */}
+        {selectedProduct.id !== 'soft-clip-stapes' && sizerGuideOpen && (
           <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,60,120,0.14)', border:'1px solid rgba(0,140,220,0.28)', marginBottom:16 }}>
             <div style={{ fontSize:11, fontWeight:700, color:'#60b8f8', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
               <span style={{fontSize:14}}>🔧</span> TTP-VARIAC® シャフト長調整手順（サイザーディスク使用）
@@ -1061,6 +1072,7 @@ function PlacementStep() {
   const [dragMode, setDragMode] = useState<DragMode>('view');
   const [viewMode, setViewMode] = useState<SimViewMode>('normal');
   const [vis3dOpen, setVis3dOpen] = useState(false);
+  const [adjPanelOpen, setAdjPanelOpen] = useState(false);
   const [showCamDebug, setShowCamDebug] = useState(false);
   const [camInfo, setCamInfo] = useState<{pos:[number,number,number];target:[number,number,number]} | null>(null);
 
@@ -1219,8 +1231,8 @@ function PlacementStep() {
               backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
             }}>
               {([
+                // M1(b): 顕微鏡モード選択肢を削除（設計変更書2026-07-03。教育的意味付け不足のため通常/内視鏡2択に縮小）
                 { mode: 'normal' as SimViewMode,     icon: '👁',  label: '通常',   activeColor: 'rgba(255,255,255,0.15)', activeText: '#c8d0e0' },
-                { mode: 'microscope' as SimViewMode, icon: '🔬', label: '顕微鏡', activeColor: 'rgba(255,209,102,0.22)', activeText: '#ffd166' },
                 { mode: 'endoscope' as SimViewMode,  icon: '🔭', label: '内視鏡', activeColor: 'rgba(100,200,100,0.22)', activeText: '#80e080' },
               ]).map(({ mode, icon, label, activeColor, activeText }) => (
                 <button key={mode}
@@ -1356,6 +1368,23 @@ function PlacementStep() {
             ↺ すべてリセット
           </button>
 
+          {/* ── 詳細調整（H2-b: 既定折りたたみ。3Dドラッグを一次操作、数値微調整は二次操作として序列化） ── */}
+          <div
+            onClick={() => setAdjPanelOpen(v => !v)}
+            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', userSelect:'none', margin:'10px 0 8px', borderTop:'1px solid rgba(255,255,255,.08)', paddingTop:10 }}
+          >
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em' }}>
+              詳細調整 ▸ シャフト長・位置・傾斜の数値微調整
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'inline-block', transform: adjPanelOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▾</span>
+          </div>
+          {!adjPanelOpen && (
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+              3Dドラッグで位置・角度を調整できます。ミリ単位の最終合わせ込みが必要な場合はここを開いてください。
+            </div>
+          )}
+          {adjPanelOpen && (
+            <>
           {/* ── シャフト長 ── */}
           <AdjRow
             label="シャフト長"
@@ -1428,6 +1457,8 @@ function PlacementStep() {
               onClick={() => updatePlacement({ dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 })}>
               ドラッグをリセット
             </button>
+          )}
+            </>
           )}
         </div>
 
