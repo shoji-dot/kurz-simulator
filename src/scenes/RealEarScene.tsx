@@ -100,6 +100,14 @@ const MODEL_INFO: Record<RealEarModelKey, ModelInfo> = {
  * 右耳スキャンモデル内に解剖モデルを重ねる際の表示設定
  * 側頭骨・外耳道は非表示（スキャンモデルが代替）
  */
+// ── L1: 物理製品情報（KURZ正式型番・QRコード確定後に差し替え予定のプレースホルダー）───────
+// 設計変更書2026-07-03 L1: 削開シナリオ⇄実モデル間の相互導線。型番/QR実データは未確定のため
+// プレースホルダー表示とし、確定次第この定数を差し替える。
+const PHYSICAL_PRODUCT_INFO = {
+  modelNumber: '型番：KURZ確認後に反映（プレースホルダー）',
+  qrNote: 'QRコード\n（準備中）',
+};
+
 const ANATOMY_IN_EAR_VIS: VisibilityMap = {
   bone:            'hidden',
   auricle:         'hidden',
@@ -518,6 +526,30 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                   {uc}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* 物理製品情報（L1: プレースホルダー。実データ確定後に差し替え） */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginBottom: 6,
+              textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              物理モデル製品情報
+            </div>
+            <div style={{
+              background: 'var(--surface)', borderRadius: 5, padding: '10px 8px',
+              border: '1px dashed rgba(255,255,255,0.25)', textAlign: 'center',
+            }}>
+              <div style={{
+                width: 56, height: 56, margin: '0 auto 8px', borderRadius: 4,
+                border: '1px dashed rgba(255,255,255,0.3)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', fontSize: 9,
+                color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, whiteSpace: 'pre-line',
+              }}>
+                {PHYSICAL_PRODUCT_INFO.qrNote}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {PHYSICAL_PRODUCT_INFO.modelNumber}
+              </div>
             </div>
           </div>
 

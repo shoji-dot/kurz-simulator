@@ -1129,6 +1129,19 @@ export function LearningMode() {
                 </div>
               </div>
 
+              {/* ── L1: 実モデルへの導線（設計変更書2026-07-03） ── */}
+              <div
+                onClick={() => setLearningTab('real-ear')}
+                className="card"
+                style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                title="対応する物理3Dプリント側頭骨モデルを確認"
+              >
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  📷 このシナリオに対応する<strong style={{ color: 'var(--text-primary)' }}>物理モデル</strong>を見る
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700, whiteSpace: 'nowrap' }}>実モデルタブへ →</span>
+              </div>
+
               {/* ── 側頭骨 表示切替（全シナリオ共通）── */}
               <div className="card" style={{ padding: '10px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>側頭骨 表示</div>
