@@ -360,7 +360,6 @@ export function LearningMode() {
                 <InteractiveDrillScene
                   viewMode={learningTab === 'drilling' ? viewMode : 'normal'}
                   positionMode={positionMode}
-                  cutterSizeMm={cutterSizeMm}
                   drillActive={s6DrillActive}
                   onDrillToggle={() => setS6DrillActive(v => !v)}
                   rightOverlayOffset={110}
@@ -508,7 +507,8 @@ export function LearningMode() {
                       }}
                     >🔴 {s6DrillActive ? '削開中' : 'ドリル開始'}</button>
                   )}
-                  {([1,2,3] as const).map(mm => (
+                  {/* T10: s6はInteractiveDrillScene内部のバー選択UIに置換済みのため非表示（s1-s5は引き続き使用） */}
+                  {drillScenario !== 's6' && ([1,2,3] as const).map(mm => (
                     <button
                       key={mm}
                       onClick={() => setCutterSizeMm(mm)}

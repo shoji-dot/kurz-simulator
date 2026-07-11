@@ -62,7 +62,6 @@ type DrillViewMode = 'normal' | 'microscope' | 'endoscope';
 function DrillPracticeScreen() {
   const [viewMode, setViewMode] = useState<DrillViewMode>('normal');
   const [positionMode, setPositionMode] = useState(false);
-  const [cutterSizeMm, setCutterSizeMm] = useState<1|2|3>(3);
   const [drillActive, setDrillActive] = useState(false);
 
   const handleViewMode = (mode: DrillViewMode) => {
@@ -76,7 +75,6 @@ function DrillPracticeScreen() {
       <InteractiveDrillScene
         viewMode={viewMode}
         positionMode={positionMode}
-        cutterSizeMm={cutterSizeMm}
         drillActive={drillActive}
         onDrillToggle={() => setDrillActive(v => !v)}
         rightOverlayOffset={110}
@@ -139,20 +137,6 @@ function DrillPracticeScreen() {
               backdropFilter: 'blur(6px)', transition: 'all .15s',
             }}
           >🔴 {drillActive ? '削開中' : 'ドリル開始'}</button>
-          {([1,2,3] as const).map(mm => (
-            <button
-              key={mm}
-              onClick={() => setCutterSizeMm(mm)}
-              style={{
-                padding: '4px 8px', borderRadius: 7, cursor: 'pointer',
-                fontSize: 11, fontWeight: cutterSizeMm === mm ? 700 : 400,
-                border: `1px solid ${cutterSizeMm === mm ? '#ffd166' : 'rgba(255,255,255,0.18)'}`,
-                background: cutterSizeMm === mm ? 'rgba(255,209,102,0.22)' : 'rgba(10,15,26,0.78)',
-                color: cutterSizeMm === mm ? '#ffd166' : '#7a8898',
-                backdropFilter: 'blur(6px)', transition: 'all .15s',
-              }}
-            >{mm}mm</button>
-          ))}
         </div>
       </div>
     </div>
