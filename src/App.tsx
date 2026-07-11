@@ -5,11 +5,15 @@ import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
 import { StepFlowMode } from './components/StepFlowMode';
 import { InteractiveDrillScene } from './scenes/InteractiveDrillScene';
+import { processAdminModeUrlParam, isAdminMode } from './utils/adminMode';
 
 // ── Feature Flag ──────────────────────────────────────────────────────────────
 // Drilling Simulator は VR/WebXR 対応まで無効化。
 // 再有効化する場合は FEATURE_DRILL_ENABLED を true に変更する。
 const FEATURE_DRILL_ENABLED = false;
+// 管理者プレビュー: ?admin=1 でアクセスした端末は削開練習を利用可能（一般利用者には非表示のまま）。
+// 真のセキュリティ境界ではない（詳細: src/utils/adminMode.ts）。
+processAdminModeUrlParam();
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCREEN_LABELS: Record<string, string> = {
@@ -147,7 +151,8 @@ function App() {
   const { screen, setScreen } = useSimStore();
 
   // FEATURE_DRILL_ENABLED = false の間、drill スクリーンへの直接遷移をホームへリダイレクト
-  if (screen === 'drill' && !FEATURE_DRILL_ENABLED) {
+  // （管理者モード時は例外的に許可）
+  if (screen === 'drill' && !FEATURE_DRILL_ENABLED && !isAdminMode()) {
     setScreen('home');
   }
 
@@ -158,8 +163,8 @@ function App() {
       {screen === 'learning'   && <LearningMode />}
       {screen === 'simulation' && <SimulationMode />}
       {screen === 'stepflow'   && <StepFlowMode />}
-      {/* FEATURE_DRILL_ENABLED が true の場合のみレンダリング（VR/WebXR 対応後に有効化） */}
-      {screen === 'drill' && FEATURE_DRILL_ENABLED && <DrillPracticeScreen />}
+      {/* FEATURE_DRILL_ENABLED が true、または管理者モードの場合のみレンダリング */}
+      {screen === 'drill' && (FEATURE_DRILL_ENABLED || isAdminMode()) && <DrillPracticeScreen />}
     </>
   );
 }

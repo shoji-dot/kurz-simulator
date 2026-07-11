@@ -7,6 +7,7 @@ import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
 import { DrillTrainingScene, DRILL_STEPS } from '../scenes/DrillTrainingScene';
 import { RealEarScene } from '../scenes/RealEarScene';
 import { InteractiveDrillScene } from '../scenes/InteractiveDrillScene';
+import { isAdminMode } from '../utils/adminMode';
 import { DANGER_ZONES, FACIAL_ZONES, VASCULAR_ZONES } from '../data/dangerZones';
 import {
   DEFAULT_MODES,
@@ -152,6 +153,8 @@ const VIEW_MODES: { mode: ViewMode; icon: string; label: string; desc: string }[
 // ══════════════════════════════════════════════════════════════════
 export function LearningMode() {
   const { learningTab, setLearningTab, highlightedStructure, setHighlightedStructure } = useSimStore();
+  // 管理者プレビュー: ?admin=1 でアクセスした端末のみS6（削開練習）を有効化する（詳細: utils/adminMode.ts）
+  const adminMode = isAdminMode();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [openProcedures, setOpenProcedures] = useState<Record<string, boolean>>({});
 
@@ -1099,8 +1102,9 @@ export function LearningMode() {
                     { key: 's2', label: 'S2: 危険部位',   desc: 'クリックで確認',    comingSoon: false },
                     { key: 's3', label: 'S3: 削開動画',   desc: '5ステップ手術',     comingSoon: false },
                     { key: 's4', label: 'S4: 削開範囲',   desc: '推奨限界壁',        comingSoon: false },
-                    // FEATURE_DRILL_ENABLED = false: S6 は VR/WebXR 対応まで無効化
-                    { key: 's6', label: 'S6: 削開練習',   desc: 'VR / WebXR 対応予定', comingSoon: true },
+                    // FEATURE_DRILL_ENABLED = false: 一般利用者にはVR/WebXR対応まで無効化。
+                    // adminMode時のみ例外的に有効化（管理者プレビュー、詳細: utils/adminMode.ts）。
+                    { key: 's6', label: 'S6: 削開練習',   desc: adminMode ? '管理者プレビュー' : 'VR / WebXR 対応予定', comingSoon: !adminMode },
                     { key: 's5', label: 'S5: 削開完了後', desc: '確認ビュー',        comingSoon: false },
                   ] as { key: 's1'|'s2'|'s3'|'s4'|'s5'|'s6'; label: string; desc: string; comingSoon: boolean }[]).map(({ key, label, desc, comingSoon }) => (
                     <button

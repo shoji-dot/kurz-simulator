@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type React from 'react';
 import { useSimStore } from '../store/useSimStore';
+import { isAdminMode } from '../utils/adminMode';
 
 const VERSION = 'v0.3.0';
 
@@ -8,6 +9,8 @@ export function HomeScreen() {
   const { setScreen, resetSimulation } = useSimStore();
   const [activeTab, setActiveTab] = useState<'modules' | 'about'>('modules');
   const [drillTooltipVisible, setDrillTooltipVisible] = useState(false);
+  // 管理者プレビュー: ?admin=1 でアクセスした端末のみ削開練習カードを有効化する（詳細: utils/adminMode.ts）
+  const adminMode = isAdminMode();
 
   const modules = [
     {
@@ -55,14 +58,15 @@ export function HomeScreen() {
       icon: '💿',
       title: '削開練習',
       titleEn: 'Drill Training',
-      // FEATURE_DRILL_ENABLED = false: ボタンは Coming Soon として無効化中
-      // VR/WebXR 対応後に comingSoon: false, isPro: true に戻す
+      // FEATURE_DRILL_ENABLED = false: 一般利用者には Coming Soon として無効化中。
+      // adminMode時のみ例外的に有効化（管理者プレビュー、詳細: utils/adminMode.ts）。
+      // VR/WebXR 対応後に comingSoon: false, isPro: true へ正式移行する。
       desc: 'インタラクティブ乳突削開シミュレーター',
       isPro: false,
-      comingSoon: true,
+      comingSoon: !adminMode,
       grad: 'linear-gradient(145deg, #1a1a1a 0%, #111111 100%)',
       accent: '#4a5568',
-      onClick: () => {},
+      onClick: adminMode ? () => setScreen('drill') : () => {},
     },
   ];
 
