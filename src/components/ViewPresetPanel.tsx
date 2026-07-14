@@ -44,9 +44,9 @@ const BTN_BASE: React.CSSProperties = {
   flex: '1 1 48px',
   padding: '5px 4px',
   borderRadius: 5,
-  border: '1px solid rgba(255,255,255,0.12)',
-  background: 'rgba(255,255,255,0.05)',
-  color: 'var(--text-secondary)',
+  border: '1px solid var(--color-border-bright)',
+  background: 'var(--color-surface-hover)',
+  color: 'var(--color-text-secondary)',
   fontSize: 10,
   fontWeight: 600,
   cursor: 'pointer',
@@ -59,7 +59,7 @@ const BTN_BASE: React.CSSProperties = {
 const SECTION_LABEL: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  color: 'var(--text-muted)',
+  color: 'var(--color-text-muted)',
   letterSpacing: '.05em',
   marginBottom: 5,
 };
@@ -78,12 +78,12 @@ function PresetButton({
       style={{
         ...BTN_BASE,
         background: active
-          ? 'rgba(0,180,216,0.22)'
-          : hover ? 'rgba(0,180,216,0.10)' : BTN_BASE.background,
+          ? 'rgba(var(--color-primary-rgb),0.22)'
+          : hover ? 'rgba(var(--color-primary-rgb),0.10)' : BTN_BASE.background,
         borderColor: active
-          ? 'rgba(0,180,216,0.70)'
-          : hover ? 'rgba(0,180,216,0.40)' : 'rgba(255,255,255,0.12)',
-        color: active || hover ? '#7dd8e8' : 'var(--text-secondary)',
+          ? 'rgba(var(--color-primary-rgb),0.70)'
+          : hover ? 'rgba(var(--color-primary-rgb),0.40)' : 'var(--color-border-bright)',
+        color: active || hover ? 'var(--color-primary)' : 'var(--color-text-secondary)',
       }}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
@@ -93,7 +93,7 @@ function PresetButton({
       {hasCustom && (
         <span style={{
           position: 'absolute', top: 2, right: 3,
-          fontSize: 7, color: '#ffd050', lineHeight: 1,
+          fontSize: 7, color: 'var(--color-warning)', lineHeight: 1,
           pointerEvents: 'none',
         }}>
           &#9733;
@@ -153,8 +153,8 @@ export function ViewPresetPanel({
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
             padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-            border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.03)',
-            color: 'var(--text-secondary)', fontSize: 11, fontWeight: 700,
+            border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+            color: 'var(--color-text-secondary)', fontSize: 11, fontWeight: 700,
           }}
         >
           <span>視点プリセット{!isOpen && activeLabel ? `： ${String(activeLabel)}` : ''}</span>
@@ -204,9 +204,9 @@ export function ViewPresetPanel({
             onClick={handleSave}
             style={{
               flex: 1, padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
-              border: savedFlash ? '1px solid rgba(60,200,120,0.50)' : '1px solid rgba(0,180,216,0.40)',
-              background: savedFlash ? 'rgba(60,200,120,0.14)' : 'rgba(0,180,216,0.10)',
-              color: savedFlash ? '#60e890' : '#7dd8e8',
+              border: savedFlash ? '1px solid rgba(var(--color-success-rgb),0.50)' : '1px solid rgba(var(--color-primary-rgb),0.40)',
+              background: savedFlash ? 'var(--color-success-bg)' : 'rgba(var(--color-primary-rgb),0.10)',
+              color: savedFlash ? 'var(--color-success)' : 'var(--color-primary)',
               fontSize: 10, fontWeight: 700, transition: 'all .18s',
             }}
           >
@@ -217,9 +217,9 @@ export function ViewPresetPanel({
               onClick={() => handleReset(activeKey)}
               style={{
                 padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
-                border: '1px solid rgba(255,80,80,0.30)',
-                background: 'rgba(255,60,60,0.08)',
-                color: '#ff8080', fontSize: 10, fontWeight: 700,
+                border: '1px solid rgba(var(--color-error-rgb),0.30)',
+                background: 'rgba(var(--color-error-rgb),0.08)',
+                color: 'var(--color-error)', fontSize: 10, fontWeight: 700,
               }}
             >
               \u2715 リセット

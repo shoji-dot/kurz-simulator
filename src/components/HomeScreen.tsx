@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSimStore } from '../store/useSimStore';
 import { isAdminMode } from '../utils/adminMode';
-import { Badge, Button, Alert } from './ui';
+import { Badge, Button, Alert, KurzLogoMark, Z_INDEX } from './ui';
 
 const VERSION = 'v0.3.0';
 
@@ -77,12 +77,7 @@ export function HomeScreen() {
         borderBottom: '1px solid var(--color-border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 'var(--radius-md)',
-            background: 'var(--color-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 17, flexShrink: 0, color: 'var(--color-bg-primary)',
-          }}>⚕</div>
+          <KurzLogoMark size={30} />
           <div>
             <div style={{ font: 'var(--text-subtitle)', letterSpacing: '.02em', lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
               KURZ Otology
@@ -253,7 +248,7 @@ export function HomeScreen() {
                         font: 'var(--text-small)',
                         color: 'var(--color-text-secondary)',
                         lineHeight: 1.6,
-                        zIndex: 100,
+                        zIndex: Z_INDEX.modal,
                         width: 200,
                         textAlign: 'left',
                         pointerEvents: 'none',

@@ -5,11 +5,14 @@
  */
 export const Z_INDEX = {
   canvas: 0,
+  dim: 9,
   vignette: 5,
   hud: 10,
+  overlay: 15,
   toolbar: 20,
   panel: 30,
   modalBackdrop: 90,
   modal: 100,
   toast: 110,
+  splash: 200,
 } as const;

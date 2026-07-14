@@ -11,4 +11,6 @@ export * from './TeachingPointList';
 export * from './ScoreStat';
 export * from './Feedback';
 export * from './Alert';
+export * from './Toggle';
 export * from './zIndex';
+export * from './Logo';

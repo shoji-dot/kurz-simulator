@@ -15,7 +15,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
       return (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: '100%', padding: 32, color: '#ff8080', textAlign: 'center',
+          height: '100%', padding: 32, color: 'var(--color-error)', textAlign: 'center',
         }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>描画エラーが発生しました</div>
@@ -42,7 +42,7 @@ import {
   type StructureKey,
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
-import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Z_INDEX } from './ui';
+import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX } from './ui';
 
 // ── スコア履歴 (localStorage) ──────────────────────────────────────
 interface HistoryEntry {
@@ -108,14 +108,14 @@ const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?:
 const CYCLE: OpacityMode[] = ['solid', 'ghost', 'hidden'];
 const MODE_LABEL: Record<OpacityMode, string> = { solid: '実体', ghost: '半透明', hidden: '非表示' };
 const MODE_BG: Record<OpacityMode, string> = {
-  solid:  'var(--accent)',
-  ghost:  'rgba(0,180,216,0.30)',
+  solid:  'var(--color-primary)',
+  ghost:  'rgba(var(--color-primary-rgb),0.30)',
   hidden: 'rgba(255,255,255,0.07)',
 };
 const MODE_FG: Record<OpacityMode, string> = {
-  solid:  '#001a20',
-  ghost:  '#7dd8e8',
-  hidden: '#555',
+  solid:  'var(--color-bg-primary)',
+  ghost:  'var(--color-primary)',
+  hidden: 'var(--color-text-muted)',
 };
 
 
@@ -134,15 +134,15 @@ function ContextTagBar({ procedureTags, lesionTags, style }: ContextTagBarProps)
       {procedureTags.map(t => (
         <span key={t} style={{
           padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(0,180,216,0.18)', color: '#7dd8e8',
-          border: '1px solid rgba(0,180,216,0.35)', letterSpacing: '.02em',
+          background: 'rgba(var(--color-primary-rgb),0.18)', color: 'var(--color-primary)',
+          border: '1px solid rgba(var(--color-primary-rgb),0.35)', letterSpacing: '.02em',
         }}>{t}</span>
       ))}
       {lesionTags.map(t => (
         <span key={t} style={{
           padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(255,209,102,0.15)', color: '#ffd166',
-          border: '1px solid rgba(255,209,102,0.35)', letterSpacing: '.02em',
+          background: 'rgba(var(--color-warning-rgb),0.15)', color: 'var(--color-warning)',
+          border: '1px solid rgba(var(--color-warning-rgb),0.35)', letterSpacing: '.02em',
         }}>{t}</span>
       ))}
     </div>
@@ -182,7 +182,7 @@ function AdjRow({
     borderRadius: 6,
     border: '1px solid rgba(255,255,255,.12)',
     background: i < steps.length / 2 ? 'rgba(255,120,80,.1)' : 'rgba(80,200,120,.1)',
-    color: i < steps.length / 2 ? '#ff9060' : '#60e090',
+    color: i < steps.length / 2 ? 'var(--color-error)' : 'var(--color-success)',
     fontSize: 11,
     fontWeight: 700,
     cursor: 'pointer',
@@ -219,27 +219,18 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
       </p>
 
       {/* 難易度フィルター */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {[
-          { key: 'all',          label: 'すべて', count: surgicalCases.length },
-          { key: 'beginner',     label: '初級',   count: surgicalCases.filter(c => c.difficulty === 'beginner').length },
-          { key: 'intermediate', label: '中級',   count: surgicalCases.filter(c => c.difficulty === 'intermediate').length },
-          { key: 'advanced',     label: '上級',   count: surgicalCases.filter(c => c.difficulty === 'advanced').length },
-        ].map(({ key, label, count }) => (
-          <button
-            key={key}
-            onClick={() => setDiffFilter(key)}
-            style={{
-              padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: diffFilter === key ? 700 : 400,
-              border: `1px solid ${diffFilter === key ? 'var(--accent)' : 'var(--border)'}`,
-              background: diffFilter === key ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.04)',
-              color: diffFilter === key ? 'var(--accent)' : 'var(--text-muted)',
-              cursor: 'pointer', transition: 'all .15s',
-            }}
-          >
-            {label} <span style={{ opacity: 0.6 }}>({count})</span>
-          </button>
-        ))}
+      <div style={{ marginBottom: 16 }}>
+        <PillToggleGroup<string>
+          ariaLabel="難易度フィルター"
+          value={diffFilter}
+          onChange={setDiffFilter}
+          options={[
+            { value: 'all',          label: `すべて (${surgicalCases.length})` },
+            { value: 'beginner',     label: `初級 (${surgicalCases.filter(c => c.difficulty === 'beginner').length})` },
+            { value: 'intermediate', label: `中級 (${surgicalCases.filter(c => c.difficulty === 'intermediate').length})` },
+            { value: 'advanced',     label: `上級 (${surgicalCases.filter(c => c.difficulty === 'advanced').length})` },
+          ]}
+        />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -248,8 +239,12 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
           return (
             <div
               key={c.id}
-              className={`selectable-card ${isSelected ? 'selected' : ''}`}
+              className={`selectable-card ${isSelected ? 'selected' : ''} kz-focusable`}
               onClick={() => setSelectedCase(c)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCase(c); } }}
+              aria-pressed={isSelected}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <span style={{ fontWeight: 600, fontSize: 14, flex: 1, minWidth: 0 }}>{c.title}</span>
@@ -274,21 +269,8 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
       </div>
       <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* 判断クイズスキップ設定 */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)' }}>
-          <div
-            onClick={onToggleSkip}
-            style={{
-              width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer', flexShrink: 0,
-              background: skipQuiz ? 'var(--accent)' : 'rgba(255,255,255,0.15)',
-              transition: 'background .2s',
-            }}
-          >
-            <div style={{
-              position: 'absolute', top: 2, left: skipQuiz ? 18 : 2,
-              width: 16, height: 16, borderRadius: '50%', background: '#fff',
-              transition: 'left .2s',
-            }} />
-          </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-muted)' }}>
+          <Toggle checked={skipQuiz} onChange={onToggleSkip} aria-label="判断クイズをスキップ" />
           判断クイズをスキップ
         </label>
         <button
@@ -409,26 +391,23 @@ function JudgmentStep() {
     return (
       <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
         <div className="card">
-          <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
+          <div className="section-title" style={{ color: 'var(--color-primary)', marginBottom: 12 }}>
             🔬 術前解剖確認
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
             {selectedCase.title}に進む前に、以下の解剖構造を3Dビューで確認してください。
           </div>
           {focusStructures.map(s => (
-            <div key={s.key} style={{
-              padding: '10px 14px', marginBottom: 8, borderRadius: 8,
-              background: 'rgba(0,180,216,0.08)', border: '1px solid rgba(0,180,216,0.25)',
-            }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>
-                {s.label}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                {s.reason}
-              </div>
+            <div key={s.key} style={{ marginBottom: 8 }}>
+              <Alert tone="info">
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.5 }}>{s.reason}</div>
+                </div>
+              </Alert>
             </div>
           ))}
-          <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
             💡 解剖タブで各構造を solid / ghost / hidden に切り替えて立体位置を確認してから次に進むことを推奨します。
           </div>
         </div>
@@ -446,9 +425,9 @@ function JudgmentStep() {
   if (phase === 'quiz') {
     const optionStyle = (opt: string, selected: string | null): CSSProperties => ({
       padding: '10px 16px', marginBottom: 8, borderRadius: 8, cursor: 'pointer',
-      border: `1px solid ${selected === opt ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
-      background: selected === opt ? 'rgba(0,180,216,0.15)' : 'rgba(255,255,255,0.04)',
-      color: selected === opt ? 'var(--accent)' : 'var(--text-secondary)',
+      border: `1px solid ${selected === opt ? 'var(--color-primary)' : 'rgba(255,255,255,0.12)'}`,
+      background: selected === opt ? 'var(--color-primary-tint)' : 'rgba(255,255,255,0.04)',
+      color: selected === opt ? 'var(--color-primary)' : 'var(--color-text-secondary)',
       fontSize: 13, fontWeight: selected === opt ? 700 : 400,
       transition: 'all .15s',
     });
@@ -457,8 +436,8 @@ function JudgmentStep() {
       <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
         {/* 症例サマリ */}
         <div className="card" style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>症例情報</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>症例情報</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
             {selectedCase.description}
           </div>
           <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -469,11 +448,12 @@ function JudgmentStep() {
                 intact: '正常', partial: '部分', absent: '欠損',
                 suprastructure: '上部構造あり', 'footplate-only': '底板のみ',
               };
-              const color = status === 'intact' ? '#4ade80' : status === 'absent' || status === 'footplate-only' ? '#ff6666' : '#ffd166';
+              const color = status === 'intact' ? 'var(--color-success)' : status === 'absent' || status === 'footplate-only' ? 'var(--color-error)' : 'var(--color-warning)';
+              const colorRgb = status === 'intact' ? 'var(--color-success-rgb)' : status === 'absent' || status === 'footplate-only' ? 'var(--color-error-rgb)' : 'var(--color-warning-rgb)';
               return (
                 <div key={bone} style={{
                   padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600,
-                  background: `${color}18`, border: `1px solid ${color}55`, color,
+                  background: `rgba(${colorRgb},0.09)`, border: `1px solid rgba(${colorRgb},0.33)`, color,
                 }}>
                   {labels[bone]}：{statusLabel[status] ?? status}
                 </div>
@@ -486,7 +466,16 @@ function JudgmentStep() {
         <div className="card">
           <div className="section-title">Q1. この症例の鼓室形成型は？</div>
           {typeOptions.map(opt => (
-            <div key={opt} style={optionStyle(opt, typeSelected)} onClick={() => setTypeSelected(opt)}>
+            <div
+              key={opt}
+              style={optionStyle(opt, typeSelected)}
+              onClick={() => setTypeSelected(opt)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeSelected(opt); } }}
+              aria-pressed={typeSelected === opt}
+              className="kz-focusable"
+            >
               {opt}
             </div>
           ))}
@@ -496,7 +485,16 @@ function JudgmentStep() {
         <div className="card">
           <div className="section-title">Q2. 適切なプロステーシス種類は？</div>
           {productOptions.map(opt => (
-            <div key={opt} style={optionStyle(opt, productSelected)} onClick={() => setProductSelected(opt)}>
+            <div
+              key={opt}
+              style={optionStyle(opt, productSelected)}
+              onClick={() => setProductSelected(opt)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setProductSelected(opt); } }}
+              aria-pressed={productSelected === opt}
+              className="kz-focusable"
+            >
               {opt}
             </div>
           ))}
@@ -524,24 +522,24 @@ function JudgmentStep() {
   const ResultBadge = ({ correct, label, answer, correct_answer, explanation }: { correct: boolean; label: string; answer: string; correct_answer: string; explanation?: string }) => (
     <div style={{
       padding: '12px 16px', marginBottom: 12, borderRadius: 8,
-      background: correct ? 'rgba(74,222,128,0.08)' : 'rgba(255,100,100,0.08)',
-      border: `1px solid ${correct ? 'rgba(74,222,128,0.35)' : 'rgba(255,100,100,0.35)'}`,
+      background: correct ? 'rgba(var(--color-success-rgb),0.08)' : 'rgba(var(--color-error-rgb),0.08)',
+      border: `1px solid ${correct ? 'rgba(var(--color-success-rgb),0.35)' : 'rgba(var(--color-error-rgb),0.35)'}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span style={{ fontSize: 16 }}>{correct ? '✅' : '❌'}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: correct ? '#4ade80' : '#ff8080' }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: correct ? 'var(--color-success)' : 'var(--color-error)' }}>{label}</span>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-        あなたの回答：<span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{answer}</span>
+      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+        あなたの回答：<span style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>{answer}</span>
         {!correct && (
-          <span> → 正解：<span style={{ color: '#4ade80', fontWeight: 700 }}>{correct_answer}</span></span>
+          <span> → 正解：<span style={{ color: 'var(--color-success)', fontWeight: 700 }}>{correct_answer}</span></span>
         )}
       </div>
       {!correct && explanation && (
         <div style={{
           marginTop: 10, paddingTop: 10,
           borderTop: '1px solid rgba(255,255,255,0.07)',
-          fontSize: 11, color: '#fbbf24', lineHeight: 1.65,
+          fontSize: 11, color: 'var(--color-warning)', lineHeight: 1.65,
         }}>
           📖 {explanation}
         </div>
@@ -572,14 +570,10 @@ function JudgmentStep() {
         {/* Teaching points 全件表示 */}
         {selectedCase.teachingPoints.length > 0 && (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '.04em' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 8, letterSpacing: '.04em' }}>
               💡 学習ポイント
             </div>
-            {selectedCase.teachingPoints.map((tp, i) => (
-              <div key={i} style={{ padding: '7px 12px', marginBottom: 6, borderRadius: 7, background: 'rgba(0,180,216,0.06)', borderLeft: '2px solid rgba(0,180,216,0.3)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-                {tp}
-              </div>
-            ))}
+            <TeachingPointList points={selectedCase.teachingPoints} />
           </div>
         )}
       </div>
@@ -612,7 +606,7 @@ function ProductSelect() {
       </p>
 
       {selectedCase && (
-        <div className="card" style={{ marginBottom: 16, background: 'rgba(0,180,216,.05)', borderColor: 'rgba(0,180,216,.2)' }}>
+        <div className="card" style={{ marginBottom: 16, background: 'rgba(var(--color-primary-rgb),.05)', borderColor: 'rgba(var(--color-primary-rgb),.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             📋 <strong style={{ color: 'var(--text-primary)' }}>症例メモ</strong>：{selectedCase.clinicalNotes}
           </div>
@@ -628,9 +622,13 @@ function ProductSelect() {
           return (
             <div key={p.id}>
               <div
-                className={`selectable-card ${isSelected ? 'selected' : ''}`}
+                className={`selectable-card ${isSelected ? 'selected' : ''} kz-focusable`}
                 onClick={() => { setSelectedProduct(p); setSelectedLength(placement.selectedLength); }}
-                style={isRecommended ? { borderColor: 'rgba(74,222,128,.4)' } : undefined}
+                style={isRecommended ? { borderColor: 'rgba(var(--color-success-rgb),.4)' } : undefined}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProduct(p); setSelectedLength(placement.selectedLength); } }}
+                aria-pressed={isSelected}
               >
                 {/* Header row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -639,8 +637,8 @@ function ProductSelect() {
                     {isRecommended && (
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '2px 7px',
-                        borderRadius: 10, background: 'rgba(74,222,128,.15)',
-                        color: '#4ade80', border: '1px solid rgba(74,222,128,.3)',
+                        borderRadius: 10, background: 'rgba(var(--color-success-rgb),.15)',
+                        color: 'var(--color-success)', border: '1px solid rgba(var(--color-success-rgb),.3)',
                         whiteSpace: 'nowrap',
                       }}>✓ この症例に推奨</span>
                     )}
@@ -671,8 +669,8 @@ function ProductSelect() {
                 {isSelected && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                     {p.selectionRationale && (
-                      <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.6 }}>
-                        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>選択根拠：</span>{p.selectionRationale}
+                      <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 8, lineHeight: 1.6 }}>
+                        <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>選択根拠：</span>{p.selectionRationale}
                       </div>
                     )}
                     {p.keyFeatures && p.keyFeatures.length > 0 && (
@@ -693,10 +691,10 @@ function ProductSelect() {
               {isWrongChoice && recommendedProduct && (
                 <div style={{
                   padding: '10px 14px', marginTop: -2,
-                  background: 'rgba(255,200,100,.07)', border: '1px solid rgba(255,200,100,.25)',
+                  background: 'rgba(var(--color-warning-rgb),.07)', border: '1px solid rgba(var(--color-warning-rgb),.25)',
                   borderTop: 'none', borderRadius: '0 0 8px 8px', fontSize: 12, lineHeight: 1.6,
                 }}>
-                  <div style={{ fontWeight: 600, color: '#ffd166', marginBottom: 4 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--color-warning)', marginBottom: 4 }}>
                     ⚠️ この症例には <span style={{ color: 'var(--text-primary)' }}>{recommendedProduct.name}</span> が推奨されます
                   </div>
                   <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>
@@ -711,7 +709,7 @@ function ProductSelect() {
 
               {/* Length selector */}
               {isSelected && (
-                <div style={{ padding: '12px 14px', background: 'rgba(0,180,216,.08)', border: '1px solid var(--accent)', borderTop: 'none', borderRadius: '0 0 10px 10px', marginTop: isWrongChoice ? 0 : -2 }}>
+                <div style={{ padding: '12px 14px', background: 'rgba(var(--color-primary-rgb),.08)', border: '1px solid var(--color-primary)', borderTop: 'none', borderRadius: '0 0 10px 10px', marginTop: isWrongChoice ? 0 : -2 }}>
                   <div className="section-title" style={{ marginBottom: 8 }}>シャフト長を選択</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {p.shaftLengths.map((l) => (
@@ -721,9 +719,9 @@ function ProductSelect() {
                         style={{
                           padding: '6px 14px',
                           borderRadius: 6,
-                          border: selectedLength === l ? '2px solid var(--accent)' : '1px solid var(--border-bright)',
-                          background: selectedLength === l ? 'var(--accent)' : 'transparent',
-                          color: selectedLength === l ? '#fff' : 'var(--text-secondary)',
+                          border: selectedLength === l ? '2px solid var(--color-primary)' : '1px solid var(--color-border-bright)',
+                          background: selectedLength === l ? 'var(--color-primary)' : 'transparent',
+                          color: selectedLength === l ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)',
                           cursor: 'pointer',
                           fontSize: 13,
                           fontWeight: 600,
@@ -770,10 +768,10 @@ function ShaftEstimateStep() {
 
   // 推定精度評価
   const getEstimateGrade = (d: number) => {
-    if (d <= 0.5) return { label: '優秀', color: '#4ade80', comment: '臨床的に許容範囲内の推定です。' };
-    if (d <= 1.0) return { label: '良好', color: '#60b8e0', comment: '1mm以内の誤差。術中サイザーで微調整できます。' };
-    if (d <= 1.5) return { label: '要改善', color: '#ffd166', comment: '1.5mm以上の誤差。術前CT計測を再確認してください。' };
-    return { label: '不十分', color: '#ff6666', comment: '2mm以上の誤差。音伝達効率に影響します。シャフト長の計測方法を復習してください。' };
+    if (d <= 0.5) return { label: '優秀', color: 'var(--color-success)', colorRgb: 'var(--color-success-rgb)', comment: '臨床的に許容範囲内の推定です。' };
+    if (d <= 1.0) return { label: '良好', color: 'var(--color-primary)', colorRgb: 'var(--color-primary-rgb)', comment: '1mm以内の誤差。術中サイザーで微調整できます。' };
+    if (d <= 1.5) return { label: '要改善', color: 'var(--color-warning)', colorRgb: 'var(--color-warning-rgb)', comment: '1.5mm以上の誤差。術前CT計測を再確認してください。' };
+    return { label: '不十分', color: 'var(--color-error)', colorRgb: 'var(--color-error-rgb)', comment: '2mm以上の誤差。音伝達効率に影響します。シャフト長の計測方法を復習してください。' };
   };
 
   // 長さ候補（選択製品のshaftLengthsを使用）
@@ -782,7 +780,7 @@ function ShaftEstimateStep() {
   return (
     <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
       <div className="card">
-        <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
+        <div className="section-title" style={{ color: 'var(--color-primary)', marginBottom: 12 }}>
           📏 シャフト長 推定トレーニング
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
@@ -798,18 +796,23 @@ function ShaftEstimateStep() {
         </div>
 
         {/* AC サイザー使用ガイド（M4: 概要3行＋詳細アコーディオン） */}
-        <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,100,80,0.12)', border:'1px solid rgba(0,200,150,0.25)', marginBottom:16 }}>
+        <div style={{ padding:'12px 14px', borderRadius:8, background:'var(--color-success-bg)', border:'1px solid rgba(var(--color-success-rgb),0.25)', marginBottom:16 }}>
           <div
             onClick={() => setSizerGuideOpen(v => !v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSizerGuideOpen(v => !v); } }}
+            aria-expanded={sizerGuideOpen}
+            className="kz-focusable"
             style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}
           >
-            <div style={{ fontSize:11, fontWeight:700, color:'#4de8b8', display:'flex', alignItems:'center', gap:6 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--color-success)', display:'flex', alignItems:'center', gap:6 }}>
               <span style={{fontSize:14}}>📐</span> ACサイザー使用手順
             </div>
-            <span style={{ fontSize:11, color:'#4de8b8', display:'inline-block', transform: sizerGuideOpen ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>▾</span>
+            <span style={{ fontSize:11, color:'var(--color-success)', display:'inline-block', transform: sizerGuideOpen ? 'rotate(180deg)' : 'none', transition:'transform .2s' }}>▾</span>
           </div>
           {/* 概要3行（常時表示） */}
-          <div style={{ fontSize:10, color:'#8899aa', lineHeight:1.7, marginTop:8 }}>
+          <div style={{ fontSize:10, color:'var(--color-text-muted)', lineHeight:1.7, marginTop:8 }}>
             ① サイザーを鼓膜グラフト下面〜アブミ骨頭部（PORP）/底板（TORP）に当てて実測<br />
             ② 0.25mm単位で目盛りを読み記録（体位・軟骨補強厚で変動）<br />
             ③ 軟骨補強ありの場合は実測値 +0.25〜0.5mm を推奨長として加算
@@ -826,35 +829,35 @@ function ShaftEstimateStep() {
             <ellipse cx="60" cy="38" rx="8" ry="3" fill="#9a7040" opacity="0.8" />
             <text x="60" y="30" textAnchor="middle" fontSize="7" fill="#c4944a">鼓膜側</text>
             {/* ACサイザー本体 */}
-            <rect x="54" y="40" width="12" height="30" rx="2" fill="none" stroke="#4de8b8" strokeWidth="1.5" />
-            <line x1="48" y1="40" x2="72" y2="40" stroke="#4de8b8" strokeWidth="1.2" />
-            <line x1="48" y1="70" x2="72" y2="70" stroke="#4de8b8" strokeWidth="1.2" />
+            <rect x="54" y="40" width="12" height="30" rx="2" fill="none" stroke="var(--color-success)" strokeWidth="1.5" />
+            <line x1="48" y1="40" x2="72" y2="40" stroke="var(--color-success)" strokeWidth="1.2" />
+            <line x1="48" y1="70" x2="72" y2="70" stroke="var(--color-success)" strokeWidth="1.2" />
             {/* 双方向矢印 */}
-            <line x1="78" y1="40" x2="78" y2="70" stroke="#ffd166" strokeWidth="1.2" />
-            <polygon points="78,36 75,43 81,43" fill="#ffd166" />
-            <polygon points="78,74 75,67 81,67" fill="#ffd166" />
-            <text x="84" y="57" fontSize="9" fill="#ffd166" fontWeight="bold">L mm</text>
+            <line x1="78" y1="40" x2="78" y2="70" stroke="var(--color-warning)" strokeWidth="1.2" />
+            <polygon points="78,36 75,43 81,43" fill="var(--color-warning)" />
+            <polygon points="78,74 75,67 81,67" fill="var(--color-warning)" />
+            <text x="84" y="57" fontSize="9" fill="var(--color-warning)" fontWeight="bold">L mm</text>
             {/* 目盛り */}
             {[0,1,2,3,4,5].map((i) => null)}
-            <line x1="56" y1="45" x2="60" y2="45" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
-            <line x1="56" y1="50" x2="60" y2="50" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
-            <line x1="56" y1="55" x2="60" y2="55" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
-            <line x1="56" y1="60" x2="60" y2="60" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
-            <line x1="56" y1="65" x2="60" y2="65" stroke="#4de8b8" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="45" x2="60" y2="45" stroke="var(--color-success)" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="50" x2="60" y2="50" stroke="var(--color-success)" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="55" x2="60" y2="55" stroke="var(--color-success)" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="60" x2="60" y2="60" stroke="var(--color-success)" strokeWidth="0.8" opacity="0.6" />
+            <line x1="56" y1="65" x2="60" y2="65" stroke="var(--color-success)" strokeWidth="0.8" opacity="0.6" />
             {/* テキスト説明 */}
-            <text x="105" y="22" fontSize="8.5" fill="#c8e0f0" fontWeight="600">ACサイザー計測手順</text>
-            <text x="105" y="36" fontSize="8" fill="#8899aa">① サイザーを鼓膜グラフト下面に当てる</text>
-            <text x="105" y="48" fontSize="8" fill="#8899aa">② 下端をアブミ骨頭（PORP）または</text>
-            <text x="105" y="58" fontSize="8" fill="#8899aa">　 底板（TORP）まで伸ばす</text>
-            <text x="105" y="70" fontSize="8" fill="#8899aa">③ 目盛りを読み、0.25mm単位で記録</text>
-            <text x="105" y="82" fontSize="8" fill="#4de8b8">④ 読んだ値 = シャフト長の基準</text>
+            <text x="105" y="22" fontSize="8.5" fill="var(--color-text-primary)" fontWeight="600">ACサイザー計測手順</text>
+            <text x="105" y="36" fontSize="8" fill="var(--color-text-muted)">① サイザーを鼓膜グラフト下面に当てる</text>
+            <text x="105" y="48" fontSize="8" fill="var(--color-text-muted)">② 下端をアブミ骨頭（PORP）または</text>
+            <text x="105" y="58" fontSize="8" fill="var(--color-text-muted)">　 底板（TORP）まで伸ばす</text>
+            <text x="105" y="70" fontSize="8" fill="var(--color-text-muted)">③ 目盛りを読み、0.25mm単位で記録</text>
+            <text x="105" y="82" fontSize="8" fill="var(--color-success)">④ 読んだ値 = シャフト長の基準</text>
           </svg>
             </>
           )}
           {submitted && (
             <div style={{ textAlign:'right', marginTop: sizerGuideOpen ? 0 : 10 }}>
-              <div style={{ fontSize:9, color:'#4de8b8', marginBottom:2 }}>この症例の正解</div>
-              <div style={{ fontSize:22, fontWeight:800, color:'#4ade80' }}>{recommended} mm</div>
+              <div style={{ fontSize:9, color:'var(--color-success)', marginBottom:2 }}>この症例の正解</div>
+              <div style={{ fontSize:22, fontWeight:800, color:'var(--color-success)' }}>{recommended} mm</div>
             </div>
           )}
         </div>
@@ -862,17 +865,17 @@ function ShaftEstimateStep() {
 
         {/* TTP-VARIAC シャフト長調整手順（Soft Clip 以外・詳細アコーディオン展開時のみ表示） */}
         {selectedProduct.id !== 'soft-clip-stapes' && sizerGuideOpen && (
-          <div style={{ padding:'12px 14px', borderRadius:8, background:'rgba(0,60,120,0.14)', border:'1px solid rgba(0,140,220,0.28)', marginBottom:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#60b8f8', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ padding:'12px 14px', borderRadius:8, background:'var(--color-primary-tint)', border:'1px solid rgba(var(--color-primary-rgb),0.28)', marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--color-primary)', marginBottom:8, display:'flex', alignItems:'center', gap:6 }}>
               <span style={{fontSize:14}}>🔧</span> TTP-VARIAC® シャフト長調整手順（サイザーディスク使用）
             </div>
-            <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:'#8899aa', lineHeight:1.8 }}>
+            <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:'var(--color-text-muted)', lineHeight:1.8 }}>
               <li>Micro Scissors でサイザーを shaft 付着部から切り取り、中耳腔に挿入する</li>
               <li>Head plate を鼓膜・ツチ骨柄側、foot part をアブミ骨側（PORP: 頭部 / TORP: 底板）に位置合わせする</li>
               <li>軟骨補強を使用する場合は軟骨の厚さを考慮して最適な長さを決定する</li>
-              <li>プロステーシスを生食で湿らし、Titanium Tweezers で head plate を持って、<span style={{color:'#60b8f8', fontWeight:600}}>目的の長さの溝にシャフトを挿入する</span></li>
-              <li>Micro Closing Forceps で head plate を固定する<br/><span style={{color:'#ffd166'}}>（INSIDE 面を head plate 内側に、OUTSIDE 面を外側に合わせて挟む）</span></li>
-              <li>Cutting Forceps で外側に突き出たシャフトを切断する<br/><span style={{color:'var(--text-muted)', fontSize:10}}>※ head plate から少しシャフトが飛び出すが、これは軟骨固定に使用する</span></li>
+              <li>プロステーシスを生食で湿らし、Titanium Tweezers で head plate を持って、<span style={{color:'var(--color-primary)', fontWeight:600}}>目的の長さの溝にシャフトを挿入する</span></li>
+              <li>Micro Closing Forceps で head plate を固定する<br/><span style={{color:'var(--color-warning)'}}>（INSIDE 面を head plate 内側に、OUTSIDE 面を外側に合わせて挟む）</span></li>
+              <li>Cutting Forceps で外側に突き出たシャフトを切断する<br/><span style={{color:'var(--color-text-muted)', fontSize:10}}>※ head plate から少しシャフトが飛び出すが、これは軟骨固定に使用する</span></li>
             </ol>
           </div>
         )}
@@ -890,9 +893,9 @@ function ShaftEstimateStep() {
                   onClick={() => setEstimated(l)}
                   style={{
                     padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700,
-                    border: `2px solid ${estimated === l ? 'var(--accent)' : 'rgba(255,255,255,0.15)'}`,
-                    background: estimated === l ? 'rgba(0,180,216,0.18)' : 'rgba(255,255,255,0.04)',
-                    color: estimated === l ? 'var(--accent)' : 'var(--text-secondary)',
+                    border: `2px solid ${estimated === l ? 'var(--color-primary)' : 'rgba(255,255,255,0.15)'}`,
+                    background: estimated === l ? 'var(--color-primary-tint)' : 'rgba(255,255,255,0.04)',
+                    color: estimated === l ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                     transition: 'all .15s',
                   }}
                 >
@@ -915,32 +918,32 @@ function ShaftEstimateStep() {
             {diff !== null && (() => {
               const grade = getEstimateGrade(diff);
               return (
-                <div style={{ padding: '14px 16px', borderRadius: 8, background: `${grade.color}10`, border: `1px solid ${grade.color}40`, marginBottom: 16 }}>
+                <div style={{ padding: '14px 16px', borderRadius: 8, background: `rgba(${grade.colorRgb},0.06)`, border: `1px solid rgba(${grade.colorRgb},0.25)`, marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>あなたの推定</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>あなたの推定</div>
                       <div style={{ fontSize: 28, fontWeight: 800, color: grade.color }}>{estimated} mm</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>術中実測値（正解）</div>
-                      <div style={{ fontSize: 28, fontWeight: 800, color: '#4ade80' }}>{recommended} mm</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>術中実測値（正解）</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-success)' }}>{recommended} mm</div>
                     </div>
-                    <div style={{ padding: '4px 12px', borderRadius: 999, background: `${grade.color}22`, border: `1px solid ${grade.color}55`, fontSize: 12, fontWeight: 700, color: grade.color }}>
+                    <div style={{ padding: '4px 12px', borderRadius: 999, background: `rgba(${grade.colorRgb},0.13)`, border: `1px solid rgba(${grade.colorRgb},0.33)`, fontSize: 12, fontWeight: 700, color: grade.color }}>
                       {grade.label}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
                     誤差：<strong style={{ color: grade.color }}>{diff === 0 ? '±0 mm（完全一致）' : `${diff.toFixed(1)} mm`}</strong>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
                     {grade.comment}
                   </div>
                 </div>
               );
             })()}
 
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 8 }}>
-              💡 実際に選択したサイズ（<strong style={{ color: 'var(--text-secondary)' }}>{selected} mm</strong>）で配置を行います。
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 8 }}>
+              💡 実際に選択したサイズ（<strong style={{ color: 'var(--color-text-secondary)' }}>{selected} mm</strong>）で配置を行います。
               推定と異なる場合は「プロステーシス選択に戻る」で変更できます。
             </div>
           </>
@@ -975,7 +978,8 @@ function pfLevel(absVal: number, warnT: number, errT: number): PFLevel {
   return 'err';
 }
 
-const PF_COLOR: Record<PFLevel, string> = { ok: '#4ade80', warn: '#ffd166', err: '#ff6666' };
+const PF_COLOR: Record<PFLevel, string> = { ok: 'var(--color-success)', warn: 'var(--color-warning)', err: 'var(--color-error)' };
+const PF_COLOR_RGB: Record<PFLevel, string> = { ok: 'var(--color-success-rgb)', warn: 'var(--color-warning-rgb)', err: 'var(--color-error-rgb)' };
 const PF_TAG:   Record<PFLevel, string> = { ok: '✓ 適切', warn: '▲ 要調整', err: '✗ 要修正' };
 
 function posHint(latDev: number, antDev: number, vertDev: number): string {
@@ -1028,22 +1032,22 @@ function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCa
   ];
 
   return (
-    <div className="card" style={{ borderColor: PF_COLOR[overall] + '44', background: PF_COLOR[overall] + '08', padding: '12px 14px' }}>
+    <div className="card" style={{ borderColor: `rgba(${PF_COLOR_RGB[overall]},0.27)`, background: `rgba(${PF_COLOR_RGB[overall]},0.03)`, padding: '12px 14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '.04em' }}>配置状況</div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: PF_COLOR[overall], padding: '3px 10px', borderRadius: 99, background: PF_COLOR[overall] + '18' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', letterSpacing: '.04em' }}>配置状況</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: PF_COLOR[overall], padding: '3px 10px', borderRadius: 99, background: `rgba(${PF_COLOR_RGB[overall]},0.09)` }}>
           {overallLabel}
         </div>
       </div>
       {rows.map((row) => (
         <div key={row.label} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.label}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: PF_COLOR[row.lv], padding: '1px 7px', borderRadius: 99, background: PF_COLOR[row.lv] + '18' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{row.label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: PF_COLOR[row.lv], padding: '1px 7px', borderRadius: 99, background: `rgba(${PF_COLOR_RGB[row.lv]},0.09)` }}>
               {PF_TAG[row.lv]}
             </span>
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{row.detail}</div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>{row.detail}</div>
           {row.hint !== '' && (
             <div style={{ marginTop: 3, fontSize: 10, color: PF_COLOR[row.lv], lineHeight: 1.4 }}>{row.hint}</div>
           )}
@@ -1178,8 +1182,8 @@ function PlacementStep() {
           <div style={{
             position: 'absolute', bottom: 80, left: 12, zIndex: Z_INDEX.hud, pointerEvents: 'none',
             background: 'rgba(0,0,0,.85)', padding: '6px 10px', borderRadius: 6,
-            fontFamily: 'monospace', fontSize: 10, color: '#7dd8e8',
-            backdropFilter: 'blur(4px)', border: '1px solid rgba(0,180,216,0.35)',
+            fontFamily: 'monospace', fontSize: 10, color: 'var(--color-primary)',
+            backdropFilter: 'blur(4px)', border: '1px solid rgba(var(--color-primary-rgb),0.35)',
             lineHeight: 1.6,
           }}>
             <div style={{fontWeight:700, marginBottom:2, fontSize:11}}>📐 カメラ座標 (world)</div>
@@ -1304,6 +1308,11 @@ function PlacementStep() {
           {/* ── 詳細調整（H2-b: 既定折りたたみ。3Dドラッグを一次操作、数値微調整は二次操作として序列化） ── */}
           <div
             onClick={() => setAdjPanelOpen(v => !v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAdjPanelOpen(v => !v); } }}
+            aria-expanded={adjPanelOpen}
+            className="kz-focusable"
             style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', userSelect:'none', margin:'10px 0 8px', borderTop:'1px solid rgba(255,255,255,.08)', paddingTop:10 }}
           >
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '.04em' }}>
@@ -1399,6 +1408,11 @@ function PlacementStep() {
         <div className="card">
           <div
             onClick={() => setVis3dOpen(v => !v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setVis3dOpen(v => !v); } }}
+            aria-expanded={vis3dOpen}
+            className="kz-focusable"
             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
           >
             <div className="section-title" style={{ margin: 0 }}>3D 表示切替</div>
@@ -1499,15 +1513,17 @@ function ScoreStep() {
 
   if (!scoreResult || !selectedCase || !selectedProduct) return null;
 
-  const RANK_COLOR: Record<string, string> = { S: '#ffd700', A: '#00e5ff', B: '#69ff69', C: '#ffaa44', D: '#ff6666' };
+  const RANK_COLOR: Record<string, string> = { S: 'var(--color-rank-s)', A: 'var(--color-success)', B: 'var(--color-primary)', C: 'var(--color-warning)', D: 'var(--color-error)' };
   const abg = scoreResult.abgPrediction;
-  const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
-  const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
+  const ABG_COLOR: Record<string, string> = { excellent: 'var(--color-success)', good: 'var(--color-primary)', fair: 'var(--color-warning)', poor: 'var(--color-error)' };
+  const ABG_COLOR_RGB: Record<string, string> = { excellent: 'var(--color-success-rgb)', good: 'var(--color-primary-rgb)', fair: 'var(--color-warning-rgb)', poor: 'var(--color-error-rgb)' };
+  const abgColor = abg ? ABG_COLOR[abg.successCategory] : 'var(--color-success)';
+  const abgColorRgb = abg ? ABG_COLOR_RGB[abg.successCategory] : 'var(--color-success-rgb)';
 
   const SCORE_ITEMS = [
-    { label: 'サイズ選択',  score: scoreResult.sizeScore,      max: 25, color: '#60b8e0' },
-    { label: '設置位置',    score: scoreResult.positionScore,  max: 25, color: '#4ade80' },
-    { label: '設置角度',    score: scoreResult.angleScore,     max: 25, color: '#ffd166' },
+    { label: 'サイズ選択',  score: scoreResult.sizeScore,      max: 25, color: 'var(--color-primary)' },
+    { label: '設置位置',    score: scoreResult.positionScore,  max: 25, color: 'var(--color-success)' },
+    { label: '設置角度',    score: scoreResult.angleScore,     max: 25, color: 'var(--color-warning)' },
     { label: '安定性',      score: scoreResult.stabilityScore, max: 25, color: '#f08050' },
   ];
 
@@ -1553,18 +1569,18 @@ function ScoreStep() {
                 <ScoreStat label="ABG改善量" value={`−${abg.improvementDb}`} unit="dB" color={abgColor} />
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ padding: '5px 14px', borderRadius: 999, background: abgColor + '22', border: `1px solid ${abgColor}66`, fontSize: 13, fontWeight: 700, color: abgColor, marginBottom: 8, display: 'inline-block' }}>
+                <div style={{ padding: '5px 14px', borderRadius: 999, background: `rgba(${abgColorRgb},0.13)`, border: `1px solid rgba(${abgColorRgb},0.40)`, fontSize: 13, fontWeight: 700, color: abgColor, marginBottom: 8, display: 'inline-block' }}>
                   {{ excellent: '優秀', good: '良好', fair: '可', poor: '要改善' }[abg.successCategory]}
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  {scoreResult.total}<span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 3 }}>/ 100</span>
+                <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                  {scoreResult.total}<span style={{ fontSize: 12, color: 'var(--color-text-muted)', marginLeft: 3 }}>/ 100</span>
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: `${abgColor}10`, borderLeft: `3px solid ${abgColor}88`, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6, fontWeight: 500 }}>
+            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: `rgba(${abgColorRgb},0.06)`, borderLeft: `3px solid rgba(${abgColorRgb},0.53)`, fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.6, fontWeight: 500 }}>
               {abg.clinicalInterpretation}
             </div>
-            <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+            <div style={{ marginTop: 6, fontSize: 10, color: 'var(--color-text-muted)' }}>
               ※ {selectedProduct.name} {placement.selectedLength}mm　/ Austin (1994), Merchant (2003) 文献値ベース
             </div>
           </>
@@ -1640,7 +1656,11 @@ function ScoreStep() {
       {/* ── 詳細情報（L2: 既定折りたたみ。学習ポイント/判断結果/スコア履歴は参照情報として二次表示） ── */}
       <div
         onClick={() => setScoreDetailOpen(v => !v)}
-        className="card"
+        className="card kz-focusable"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setScoreDetailOpen(v => !v); } }}
+        aria-expanded={scoreDetailOpen}
         style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer', userSelect:'none', padding:'12px 16px' }}
       >
         <div className="section-title" style={{ margin: 0 }}>詳細情報（フィードバック・学習ポイント・スコア履歴）</div>
@@ -1676,10 +1696,10 @@ function ScoreStep() {
             { label: 'プロステーシス', correct: judgmentResult.productCorrect, answer: judgmentResult.productAnswer },
           ].map(({ label, correct, answer }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+              <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: correct ? '#4ade80' : '#ff8080' }}>{correct ? '✅ 正解' : '❌ 不正解'}</span>
-                <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>（{answer}）</span>
+                <span style={{ color: correct ? 'var(--color-success)' : 'var(--color-error)' }}>{correct ? '✅ 正解' : '❌ 不正解'}</span>
+                <span style={{ color: 'var(--color-text-secondary)', fontSize: 11 }}>（{answer}）</span>
               </span>
             </div>
           ))}
@@ -1694,10 +1714,10 @@ function ScoreStep() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
             {history.length > 1 && (() => {
               const trend = history[0].total - history[1].total;
-              const tColor = trend > 0 ? '#4ade80' : trend < 0 ? '#ff6666' : 'var(--text-muted)';
+              const tColor = trend > 0 ? 'var(--color-success)' : trend < 0 ? 'var(--color-error)' : 'var(--color-text-muted)';
               return (
                 <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>前回比</div>
+                  <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginBottom: 3 }}>前回比</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: tColor }}>
                     {trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : '→ 変化なし'}
                   </div>
@@ -1705,8 +1725,8 @@ function ScoreStep() {
               );
             })()}
             <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', textAlign: 'center' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>ベスト</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#ffd700' }}>
+              <div style={{ fontSize: 9, color: 'var(--color-text-muted)', marginBottom: 3 }}>ベスト</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-rank-s)' }}>
                 {Math.max(...history.map(h => h.total))}点
               </div>
             </div>
@@ -1716,11 +1736,11 @@ function ScoreStep() {
           {history.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 56, marginBottom: 12, padding: '0 2px' }}>
               {[...history.slice(0, 5)].reverse().map((h, i, arr) => {
-                const color = RANK_COLOR[h.rank] ?? '#888';
+                const color = RANK_COLOR[h.rank] ?? 'var(--color-text-muted)';
                 const isLatest = i === arr.length - 1;
                 return (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                    <div style={{ fontSize: 8, color: isLatest ? color : 'var(--text-muted)', fontWeight: 700, marginBottom: 1 }}>{h.total}</div>
+                    <div style={{ fontSize: 8, color: isLatest ? color : 'var(--color-text-muted)', fontWeight: 700, marginBottom: 1 }}>{h.total}</div>
                     <div style={{
                       width: '100%',
                       height: `${Math.max(4, h.total)}%`,
@@ -1740,12 +1760,12 @@ function ScoreStep() {
             return (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11 }}>
                 <div>
-                  <span style={{ color: RANK_COLOR[h.rank] ?? '#aaa', fontWeight: 700, marginRight: 8 }}>{h.rank}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{h.caseTitle.slice(0, 18)}</span>
+                  <span style={{ color: RANK_COLOR[h.rank] ?? 'var(--color-text-muted)', fontWeight: 700, marginRight: 8 }}>{h.rank}</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{h.caseTitle.slice(0, 18)}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   {trend !== null && (
-                    <span style={{ fontSize: 10, color: trend > 0 ? '#4ade80' : trend < 0 ? '#ff6666' : 'var(--text-muted)' }}>
+                    <span style={{ fontSize: 10, color: trend > 0 ? 'var(--color-success)' : trend < 0 ? 'var(--color-error)' : 'var(--color-text-muted)' }}>
                       {trend > 0 ? `↑${trend}` : trend < 0 ? `↓${-trend}` : '–'}
                     </span>
                   )}
@@ -1786,34 +1806,39 @@ function ScoreStep() {
 
         if (!nextCase) return null;
 
-        const diffColor: Record<string, string> = { beginner: '#06d6a0', intermediate: '#ffd166', advanced: '#ff6b6b' };
+        const diffColor: Record<string, { solid: string; rgb: string }> = {
+          beginner: { solid: 'var(--color-success)', rgb: 'var(--color-success-rgb)' },
+          intermediate: { solid: 'var(--color-warning)', rgb: 'var(--color-warning-rgb)' },
+          advanced: { solid: 'var(--color-error)', rgb: 'var(--color-error-rgb)' },
+        };
         const diffLabel: Record<string, string> = { beginner: '入門', intermediate: '中級', advanced: '上級' };
+        const dc = diffColor[nextCase.difficulty] ?? diffColor.intermediate;
 
         return (
           <div style={{
             margin: '0 4px 8px',
             padding: '14px 16px',
             background: 'linear-gradient(135deg, rgba(0,80,120,0.18) 0%, rgba(0,40,80,0.12) 100%)',
-            border: '1px solid rgba(0,180,216,0.2)',
+            border: '1px solid rgba(var(--color-primary-rgb),0.2)',
             borderRadius: 12,
           }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#00b4d8', letterSpacing: '.05em', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', letterSpacing: '.05em', marginBottom: 10 }}>
               次の推奨症例
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#e8eaf0', marginBottom: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 4 }}>
                   {nextCase.title}
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
-                    background: `${diffColor[nextCase.difficulty] ?? '#888'}20`,
-                    border: `1px solid ${diffColor[nextCase.difficulty] ?? '#888'}50`,
-                    color: diffColor[nextCase.difficulty] ?? '#888',
+                    background: `rgba(${dc.rgb},0.13)`,
+                    border: `1px solid rgba(${dc.rgb},0.31)`,
+                    color: dc.solid,
                   }}>{diffLabel[nextCase.difficulty] ?? nextCase.difficulty}</span>
                 </div>
-                <div style={{ fontSize: 11, color: '#4a6a8a', lineHeight: 1.5 }}>{reason}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{reason}</div>
               </div>
             </div>
             <button
@@ -1824,12 +1849,12 @@ function ScoreStep() {
               }}
               style={{
                 width: '100%', padding: '9px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: 'rgba(0,180,216,0.18)', color: '#00b4d8',
+                background: 'rgba(var(--color-primary-rgb),0.18)', color: 'var(--color-primary)',
                 fontSize: 12, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.02em',
                 transition: 'background .15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,180,216,0.30)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,180,216,0.18)'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--color-primary-rgb),0.30)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(var(--color-primary-rgb),0.18)'; }}
             >
               この症例を始める →
             </button>

@@ -4,6 +4,7 @@ import { HomeScreen } from './components/HomeScreen';
 import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
 import { StepFlowMode } from './components/StepFlowMode';
+import { Splash } from './components/Splash';
 import { InteractiveDrillScene } from './scenes/InteractiveDrillScene';
 import { processAdminModeUrlParam, isAdminMode } from './utils/adminMode';
 
@@ -33,14 +34,14 @@ function AppHeader() {
         onClick={() => { setScreen('home'); resetSimulation(); }}
         style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 500,
+          color: 'var(--color-text-muted)', fontSize: 13, fontWeight: 500,
           display: 'flex', alignItems: 'center', gap: 4,
           padding: '6px 10px', borderRadius: 6, fontFamily: 'inherit',
           transition: 'color .15s',
           letterSpacing: '-.01em',
         }}
-        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-text-primary)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-muted)')}
       >
         ← Home
       </button>
@@ -48,7 +49,7 @@ function AppHeader() {
       {/* Centered screen title */}
       <div style={{
         position: 'absolute', left: '50%', transform: 'translateX(-50%)',
-        fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.65)',
+        fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary)',
         letterSpacing: '.01em', pointerEvents: 'none',
       }}>
         {SCREEN_LABELS[screen] ?? ''}
@@ -134,11 +135,17 @@ function DrillPracticeScreen() {
 
 function App() {
   const { screen, setScreen } = useSimStore();
+  // 起動時のブランド体験（KURZ Design System v1 2節）。マウントごとに一度だけ表示する。
+  const [showSplash, setShowSplash] = useState(true);
 
   // FEATURE_DRILL_ENABLED = false の間、drill スクリーンへの直接遷移をホームへリダイレクト
   // （管理者モード時は例外的に許可）
   if (screen === 'drill' && !FEATURE_DRILL_ENABLED && !isAdminMode()) {
     setScreen('home');
+  }
+
+  if (showSplash) {
+    return <Splash onComplete={() => setShowSplash(false)} />;
   }
 
   return (

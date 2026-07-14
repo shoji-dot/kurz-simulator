@@ -22,6 +22,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, GizmoHelper, GizmoViewport, useGLTF, Center, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import { RealAnatomy, type VisibilityMap } from './models/RealAnatomyModels';
+import { Z_INDEX } from '../components/ui';
 
 // ── モデル定義 ────────────────────────────────────────────────────────
 export type RealEarModelKey = 'ear-model' | 'ear-holder' | 'ear-holder-with-model';
@@ -315,7 +316,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
 
   // 内視鏡オーバーレイスタイル
   const vignetteStyle: CSSProperties = {
-    position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+    position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.hud,
     background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
   };
 
@@ -332,20 +333,20 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
       {/* ── モデル選択タブ ── */}
       <div style={{
         display: 'flex', gap: 8, padding: '8px 12px',
-        borderBottom: '1px solid var(--border)', flexWrap: 'wrap', alignItems: 'center',
+        borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap', alignItems: 'center',
       }}>
         {(Object.keys(MODEL_INFO) as RealEarModelKey[]).map(key => (
           <button
             key={key}
             onClick={() => handleModelChange(key)}
             style={{
-              padding: '5px 12px', borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: activeModel === key ? 'var(--accent)' : 'var(--surface)',
-              color: activeModel === key ? '#001a20' : 'var(--text)',
+              padding: '5px 12px', borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              background: activeModel === key ? 'var(--color-primary)' : 'var(--color-surface-hover)',
+              color: activeModel === key ? 'var(--color-bg-primary)' : 'var(--color-text-primary)',
               cursor: 'pointer', fontSize: 13,
               fontWeight: activeModel === key ? 700 : 400,
-              transition: 'all 0.15s',
+              transition: 'all var(--duration-fast) var(--ease-standard)',
             }}
           >
             {MODEL_INFO[key].label}
@@ -357,12 +358,12 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           <button
             onClick={() => setEndoscopeMode(v => !v)}
             style={{
-              marginLeft: 8, padding: '5px 12px', borderRadius: 6,
-              border: `1px solid ${endoscopeMode ? 'var(--accent)' : 'rgba(255,255,255,0.2)'}`,
-              background: endoscopeMode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
-              color: endoscopeMode ? 'var(--accent)' : '#7a8898',
+              marginLeft: 8, padding: '5px 12px', borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${endoscopeMode ? 'var(--color-primary)' : 'var(--color-border-bright)'}`,
+              background: endoscopeMode ? 'var(--color-primary-tint)' : 'var(--glass-bg)',
+              color: endoscopeMode ? 'var(--color-primary)' : 'var(--color-text-muted)',
               cursor: 'pointer', fontSize: 12, fontWeight: endoscopeMode ? 700 : 400,
-              transition: 'all 0.15s',
+              transition: 'all var(--duration-fast) var(--ease-standard)',
             }}
           >
             🔭 内視鏡視点
@@ -374,19 +375,19 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           <button
             onClick={() => setShowAnatomy(v => !v)}
             style={{
-              marginLeft: 4, padding: '5px 12px', borderRadius: 6,
-              border: `1px solid ${showAnatomy ? '#f0b830' : 'rgba(255,255,255,0.2)'}`,
-              background: showAnatomy ? 'rgba(240,184,48,0.18)' : 'rgba(10,15,26,0.78)',
-              color: showAnatomy ? '#f0b830' : '#7a8898',
+              marginLeft: 4, padding: '5px 12px', borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${showAnatomy ? 'var(--color-accent)' : 'var(--color-border-bright)'}`,
+              background: showAnatomy ? 'rgba(201,166,107,0.18)' : 'var(--glass-bg)',
+              color: showAnatomy ? 'var(--color-accent)' : 'var(--color-text-muted)',
               cursor: 'pointer', fontSize: 12, fontWeight: showAnatomy ? 700 : 400,
-              transition: 'all 0.15s',
+              transition: 'all var(--duration-fast) var(--ease-standard)',
             }}
           >
             🦴 解剖を重ねる
           </button>
         )}
 
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-muted)', alignSelf: 'center' }}>
           Scaniverse 実スキャン · 1unit=1mm
         </span>
       </div>
@@ -464,7 +465,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
             {/* 内視鏡: 青みフィルター */}
             {endoscopeMode && (
               <div style={{
-                position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+                position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.dim,
                 background: 'rgba(10, 25, 60, 0.06)',
               }} />
             )}
@@ -473,18 +474,18 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           {/* 内視鏡ヘッドアップ表示 */}
           {endoscopeMode && (
             <div style={{
-              position: 'absolute', top: 12, left: 16, zIndex: 20, pointerEvents: 'none',
+              position: 'absolute', top: 12, left: 16, zIndex: Z_INDEX.toolbar, pointerEvents: 'none',
               display: 'flex', flexDirection: 'column', gap: 4,
             }}>
               <div style={{
-                padding: '4px 10px', borderRadius: 5,
-                background: 'rgba(0,180,216,0.25)', border: '1px solid rgba(0,180,216,0.5)',
-                color: '#00e5ff', fontSize: 11, fontWeight: 700,
+                padding: '4px 10px', borderRadius: 'var(--radius-sm)',
+                background: 'var(--color-primary-tint)', border: '1px solid rgba(31,182,214,0.5)',
+                color: 'var(--color-primary)', fontSize: 11, fontWeight: 700,
               }}>
                 🔭 内視鏡視点（FOV 70°）
               </div>
               <div style={{
-                padding: '3px 8px', borderRadius: 4,
+                padding: '3px 8px', borderRadius: 'var(--radius-sm)',
                 background: 'rgba(0,0,0,0.5)',
                 color: 'rgba(255,255,255,0.6)', fontSize: 10,
               }}>
@@ -496,32 +497,31 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
 
         {/* 情報パネル */}
         <div style={{
-          width: 240, padding: 14, borderLeft: '1px solid var(--border)',
-          overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12,
+          width: 240, padding: 'var(--space-4)', borderLeft: '1px solid var(--color-border)',
+          overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
           flexShrink: 0,
         }}>
           {/* モデル説明 */}
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 5 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 5 }}>
               {info.label}
             </div>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: 0 }}>
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.7, margin: 0 }}>
               {info.description}
             </p>
           </div>
 
           {/* 用途 */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginBottom: 6,
-              textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div className="section-title" style={{ marginBottom: 6 }}>
               練習用途
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {info.useCases.map((uc, i) => (
                 <div key={i} style={{
-                  background: 'var(--surface)', borderRadius: 5,
-                  padding: '5px 8px', fontSize: 11, color: 'var(--text)',
-                  border: '1px solid var(--border)', lineHeight: 1.5,
+                  background: 'var(--color-surface-hover)', borderRadius: 'var(--radius-sm)',
+                  padding: '5px 8px', fontSize: 11, color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)', lineHeight: 1.5,
                 }}>
                   {uc}
                 </div>
@@ -531,23 +531,22 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
 
           {/* 物理製品情報（L1: プレースホルダー。実データ確定後に差し替え） */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginBottom: 6,
-              textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div className="section-title" style={{ marginBottom: 6 }}>
               物理モデル製品情報
             </div>
             <div style={{
-              background: 'var(--surface)', borderRadius: 5, padding: '10px 8px',
-              border: '1px dashed rgba(255,255,255,0.25)', textAlign: 'center',
+              background: 'var(--color-surface-hover)', borderRadius: 'var(--radius-sm)', padding: '10px 8px',
+              border: '1px dashed var(--color-border-bright)', textAlign: 'center',
             }}>
               <div style={{
-                width: 56, height: 56, margin: '0 auto 8px', borderRadius: 4,
-                border: '1px dashed rgba(255,255,255,0.3)', display: 'flex',
+                width: 56, height: 56, margin: '0 auto 8px', borderRadius: 'var(--radius-sm)',
+                border: '1px dashed var(--color-border-bright)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', fontSize: 9,
-                color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4, whiteSpace: 'pre-line',
+                color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.4, whiteSpace: 'pre-line',
               }}>
                 {PHYSICAL_PRODUCT_INFO.qrNote}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
                 {PHYSICAL_PRODUCT_INFO.modelNumber}
               </div>
             </div>
@@ -562,27 +561,27 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
               (base[2] + anatomyOffset[2]).toFixed(1),
             ];
             const sliderStyle: CSSProperties = {
-              width: '100%', accentColor: '#f0b830', cursor: 'pointer',
+              width: '100%', accentColor: 'var(--color-primary)', cursor: 'pointer',
             };
             const labelStyle: CSSProperties = {
               display: 'flex', justifyContent: 'space-between',
-              fontSize: 10, color: 'var(--text-muted)', marginBottom: 2,
+              fontSize: 10, color: 'var(--color-text-muted)', marginBottom: 2,
             };
             return (
               <div style={{
                 padding: '10px 10px 8px',
-                background: 'rgba(240,184,48,0.06)',
-                border: '1px solid rgba(240,184,48,0.3)',
-                borderRadius: 7,
+                background: 'var(--color-primary-tint)',
+                border: '1px solid rgba(31,182,214,0.3)',
+                borderRadius: 'var(--radius-md)',
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#f0b830', marginBottom: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 8 }}>
                   🔧 解剖位置・サイズ調整
                 </div>
 
                 {/* X */}
                 <div style={labelStyle}>
                   <span>X オフセット</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyOffset[0] >= 0 ? '+' : ''}{anatomyOffset[0].toFixed(0)} mm</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyOffset[0] >= 0 ? '+' : ''}{anatomyOffset[0].toFixed(0)} mm</span>
                 </div>
                 <input type="range" min={-100} max={100} step={1}
                   value={anatomyOffset[0]}
@@ -593,7 +592,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* Y */}
                 <div style={{ ...labelStyle, marginTop: 6 }}>
                   <span>Y オフセット</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyOffset[1] >= 0 ? '+' : ''}{anatomyOffset[1].toFixed(0)} mm</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyOffset[1] >= 0 ? '+' : ''}{anatomyOffset[1].toFixed(0)} mm</span>
                 </div>
                 <input type="range" min={-100} max={100} step={1}
                   value={anatomyOffset[1]}
@@ -604,7 +603,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* Z */}
                 <div style={{ ...labelStyle, marginTop: 6 }}>
                   <span>Z オフセット</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyOffset[2] >= 0 ? '+' : ''}{anatomyOffset[2].toFixed(0)} mm</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyOffset[2] >= 0 ? '+' : ''}{anatomyOffset[2].toFixed(0)} mm</span>
                 </div>
                 <input type="range" min={-100} max={100} step={1}
                   value={anatomyOffset[2]}
@@ -615,7 +614,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* Scale */}
                 <div style={{ ...labelStyle, marginTop: 8 }}>
                   <span>スケール</span>
-                  <span style={{ color: '#f0b830' }}>× {anatomyScale.toFixed(2)}</span>
+                  <span style={{ color: 'var(--color-primary)' }}>× {anatomyScale.toFixed(2)}</span>
                 </div>
                 <input type="range" min={0.1} max={5} step={0.05}
                   value={anatomyScale}
@@ -624,12 +623,12 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 />
 
                 {/* 区切り */}
-                <div style={{ borderTop: '1px solid rgba(240,184,48,0.2)', margin: '10px 0 8px' }} />
+                <div style={{ borderTop: '1px solid rgba(31,182,214,0.2)', margin: '10px 0 8px' }} />
 
                 {/* Rx */}
                 <div style={labelStyle}>
                   <span>回転 X（前後傾き）</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyRotation[0] >= 0 ? '+' : ''}{anatomyRotation[0]}°</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyRotation[0] >= 0 ? '+' : ''}{anatomyRotation[0]}°</span>
                 </div>
                 <input type="range" min={-180} max={180} step={1}
                   value={anatomyRotation[0]}
@@ -640,7 +639,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* Ry */}
                 <div style={{ ...labelStyle, marginTop: 6 }}>
                   <span>回転 Y（左右回転）</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyRotation[1] >= 0 ? '+' : ''}{anatomyRotation[1]}°</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyRotation[1] >= 0 ? '+' : ''}{anatomyRotation[1]}°</span>
                 </div>
                 <input type="range" min={-180} max={180} step={1}
                   value={anatomyRotation[1]}
@@ -651,7 +650,7 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* Rz */}
                 <div style={{ ...labelStyle, marginTop: 6 }}>
                   <span>回転 Z（左右傾き）</span>
-                  <span style={{ color: '#f0b830' }}>{anatomyRotation[2] >= 0 ? '+' : ''}{anatomyRotation[2]}°</span>
+                  <span style={{ color: 'var(--color-primary)' }}>{anatomyRotation[2] >= 0 ? '+' : ''}{anatomyRotation[2]}°</span>
                 </div>
                 <input type="range" min={-180} max={180} step={1}
                   value={anatomyRotation[2]}
@@ -662,8 +661,8 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                 {/* 現在値表示 */}
                 <div style={{
                   marginTop: 10, padding: '5px 7px',
-                  background: 'rgba(0,0,0,0.4)', borderRadius: 4,
-                  fontSize: 9, color: '#888', lineHeight: 1.7, fontFamily: 'monospace',
+                  background: 'rgba(0,0,0,0.4)', borderRadius: 'var(--radius-sm)',
+                  fontSize: 9, color: 'var(--color-text-muted)', lineHeight: 1.7, fontFamily: 'monospace',
                 }}>
                   pos: [{abs[0]}, {abs[1]}, {abs[2]}]<br />
                   rot: [{anatomyRotation[0]}, {anatomyRotation[1]}, {anatomyRotation[2]}]°<br />
@@ -675,9 +674,9 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
                   onClick={() => { setAnatomyOffset([0,0,0]); setAnatomyRotation([0,0,0]); setAnatomyScale(1.0); }}
                   style={{
                     marginTop: 8, width: '100%', padding: '4px 0',
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: 4, color: '#888', fontSize: 10, cursor: 'pointer',
+                    background: 'var(--color-surface-hover)',
+                    border: '1px solid var(--color-border-bright)',
+                    borderRadius: 'var(--radius-sm)', color: 'var(--color-text-muted)', fontSize: 10, cursor: 'pointer',
                   }}
                 >
                   リセット
@@ -690,14 +689,14 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           {hasEndoscope && (
             <div style={{
               padding: '8px 10px',
-              background: endoscopeMode ? 'rgba(0,180,216,0.08)' : 'rgba(255,255,255,0.03)',
-              border: `1px solid ${endoscopeMode ? 'rgba(0,180,216,0.3)' : 'var(--border)'}`,
-              borderRadius: 7, fontSize: 11, lineHeight: 1.6,
+              background: endoscopeMode ? 'var(--color-primary-tint)' : 'var(--color-surface-hover)',
+              border: `1px solid ${endoscopeMode ? 'rgba(31,182,214,0.3)' : 'var(--color-border)'}`,
+              borderRadius: 'var(--radius-md)', fontSize: 11, lineHeight: 1.6,
             }}>
-              <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 3 }}>
+              <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: 3 }}>
                 🔭 内視鏡視点
               </div>
-              <div style={{ color: 'var(--text-muted)' }}>
+              <div style={{ color: 'var(--color-text-muted)' }}>
                 {endoscopeMode
                   ? '外耳道孔の上方から見下ろしています。ドラッグで角度を変えてください。'
                   : '「内視鏡視点」ボタンで外耳道孔へカメラを移動します。'}
@@ -708,11 +707,11 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           {/* 操作ヒント */}
           <div style={{
             marginTop: 'auto', padding: '8px 10px',
-            background: 'rgba(0,180,216,0.05)',
-            border: '1px solid rgba(0,180,216,0.15)',
-            borderRadius: 7, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.8,
+            background: 'var(--color-primary-tint)',
+            border: '1px solid rgba(31,182,214,0.15)',
+            borderRadius: 'var(--radius-md)', fontSize: 10, color: 'var(--color-text-muted)', lineHeight: 1.8,
           }}>
-            <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 3 }}>操作</div>
+            <div style={{ fontWeight: 600, color: 'var(--color-primary)', marginBottom: 3 }}>操作</div>
             左ドラッグ：回転<br />
             右ドラッグ：パン<br />
             ホイール：ズーム
@@ -721,9 +720,9 @@ export function RealEarScene({ initialModel = 'ear-holder' }: RealEarSceneProps)
           {/* データ品質ノート */}
           <div style={{
             padding: '7px 9px',
-            background: 'rgba(255,200,0,0.05)',
-            border: '1px solid rgba(255,200,0,0.2)',
-            borderRadius: 5, fontSize: 10, color: '#b8a060', lineHeight: 1.6,
+            background: 'var(--color-warning-bg)',
+            border: '1px solid rgba(240,181,69,0.2)',
+            borderRadius: 'var(--radius-sm)', fontSize: 10, color: 'var(--color-warning)', lineHeight: 1.6,
           }}>
             <div style={{ fontWeight: 600, marginBottom: 2 }}>📷 スキャン情報</div>
             Scaniverse原本GLB使用。

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useSimStore } from '../store/useSimStore';
-import { kurzProducts } from '../data/products';
+import { kurzProducts, type ProsthesisType } from '../data/products';
 import { AnatomyScene, saveAnatomyCam, resetAnatomyCam, setAnatomyCameraView, getAnatomyCam } from '../scenes/AnatomyScene';
 import { ViewPresetPanel } from './ViewPresetPanel';
 import type { ViewMode, EndoscopeAlert } from '../scenes/AnatomyScene';
@@ -15,7 +15,8 @@ import {
   type StructureKey,
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
-import { PillToggleGroup, IconButton, Z_INDEX } from './ui';
+import { PillToggleGroup, IconButton, Z_INDEX, Badge, TeachingPointList, Alert } from './ui';
+import type { BadgeTone } from './ui';
 
 // ── 解剖構造リスト ────────────────────────────────────────────────
 const anatomyStructures = [
@@ -81,6 +82,8 @@ const procedures = [
     ],
   },
 ];
+
+const PRODUCT_TYPE_TONE: Record<ProsthesisType, BadgeTone> = { PORP: 'primary', TORP: 'success', PISTON: 'warning' };
 
 // ── 解剖学習コース定義（4レベル）────────────────────────────────────
 const ANATOMY_COURSES = [
@@ -294,11 +297,11 @@ export function LearningMode() {
   // ── CSS オーバーレイ（顕微鏡/内視鏡効果）──────────────────────
   const vignetteStyle: CSSProperties | null =
     viewMode === 'microscope' ? {
-      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.hud,
       background: 'radial-gradient(circle at center, transparent 26%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.92) 68%, black 82%)',
     } :
     viewMode === 'endoscope' ? {
-      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.hud,
       background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
     } : null;
 
@@ -406,7 +409,7 @@ export function LearningMode() {
             {/* 内視鏡: 青みフィルター */}
             {viewMode === 'endoscope' && (
               <div style={{
-                position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+                position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.dim,
                 background: 'rgba(10, 25, 60, 0.08)',
               }} />
             )}
@@ -482,9 +485,9 @@ export function LearningMode() {
                       style={{
                         padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
                         fontSize: 11, fontWeight: 700,
-                        border: `1px solid ${s6DrillActive ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.18)'}`,
-                        background: s6DrillActive ? 'rgba(239,68,68,0.22)' : 'rgba(10,15,26,0.78)',
-                        color: s6DrillActive ? '#fca5a5' : '#7a8898',
+                        border: `1px solid ${s6DrillActive ? 'rgba(var(--color-error-rgb),0.6)' : 'var(--color-border-bright)'}`,
+                        background: s6DrillActive ? 'rgba(var(--color-error-rgb),0.22)' : 'rgba(var(--color-bg-primary-rgb),0.78)',
+                        color: s6DrillActive ? 'var(--color-error)' : 'var(--color-text-muted)',
                         backdropFilter: 'blur(6px)', transition: 'all .15s',
                       }}
                     >🔴 {s6DrillActive ? '削開中' : 'ドリル開始'}</button>
@@ -498,9 +501,9 @@ export function LearningMode() {
                       style={{
                         padding: '4px 8px',
                         borderRadius: 7,
-                        border: `1px solid ${cutterSizeMm === mm ? '#ffd166' : 'rgba(255,255,255,0.18)'}`,
-                        background: cutterSizeMm === mm ? 'rgba(255,209,102,0.22)' : 'rgba(10,15,26,0.78)',
-                        color: cutterSizeMm === mm ? '#ffd166' : '#7a8898',
+                        border: `1px solid ${cutterSizeMm === mm ? 'var(--color-warning)' : 'var(--color-border-bright)'}`,
+                        background: cutterSizeMm === mm ? 'rgba(var(--color-warning-rgb),0.22)' : 'rgba(var(--color-bg-primary-rgb),0.78)',
+                        color: cutterSizeMm === mm ? 'var(--color-warning)' : 'var(--color-text-muted)',
                         fontSize: 11, fontWeight: cutterSizeMm === mm ? 700 : 400,
                         cursor: 'pointer', backdropFilter: 'blur(6px)',
                         transition: 'all .15s',
@@ -519,9 +522,9 @@ export function LearningMode() {
                 style={{
                   padding: '4px 10px',
                   borderRadius: 7,
-                  border: `1px solid ${panMode ? '#a78bfa' : 'rgba(255,255,255,0.18)'}`,
-                  background: panMode ? 'rgba(167,139,250,0.22)' : 'rgba(10,15,26,0.78)',
-                  color: panMode ? '#a78bfa' : '#7a8898',
+                  border: `1px solid ${panMode ? 'var(--color-primary)' : 'var(--color-border-bright)'}`,
+                  background: panMode ? 'var(--color-primary-tint)' : 'rgba(var(--color-bg-primary-rgb),0.78)',
+                  color: panMode ? 'var(--color-primary)' : 'var(--color-text-muted)',
                   fontSize: 11, fontWeight: panMode ? 700 : 400,
                   cursor: 'pointer', backdropFilter: 'blur(6px)',
                   transition: 'all .15s',
@@ -553,8 +556,8 @@ export function LearningMode() {
           {(learningTab === 'anatomy' || learningTab === 'drilling') && viewMode !== 'normal' && (
             <div className="canvas-overlay bottom-left">
               <div style={{
-                background: 'rgba(0,180,216,.12)', border: '1px solid var(--accent)',
-                padding: '5px 10px', borderRadius: 6, color: 'var(--accent)',
+                background: 'var(--color-primary-tint)', border: '1px solid var(--color-primary)',
+                padding: '5px 10px', borderRadius: 6, color: 'var(--color-primary)',
                 backdropFilter: 'blur(4px)', fontSize: 12,
               }}>
                 {viewMode === 'microscope' ? '🔬 手術顕微鏡ビュー' : '🔭 硬性内視鏡ビュー'}
@@ -586,18 +589,23 @@ export function LearningMode() {
           {learningTab === 'drilling' && drillScenario === 's3' && (
             <div style={{
               position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 15, display: 'flex', gap: 6,
+              zIndex: Z_INDEX.overlay, display: 'flex', gap: 6,
             }}>
               {DRILL_STEPS.map((_, i) => (
                 <div
                   key={i}
                   onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setS3StepIndex(i); setS3IsPlaying(false); } }}
+                  aria-label={`ステップ${i + 1}へ`}
+                  className="kz-focusable"
                   style={{
                     width: i === s3StepIndex ? 28 : 8,
                     height: 8, borderRadius: 4,
                     background: i === s3StepIndex
-                      ? 'var(--accent)'
-                      : i < s3StepIndex ? 'rgba(0,180,216,0.5)' : 'rgba(255,255,255,0.18)',
+                      ? 'var(--color-primary)'
+                      : i < s3StepIndex ? 'rgba(var(--color-primary-rgb),0.5)' : 'var(--color-border-bright)',
                     cursor: 'pointer',
                     transition: 'all .3s',
                   }}
@@ -612,7 +620,7 @@ export function LearningMode() {
             if (!s) return null;
             return (
               <div style={{
-                position: 'absolute', bottom: 60, left: 12, zIndex: 15,
+                position: 'absolute', bottom: 60, left: 12, zIndex: Z_INDEX.overlay,
                 maxWidth: 280,
                 background: 'rgba(6,10,26,0.88)', backdropFilter: 'blur(8px)',
                 border: `1px solid ${s.color}66`,
@@ -629,12 +637,12 @@ export function LearningMode() {
 
           {/* 側頭骨不透明度スライダー（骨が ghost の場合）*/}
           {getMode('bone') === 'ghost' && (
-            <div style={{ position: 'absolute', bottom: 16, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <div style={{ position: 'absolute', bottom: 16, right: 8, zIndex: Z_INDEX.hud, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
-                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as unknown as React.CSSProperties} />
-              <span style={{ fontSize: 11, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: 'var(--color-primary)' } as unknown as React.CSSProperties} />
+              <span style={{ fontSize: 11, color: 'var(--color-text-primary)' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}
         </div>
@@ -682,9 +690,9 @@ export function LearningMode() {
                         onClick={() => activateCourse(isActive ? 0 : c.level as CourseLevel)}
                         style={{
                           padding: '8px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                          border: `1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.1)'}`,
-                          background: isActive ? 'rgba(0,180,216,0.12)' : 'rgba(255,255,255,0.03)',
-                          color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                          border: `1px solid ${isActive ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)'}`,
+                          background: isActive ? 'var(--color-primary-tint)' : 'rgba(255,255,255,0.03)',
+                          color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                           fontSize: 12, fontWeight: isActive ? 700 : 400,
                           transition: 'all .15s',
                         }}
@@ -716,14 +724,18 @@ export function LearningMode() {
                           const isCorrectOpt = i === quiz.correct;
                           let bg = 'rgba(255,255,255,0.04)';
                           let border = 'rgba(255,255,255,0.12)';
-                          let color = 'var(--text-secondary)';
-                          if (showResult && isCorrectOpt) { bg = 'rgba(74,222,128,0.12)'; border = '#4ade80'; color = '#4ade80'; }
-                          else if (showResult && isSelected && !isCorrectOpt) { bg = 'rgba(255,100,100,0.1)'; border = '#ff8080'; color = '#ff8080'; }
-                          else if (!showResult && isSelected) { bg = 'rgba(0,180,216,0.15)'; border = 'var(--accent)'; color = 'var(--accent)'; }
+                          let color = 'var(--color-text-secondary)';
+                          if (showResult && isCorrectOpt) { bg = 'var(--color-success-bg)'; border = 'var(--color-success)'; color = 'var(--color-success)'; }
+                          else if (showResult && isSelected && !isCorrectOpt) { bg = 'var(--color-error-bg)'; border = 'var(--color-error)'; color = 'var(--color-error)'; }
+                          else if (!showResult && isSelected) { bg = 'var(--color-primary-tint)'; border = 'var(--color-primary)'; color = 'var(--color-primary)'; }
                           return (
                             <div
                               key={i}
                               onClick={() => !courseQuizSubmitted && setCourseQuizSelected(i)}
+                              role={courseQuizSubmitted ? undefined : 'button'}
+                              tabIndex={courseQuizSubmitted ? -1 : 0}
+                              onKeyDown={(e) => { if (!courseQuizSubmitted && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setCourseQuizSelected(i); } }}
+                              className={courseQuizSubmitted ? undefined : 'kz-focusable'}
                               style={{ padding: '8px 12px', borderRadius: 6, cursor: courseQuizSubmitted ? 'default' : 'pointer',
                                 border: `1px solid ${border}`, background: bg, color, fontSize: 12, transition: 'all .15s' }}
                             >
@@ -743,7 +755,7 @@ export function LearningMode() {
                         </button>
                       ) : (
                         <div style={{ marginTop: 10 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? '#4ade80' : '#ff8080', marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: isCorrect ? 'var(--color-success)' : 'var(--color-error)', marginBottom: 6 }}>
                             {isCorrect ? '✅ 正解！' : '❌ 不正解'}
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
@@ -779,10 +791,15 @@ export function LearningMode() {
                   <div
                     key={s.id}
                     onClick={() => setHighlightedStructure(highlightedStructure === s.id ? null : s.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHighlightedStructure(highlightedStructure === s.id ? null : s.id); } }}
+                    aria-pressed={highlightedStructure === s.id}
+                    className="kz-focusable"
                     style={{
                       padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
-                      background: highlightedStructure === s.id ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
-                      border: `1px solid ${highlightedStructure === s.id ? 'var(--accent)' : 'var(--border)'}`,
+                      background: highlightedStructure === s.id ? 'var(--color-primary-tint)' : 'rgba(255,255,255,.03)',
+                      border: `1px solid ${highlightedStructure === s.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
                       transition: 'all .15s',
                     }}
                   >
@@ -800,6 +817,11 @@ export function LearningMode() {
               <div className="card">
                 <div
                   onClick={() => setVis3dOpen(v => !v)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setVis3dOpen(v => !v); } }}
+                  aria-expanded={vis3dOpen}
+                  className="kz-focusable"
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
                 >
                   <div className="section-title" style={{ margin: 0 }}>3D 表示切替</div>
@@ -920,61 +942,61 @@ export function LearningMode() {
               {/* ── プロステーシス選択ガイド ── */}
               <div className="card" style={{ padding: '14px' }}>
                 <div className="section-title">プロステーシス選択ガイド</div>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
                   術中所見から適切なプロステーシスを選択する臨床フロー
                 </p>
 
                 {/* Step 1: アブミ骨上部構造 */}
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
                     ① アブミ骨上部構造の確認
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(0,180,216,0.10)', border: '1px solid rgba(0,180,216,0.30)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#7dd8e8', marginBottom: 3 }}>温存あり ✓</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>頭部・前後弓が残存<br />可動性を必ず確認</div>
-                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: '#60b8e0' }}>→ PORP 適応</div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-success-bg)', border: '1px solid var(--color-success)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-success)', marginBottom: 3 }}>温存あり ✓</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>頭部・前後弓が残存<br />可動性を必ず確認</div>
+                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: 'var(--color-success)' }}>→ PORP 適応</div>
                     </div>
-                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', marginBottom: 3 }}>底板のみ ✗</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>上部構造欠損<br />底板可動性を確認</div>
-                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: '#f87171' }}>→ TORP 適応</div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-warning)', marginBottom: 3 }}>底板のみ ✗</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>上部構造欠損<br />底板可動性を確認</div>
+                      <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, color: 'var(--color-warning)' }}>→ TORP 適応</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Step 2: ツチ骨柄の有無（PORP選択時） */}
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
                     ② ツチ骨柄の残存確認（PORP選択時）
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', marginBottom: 3 }}>柄あり</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>II型変法<br />柄下にPORPを設置</div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-surface-hover)', border: '1px solid var(--color-border-bright)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 3 }}>柄あり</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>II型変法<br />柄下にPORPを設置</div>
                     </div>
-                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,209,102,0.08)', border: '1px solid rgba(255,209,102,0.25)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#ffd166', marginBottom: 3 }}>柄なし</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.5 }}>III型<br />鼓膜直下にPORP</div>
+                    <div style={{ flex: 1, padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-surface-hover)', border: '1px solid var(--color-border-bright)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 3 }}>柄なし</div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>III型<br />鼓膜直下にPORP</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Step 3: フット選択 */}
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
                     ③ フット形状の選択
                   </div>
-                  {[
-                    { type: 'BELL', label: 'ベル型', color: '#60b8e0', desc: '標準PORP。アブミ骨頭部を包む形状。軟骨片を頭板下に追加。' },
-                    { type: 'CLIP', label: 'クリップ型', color: '#a78bfa', desc: 'ピストンをアブミ骨底板開窓部へ設置。ソフトクリップフックを用いてキヌタ骨長脚にかける。固定不要。' },
-                    { type: 'FLAT', label: 'フラット型', color: '#f87171', desc: 'TORP専用。底板中央に設置。偏心厳禁。' },
-                  ].map(({ type, label, color, desc }) => (
-                    <div key={type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6, padding: '6px 8px', borderRadius: 6, background: `${color}10` }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color, minWidth: 50, marginTop: 1 }}>{type}</span>
+                  {([
+                    { type: 'BELL', label: 'ベル型', tone: 'primary', desc: '標準PORP。アブミ骨頭部を包む形状。軟骨片を頭板下に追加。' },
+                    { type: 'CLIP', label: 'クリップ型', tone: 'success', desc: 'ピストンをアブミ骨底板開窓部へ設置。ソフトクリップフックを用いてキヌタ骨長脚にかける。固定不要。' },
+                    { type: 'FLAT', label: 'フラット型', tone: 'warning', desc: 'TORP専用。底板中央に設置。偏心厳禁。' },
+                  ] as { type: string; label: string; tone: BadgeTone; desc: string }[]).map(({ type, label, tone, desc }) => (
+                    <div key={type} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6, padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface-hover)' }}>
+                      <Badge tone={tone} style={{ minWidth: 44, textAlign: 'center', marginTop: 1 }}>{type}</Badge>
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 1 }}>{label}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{desc}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 1 }}>{label}</div>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{desc}</div>
                       </div>
                     </div>
                   ))}
@@ -986,25 +1008,27 @@ export function LearningMode() {
                 {kurzProducts.map((p) => (
                   <div
                     key={p.id}
-                    className={`selectable-card ${selectedProduct === p.id ? 'selected' : ''}`}
+                    className={`selectable-card ${selectedProduct === p.id ? 'selected' : ''} kz-focusable`}
                     style={{ marginBottom: 8 }}
                     onClick={() => setSelectedProduct(selectedProduct === p.id ? null : p.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProduct(selectedProduct === p.id ? null : p.id); } }}
+                    aria-pressed={selectedProduct === p.id}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</span>
-                      <span className={`badge badge-${p.type === 'PORP' ? 'blue' : p.type === 'TORP' ? 'green' : 'yellow'}`}>
-                        {p.type}
-                      </span>
+                      <Badge tone={PRODUCT_TYPE_TONE[p.type]}>{p.type}</Badge>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>フット: {p.footType} ｜ 頭板: {p.headPlateDiameter}mm</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>フット: {p.footType} ｜ 頭板: {p.headPlateDiameter}mm</div>
                   </div>
                 ))}
               </div>
 
               {selProd && (
                 <div className="card">
-                  <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--accent)' }}>{selProd.name}</div>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>{selProd.description}</p>
+                  <div style={{ fontWeight: 700, marginBottom: 12, color: 'var(--color-primary)' }}>{selProd.name}</div>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>{selProd.description}</p>
                   <div className="section-title">仕様</div>
                   {[
                     ['シャフト長', selProd.shaftLengths.map((l) => `${l}`).join(', ') + ' mm'],
@@ -1033,39 +1057,34 @@ export function LearningMode() {
             <>
               {procedures.map((proc) => {
                 const isOpen = openProcedures[proc.title] ?? false;
-                const previewSteps = proc.steps.slice(0, 3);
-                const restSteps = proc.steps.slice(3);
+                const visibleSteps = isOpen ? proc.steps : proc.steps.slice(0, 3);
+                const restCount = proc.steps.length - visibleSteps.length;
                 return (
                   <div key={proc.title} className="card">
                     <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>{proc.title}</div>
-                    <ol style={{ paddingLeft: 18 }}>
-                      {previewSteps.map((step, i) => (
-                        <li key={i} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 6 }}>{step}</li>
-                      ))}
-                      {isOpen && restSteps.map((step, i) => (
-                        <li key={i + 3} style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 6 }}>{step}</li>
-                      ))}
-                    </ol>
-                    {restSteps.length > 0 && (
+                    <TeachingPointList points={visibleSteps} />
+                    {restCount > 0 && (
                       <button
                         onClick={() => setOpenProcedures(o => ({ ...o, [proc.title]: !isOpen }))}
-                        style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0 0', fontWeight: 600 }}
+                        style={{ fontSize: 11, color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0', fontWeight: 600 }}
                       >
-                        {isOpen ? '▾ 折りたたむ' : `▸ 続き（${restSteps.length}ステップ）を見る`}
+                        {isOpen ? '▾ 折りたたむ' : `▸ 続き（${restCount}ステップ）を見る`}
                       </button>
                     )}
                   </div>
                 );
               })}
-              <div className="card">
-                <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>⚠️ 重要な注意点</div>
-                <ul style={{ paddingLeft: 16, color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.8 }}>
-                  <li>シャフト長の過不足は術後成績に直結</li>
-                  <li>軟骨片の挿入で鼓膜穿孔・押出しを防止</li>
-                  <li>チタン製は電気メスを直接当てない</li>
-                  <li>MRI対応だが術前に金属確認票を記載</li>
-                </ul>
-              </div>
+              <Alert tone="warning">
+                <div>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>重要な注意点</div>
+                  <ul style={{ paddingLeft: 16, lineHeight: 1.8, fontSize: 12 }}>
+                    <li>シャフト長の過不足は術後成績に直結</li>
+                    <li>軟骨片の挿入で鼓膜穿孔・押出しを防止</li>
+                    <li>チタン製は電気メスを直接当てない</li>
+                    <li>MRI対応だが術前に金属確認票を記載</li>
+                  </ul>
+                </div>
+              </Alert>
             </>
           )}
 
@@ -1096,12 +1115,12 @@ export function LearningMode() {
                         if (key === 's3') { setS3StepIndex(0); setS3IsPlaying(false); }
                       }}
                       style={{
-                        flex: '1 1 80px', padding: '10px 8px', borderRadius: 8,
+                        flex: '1 1 80px', padding: 'var(--space-3) var(--space-2)', borderRadius: 'var(--radius-md)',
                         cursor: comingSoon ? 'not-allowed' : 'pointer',
-                        border: `1px solid ${comingSoon ? 'rgba(80,90,110,0.3)' : drillScenario === key ? 'var(--accent)' : 'var(--border)'}`,
-                        background: comingSoon ? 'rgba(255,255,255,0.02)' : drillScenario === key ? 'rgba(0,180,216,.15)' : 'rgba(255,255,255,.03)',
-                        color: comingSoon ? '#3a4a5a' : drillScenario === key ? 'var(--accent)' : 'var(--text-secondary)',
-                        fontSize: 11, textAlign: 'center', transition: 'all .15s',
+                        border: `1px solid ${drillScenario === key && !comingSoon ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        background: comingSoon ? 'var(--color-surface)' : drillScenario === key ? 'var(--color-primary-tint)' : 'var(--color-surface-hover)',
+                        color: comingSoon ? 'var(--color-text-muted)' : drillScenario === key ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        fontSize: 11, textAlign: 'center', transition: 'all var(--duration-fast) var(--ease-standard)',
                         opacity: comingSoon ? 0.55 : 1,
                       }}
                     >
@@ -1115,30 +1134,34 @@ export function LearningMode() {
               {/* ── L1: 実モデルへの導線（設計変更書2026-07-03） ── */}
               <div
                 onClick={() => setLearningTab('real-ear')}
-                className="card"
-                style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                className="card kz-focusable"
+                style={{ padding: 'var(--space-3) var(--space-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-2)' }}
                 title="対応する物理3Dプリント側頭骨モデルを確認"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLearningTab('real-ear'); } }}
+                aria-label="このシナリオに対応する物理モデルを見る（実モデルタブへ）"
               >
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                  📷 このシナリオに対応する<strong style={{ color: 'var(--text-primary)' }}>物理モデル</strong>を見る
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                  📷 このシナリオに対応する<strong style={{ color: 'var(--color-text-primary)' }}>物理モデル</strong>を見る
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700, whiteSpace: 'nowrap' }}>実モデルタブへ →</span>
+                <span style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 700, whiteSpace: 'nowrap' }}>実モデルタブへ →</span>
               </div>
 
               {/* ── 側頭骨 表示切替（全シナリオ共通）── */}
-              <div className="card" style={{ padding: '10px 14px' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>側頭骨 表示</div>
-                <div style={{ display: 'flex', gap: 6 }}>
+              <div className="card" style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 'var(--space-2)' }}>側頭骨 表示</div>
+                <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                   {(['solid', 'ghost', 'hidden'] as OpacityMode[]).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setDrillBoneVis(mode)}
                       style={{
-                        flex: 1, padding: '6px 0', borderRadius: 6, cursor: 'pointer', fontSize: 11,
-                        border: `1px solid ${drillBoneVis === mode ? 'var(--accent)' : 'var(--border)'}`,
-                        background: drillBoneVis === mode ? MODE_BG[mode] : 'rgba(255,255,255,.03)',
-                        color: drillBoneVis === mode ? (mode === 'solid' ? '#001a20' : 'var(--accent)') : 'var(--text-secondary)',
-                        transition: 'all .15s',
+                        flex: 1, padding: '6px 0', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: 11,
+                        border: `1px solid ${drillBoneVis === mode ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        background: drillBoneVis === mode ? MODE_BG[mode] : 'var(--color-surface-hover)',
+                        color: drillBoneVis === mode ? MODE_FG[mode] : 'var(--color-text-secondary)',
+                        transition: 'all var(--duration-fast) var(--ease-standard)',
                       }}
                     >
                       {MODE_LABEL[mode]}
@@ -1151,21 +1174,17 @@ export function LearningMode() {
               {drillScenario === 's1' && (
                 <div className="card">
                   <div className="section-title">S1 — 解剖探索</div>
-                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
                     側頭骨と中耳構造を自由に観察してください。ドラッグで回転、ホイールでズームができます。
                   </p>
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>学習チェックポイント</div>
-                    {[
+                  <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: 'var(--space-2)' }}>学習チェックポイント</div>
+                    <TeachingPointList points={[
                       '顔面神経の走行（水平部・膝部・乳突部）',
                       '卵円窓と正円窓の位置関係',
                       'S状静脈洞の後乳突部での走行',
                       '蝸牛と半規管の3D的位置関係',
-                    ].map((item, i) => (
-                      <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', lineHeight: 1.5 }}>
-                        ✓ {item}
-                      </div>
-                    ))}
+                    ]} />
                   </div>
                 </div>
               )}
@@ -1173,17 +1192,17 @@ export function LearningMode() {
               {/* ── S2 ── */}
               {drillScenario === 's2' && (
                 <>
-                  <div className="card" style={{ padding: '10px 14px' }}>
+                  <div className="card" style={{ padding: 'var(--space-3) var(--space-4)' }}>
                     <div className="section-title">危険部位警告システム</div>
                     <div style={{ display: 'flex', gap: 16, marginBottom: 6 }}>
                       {[['#f5d820', '顔面神経系'], ['#4477ff', '血管系']].map(([color, label]) => (
-                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
                           <div style={{ width: 12, height: 12, borderRadius: '50%', background: color }} />
                           {label}
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>● 核（小）: 危険域 2mm以内　◯ 外周（大）: 警告域 5mm以内</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>● 核（小）: 危険域 2mm以内　◯ 外周（大）: 警告域 5mm以内</div>
                   </div>
 
                   {/* 顔面神経系 */}
@@ -1196,30 +1215,37 @@ export function LearningMode() {
                       <div
                         key={zone.id}
                         onClick={() => setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id); } }}
+                        aria-pressed={selectedZoneId === zone.id}
+                        className="kz-focusable"
                         style={{
-                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
-                          background: selectedZoneId === zone.id ? 'rgba(245,216,32,.10)' : 'rgba(255,255,255,.03)',
-                          border: `1px solid ${selectedZoneId === zone.id ? '#f5d820' : 'var(--border)'}`,
-                          transition: 'all .15s',
+                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', marginBottom: 6,
+                          background: selectedZoneId === zone.id ? 'rgba(245,216,32,.10)' : 'var(--color-surface-hover)',
+                          border: `1px solid ${selectedZoneId === zone.id ? '#f5d820' : 'var(--color-border)'}`,
+                          transition: 'all var(--duration-fast) var(--ease-standard)',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: selectedZoneId === zone.id ? 6 : 0 }}>
                           <span style={{ fontSize: 14 }}>⚡</span>
-                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#f5d820' : 'var(--text-primary)' }}>
+                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#f5d820' : 'var(--color-text-primary)' }}>
                             {zone.nameJa}
                           </span>
                         </div>
                         {selectedZoneId === zone.id && (
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.65 }}>
                             <p style={{ marginBottom: 6 }}>{zone.shortDescJa}</p>
-                            <div style={{ background: 'rgba(245,216,32,.06)', border: '1px solid rgba(245,216,32,.20)', borderRadius: 6, padding: '6px 8px', marginBottom: 5 }}>
+                            <div style={{ background: 'rgba(245,216,32,.06)', border: '1px solid rgba(245,216,32,.20)', borderRadius: 'var(--radius-sm)', padding: '6px 8px', marginBottom: 5 }}>
                               <div style={{ fontSize: 11, color: '#c8b010', fontWeight: 600, marginBottom: 3 }}>臨床メモ</div>
                               <div style={{ fontSize: 11 }}>{zone.clinicalNoteJa}</div>
                             </div>
-                            <div style={{ background: 'rgba(220,50,50,.08)', border: '1px solid rgba(220,50,50,.25)', borderRadius: 6, padding: '5px 8px' }}>
-                              <div style={{ fontSize: 11, color: '#dd6060', fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
-                              <div style={{ fontSize: 11, color: '#dd8080' }}>{zone.complicationJa}</div>
-                            </div>
+                            <Alert tone="error">
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
+                                <div style={{ fontSize: 11 }}>{zone.complicationJa}</div>
+                              </div>
+                            </Alert>
                           </div>
                         )}
                       </div>
@@ -1236,30 +1262,37 @@ export function LearningMode() {
                       <div
                         key={zone.id}
                         onClick={() => setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedZoneId(selectedZoneId === zone.id ? null : zone.id); } }}
+                        aria-pressed={selectedZoneId === zone.id}
+                        className="kz-focusable"
                         style={{
-                          padding: '10px 12px', borderRadius: 8, cursor: 'pointer', marginBottom: 6,
-                          background: selectedZoneId === zone.id ? 'rgba(68,119,255,.10)' : 'rgba(255,255,255,.03)',
-                          border: `1px solid ${selectedZoneId === zone.id ? '#4477ff' : 'var(--border)'}`,
-                          transition: 'all .15s',
+                          padding: '10px 12px', borderRadius: 'var(--radius-md)', cursor: 'pointer', marginBottom: 6,
+                          background: selectedZoneId === zone.id ? 'rgba(68,119,255,.10)' : 'var(--color-surface-hover)',
+                          border: `1px solid ${selectedZoneId === zone.id ? '#4477ff' : 'var(--color-border)'}`,
+                          transition: 'all var(--duration-fast) var(--ease-standard)',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: selectedZoneId === zone.id ? 6 : 0 }}>
                           <span style={{ fontSize: 14 }}>💧</span>
-                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#6699ff' : 'var(--text-primary)' }}>
+                          <span style={{ fontWeight: 600, fontSize: 13, color: selectedZoneId === zone.id ? '#6699ff' : 'var(--color-text-primary)' }}>
                             {zone.nameJa}
                           </span>
                         </div>
                         {selectedZoneId === zone.id && (
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.65 }}>
                             <p style={{ marginBottom: 6 }}>{zone.shortDescJa}</p>
-                            <div style={{ background: 'rgba(68,119,255,.06)', border: '1px solid rgba(68,119,255,.20)', borderRadius: 6, padding: '6px 8px', marginBottom: 5 }}>
+                            <div style={{ background: 'rgba(68,119,255,.06)', border: '1px solid rgba(68,119,255,.20)', borderRadius: 'var(--radius-sm)', padding: '6px 8px', marginBottom: 5 }}>
                               <div style={{ fontSize: 11, color: '#7799dd', fontWeight: 600, marginBottom: 3 }}>臨床メモ</div>
                               <div style={{ fontSize: 11 }}>{zone.clinicalNoteJa}</div>
                             </div>
-                            <div style={{ background: 'rgba(220,50,50,.08)', border: '1px solid rgba(220,50,50,.25)', borderRadius: 6, padding: '5px 8px' }}>
-                              <div style={{ fontSize: 11, color: '#dd6060', fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
-                              <div style={{ fontSize: 11, color: '#dd8080' }}>{zone.complicationJa}</div>
-                            </div>
+                            <Alert tone="error">
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 2 }}>合併症リスク</div>
+                                <div style={{ fontSize: 11 }}>{zone.complicationJa}</div>
+                              </div>
+                            </Alert>
                           </div>
                         )}
                       </div>
@@ -1272,9 +1305,9 @@ export function LearningMode() {
               {drillScenario === 's3' && (
                 <>
                   {/* 現在のステップ */}
-                  <div className="card" style={{ padding: '14px' }}>
+                  <div className="card" style={{ padding: 'var(--space-4)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                         ステップ {s3StepIndex + 1} / {DRILL_STEPS.length}
                       </span>
                       <div style={{ display: 'flex', gap: 4 }}>
@@ -1282,42 +1315,46 @@ export function LearningMode() {
                           <div
                             key={i}
                             onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setS3StepIndex(i); setS3IsPlaying(false); } }}
+                            aria-label={`ステップ${i + 1}へ`}
+                            className="kz-focusable"
                             style={{
                               width: i === s3StepIndex ? 18 : 7, height: 7, borderRadius: 4,
-                              background: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'rgba(0,180,216,0.45)' : 'rgba(255,255,255,0.15)',
-                              cursor: 'pointer', transition: 'all .3s',
+                              background: i === s3StepIndex ? 'var(--color-primary)' : i < s3StepIndex ? 'var(--color-primary-tint)' : 'var(--color-surface-hover)',
+                              cursor: 'pointer', transition: 'all var(--duration-slow) var(--ease-standard)',
                             }}
                           />
                         ))}
                       </div>
                     </div>
 
-                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)', marginBottom: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-primary)', marginBottom: 6 }}>
                       {DRILL_STEPS[s3StepIndex].title}
                     </div>
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65, marginBottom: 10 }}>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.65, marginBottom: 10 }}>
                       {DRILL_STEPS[s3StepIndex].subtitle}
                     </p>
 
                     {/* 臨床メモ */}
-                    <div style={{
-                      background: 'rgba(0,180,216,0.07)', border: '1px solid rgba(0,180,216,0.20)',
-                      borderRadius: 7, padding: '8px 10px', marginBottom: 12,
-                    }}>
-                      <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginBottom: 3 }}>💡 臨床メモ</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                        {DRILL_STEPS[s3StepIndex].clinicalNote}
+                    <Alert tone="info">
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 3 }}>💡 臨床メモ</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                          {DRILL_STEPS[s3StepIndex].clinicalNote}
+                        </div>
                       </div>
-                    </div>
+                    </Alert>
 
                     {/* 再生コントロール */}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
                       <button
                         onClick={handleS3Prev}
                         disabled={s3StepIndex === 0}
                         style={{
-                          width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)',
-                          background: 'rgba(255,255,255,0.05)', color: s3StepIndex === 0 ? '#333' : '#aaa',
+                          width: 36, height: 36, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-hover)', color: s3StepIndex === 0 ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
                           fontSize: 16, cursor: s3StepIndex === 0 ? 'default' : 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
@@ -1328,10 +1365,10 @@ export function LearningMode() {
                       <button
                         onClick={() => setS3IsPlaying(p => !p)}
                         style={{
-                          flex: 1, height: 36, borderRadius: 8,
-                          border: `1px solid ${s3IsPlaying ? '#f59020' : 'var(--accent)'}`,
-                          background: s3IsPlaying ? 'rgba(245,144,32,0.15)' : 'rgba(0,180,216,0.15)',
-                          color: s3IsPlaying ? '#f59020' : 'var(--accent)',
+                          flex: 1, height: 36, borderRadius: 'var(--radius-md)',
+                          border: `1px solid ${s3IsPlaying ? 'var(--color-warning)' : 'var(--color-primary)'}`,
+                          background: s3IsPlaying ? 'var(--color-warning-bg)' : 'var(--color-primary-tint)',
+                          color: s3IsPlaying ? 'var(--color-warning)' : 'var(--color-primary)',
                           fontSize: 13, fontWeight: 700, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
@@ -1343,8 +1380,8 @@ export function LearningMode() {
                         onClick={handleS3Next}
                         disabled={s3StepIndex === DRILL_STEPS.length - 1}
                         style={{
-                          width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)',
-                          background: 'rgba(255,255,255,0.05)', color: s3StepIndex === DRILL_STEPS.length - 1 ? '#333' : '#aaa',
+                          width: 36, height: 36, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface-hover)', color: s3StepIndex === DRILL_STEPS.length - 1 ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
                           fontSize: 16, cursor: s3StepIndex === DRILL_STEPS.length - 1 ? 'default' : 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
@@ -1354,7 +1391,7 @@ export function LearningMode() {
                     </div>
 
                     {s3IsPlaying && (
-                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center' }}>
                         5秒後に次のステップへ自動進行
                       </div>
                     )}
@@ -1367,25 +1404,30 @@ export function LearningMode() {
                       <div
                         key={step.id}
                         onClick={() => { setS3StepIndex(i); setS3IsPlaying(false); }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setS3StepIndex(i); setS3IsPlaying(false); } }}
+                        aria-label={`ステップ${i + 1}へ`}
+                        className="kz-focusable"
                         style={{
-                          padding: '8px 10px', borderRadius: 7, cursor: 'pointer', marginBottom: 5,
-                          background: i === s3StepIndex ? 'rgba(0,180,216,.12)' : i < s3StepIndex ? 'rgba(0,180,216,.04)' : 'rgba(255,255,255,.02)',
-                          border: `1px solid ${i === s3StepIndex ? 'var(--accent)' : 'var(--border)'}`,
-                          transition: 'all .15s',
+                          padding: '8px 10px', borderRadius: 'var(--radius-md)', cursor: 'pointer', marginBottom: 5,
+                          background: i === s3StepIndex ? 'var(--color-primary-tint)' : i < s3StepIndex ? 'rgba(31,182,214,0.06)' : 'var(--color-surface-hover)',
+                          border: `1px solid ${i === s3StepIndex ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                          transition: 'all var(--duration-fast) var(--ease-standard)',
                           display: 'flex', alignItems: 'center', gap: 10,
                         }}
                       >
                         <div style={{
                           width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                          background: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'rgba(0,180,216,0.4)' : 'rgba(255,255,255,0.08)',
+                          background: i === s3StepIndex ? 'var(--color-primary)' : i < s3StepIndex ? 'var(--color-primary-dim)' : 'var(--color-surface-hover)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10, fontWeight: 700, color: i <= s3StepIndex ? '#001a20' : '#555',
+                          fontSize: 10, fontWeight: 700, color: i <= s3StepIndex ? 'var(--color-bg-primary)' : 'var(--color-text-muted)',
                         }}>
                           {i < s3StepIndex ? '✓' : i + 1}
                         </div>
                         <span style={{
                           fontSize: 12,
-                          color: i === s3StepIndex ? 'var(--accent)' : i < s3StepIndex ? 'var(--text-secondary)' : 'var(--text-muted)',
+                          color: i === s3StepIndex ? 'var(--color-primary)' : i < s3StepIndex ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
                           fontWeight: i === s3StepIndex ? 700 : 400,
                         }}>
                           {step.title}
@@ -1399,23 +1441,23 @@ export function LearningMode() {
               {/* ── S6: インタラクティブ削開 ── */}
               {drillScenario === 's6' && (
                 <div className="card">
-                  <div className="section-title" style={{ color: '#00b4d8' }}>🔴 インタラクティブ削開練習</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 10 }}>
+                  <div className="section-title" style={{ color: 'var(--color-primary)' }}>🔴 インタラクティブ削開練習</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 10 }}>
                     3mm 球形ダイヤモンドバーで側頭骨を自由に削開できます。
                     危険部位に近づくとリアルタイムで警告が表示されます。
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(0,180,216,0.06)', border: '1px solid rgba(0,180,216,0.2)' }}>
-                      🖱 <b style={{ color: 'var(--text-secondary)' }}>「ドリル開始」</b> を押して左ドラッグで削開
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    <div style={{ padding: '5px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-primary-tint)', border: '1px solid rgba(31,182,214,0.3)' }}>
+                      🖱 <b style={{ color: 'var(--color-text-secondary)' }}>「ドリル開始」</b> を押して左ドラッグで削開
                     </div>
-                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                    <div style={{ padding: '5px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface-hover)', border: '1px solid var(--color-border)' }}>
                       ↻ 右回転 / 左回転を切り替えて臨床感覚を習得
                     </div>
-                    <div style={{ padding: '5px 8px', borderRadius: 5, background: 'rgba(255,100,100,0.06)', border: '1px solid rgba(255,100,100,0.2)', color: '#f87171' }}>
+                    <div style={{ padding: '5px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-error-bg)', border: '1px solid rgba(239,90,114,0.3)', color: 'var(--color-error)' }}>
                       ⚠ 顔面神経・静脈洞に近づくと赤/黄アラート表示
                     </div>
                   </div>
-                  <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, padding: '6px 8px', borderRadius: 5, background: 'rgba(255,209,102,0.05)', border: '1px solid rgba(255,209,102,0.15)' }}>
+                  <div style={{ marginTop: 10, fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6, padding: '6px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-bg)', border: '1px solid rgba(240,181,69,0.2)' }}>
                     💡 S2（危険部位特定）で危険部位の位置を確認してから練習すると学習効果が高まります
                   </div>
                 </div>
@@ -1425,8 +1467,8 @@ export function LearningMode() {
               {drillScenario === 's4' && (
                 <>
                   <div className="card">
-                    <div className="section-title" style={{ color: '#ffd166' }}>🗺 Mastoidectomy 推奨削開範囲</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                    <div className="section-title" style={{ color: 'var(--color-warning)' }}>🗺 Mastoidectomy 推奨削開範囲</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
                       側頭骨削開の限界壁（限界構造）を理解することが安全な乳突腔削開の基本です。
                       慈恵医大テキスト準拠の5限界壁を確認してください。
                     </div>
@@ -1474,23 +1516,23 @@ export function LearningMode() {
                       },
                     ].map(({ label, en, dir, color, desc, check }) => (
                       <div key={label} style={{
-                        padding: '10px 12px', marginBottom: 8, borderRadius: 8,
+                        padding: '10px 12px', marginBottom: 8, borderRadius: 'var(--radius-md)',
                         border: `1px solid ${color}44`,
                         background: `${color}08`,
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <span style={{ fontSize: 12, fontWeight: 700, color }}>{label}</span>
-                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${color}22`, color, border: `1px solid ${color}44` }}>{dir}</span>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 'var(--radius-sm)', background: `${color}22`, color, border: `1px solid ${color}44` }}>{dir}</span>
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>{en}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 6 }}>{desc}</div>
-                        <div style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(255,255,255,0.04)', borderRadius: 5, color: '#ffd166' }}>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginBottom: 5 }}>{en}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 6 }}>{desc}</div>
+                        <div style={{ fontSize: 11, padding: '4px 8px', background: 'var(--color-surface-hover)', borderRadius: 'var(--radius-sm)', color: 'var(--color-warning)' }}>
                           ✓ {check}
                         </div>
                       </div>
                     ))}
 
-                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 7, background: 'rgba(255,209,102,0.06)', border: '1px solid rgba(255,209,102,0.2)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 'var(--radius-md)', background: 'var(--color-warning-bg)', border: '1px solid rgba(240,181,69,0.2)', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
                       💡 3Dビューでは顔面神経（黄）と血管系（青）のグロー球が限界壁位置を示しています。
                       骨を solid 表示にして位置関係を把握してください。
                     </div>
@@ -1499,13 +1541,13 @@ export function LearningMode() {
                   {/* Körner's septum 補足 */}
                   <div className="card">
                     <div className="section-title">Körner's septum（ペトロ鱗骨縫合）</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
                       削開を進めると Antrum に入る手前で密な蜂巣構造が認められます。
                       これが Körner's septum（中頭蓋窩とS状静脈洞の境界骨片）です。
                       この隔壁を確認したら、より深部の乳突洞（Antrum）に向かって削開します。
                     </div>
-                    <div style={{ marginTop: 8, padding: '5px 8px', borderRadius: 5, background: 'rgba(255,100,100,0.07)', border: '1px solid rgba(255,100,100,0.2)', fontSize: 11, color: '#dd8080' }}>
-                      ⚠ Körner's septumを確認せずに深く削開すると迷路を損傷するリスクあり
+                    <div style={{ marginTop: 8 }}>
+                      <Alert tone="error">⚠ Körner's septumを確認せずに深く削開すると迷路を損傷するリスクあり</Alert>
                     </div>
                   </div>
                 </>
@@ -1515,8 +1557,8 @@ export function LearningMode() {
               {drillScenario === 's5' && (
                 <>
                   <div className="card">
-                    <div className="section-title" style={{ color: '#4ade80' }}>✅ 削開完了後チェックリスト</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
+                    <div className="section-title" style={{ color: 'var(--color-success)' }}>✅ 削開完了後チェックリスト</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
                       Mastoidectomy完了時に3Dビューで確認できる構造です。
                       慈恵医大テキストのCheck Listに基づいて確認してください。
                     </div>
@@ -1535,28 +1577,28 @@ export function LearningMode() {
                     ].map(({ item, note }, i) => (
                       <div key={i} style={{
                         display: 'flex', gap: 10, padding: '8px 10px', marginBottom: 6,
-                        borderRadius: 7, border: '1px solid rgba(74,222,128,0.18)',
-                        background: 'rgba(74,222,128,0.05)',
+                        borderRadius: 'var(--radius-md)', border: '1px solid var(--color-success)',
+                        background: 'var(--color-success-bg)',
                       }}>
                         <div style={{
                           width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                          background: 'rgba(74,222,128,0.2)', border: '1px solid #4ade8055',
+                          background: 'var(--color-success-bg)', border: '1px solid var(--color-success)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10, fontWeight: 700, color: '#4ade80',
+                          fontSize: 10, fontWeight: 700, color: 'var(--color-success)',
                         }}>
                           {i + 1}
                         </div>
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: '#4ade80', marginBottom: 2 }}>{item}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>{note}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)', marginBottom: 2 }}>{item}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{note}</div>
                         </div>
                       </div>
                     ))}
 
-                    <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 7, background: 'rgba(0,180,216,0.06)', border: '1px solid rgba(0,180,216,0.2)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    <Alert tone="info">
                       💡 3Dビューは骨を半透明（ghost）にして内部構造を露出した状態です。
                       顔面神経（黄）・耳小骨（金）・内耳（青）の立体的位置関係を確認してください。
-                    </div>
+                    </Alert>
                   </div>
 
                   {/* 顔面神経走行の要約 */}
@@ -1567,9 +1609,9 @@ export function LearningMode() {
                       { seg: '水平部（Tympanic）', note: '膝神経節〜錐体隆起。アブミ骨直上を走行。鼓室形成・アブミ骨手術の最重要危険部位。' },
                       { seg: '乳突部（Mastoid）', note: '錐体隆起〜茎乳突孔。外側半規管直下・顎二腹筋稜内側を走行。Mastoidectomyの危険部位。' },
                     ].map(({ seg, note }) => (
-                      <div key={seg} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div key={seg} style={{ padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#f5d820', marginBottom: 3 }}>{seg}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{note}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>{note}</div>
                       </div>
                     ))}
                   </div>

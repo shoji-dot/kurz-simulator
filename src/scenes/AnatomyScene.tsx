@@ -29,6 +29,7 @@ import { OrbitControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap, type AuricleTransform, type StructureKey } from './models/RealAnatomyModels';
+import { Z_INDEX } from '../components/ui';
 
 // ── 硬性内視鏡アラートゾーン定義 ────────────────────────────────────
 // 座標系 v2: world[z,-y,x] (X+=Lateral, Y+=Superior, Z+=Anterior)
@@ -285,7 +286,7 @@ export function AnatomyScene({
     <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
     {showCameraDebug && (
       <div style={{
-        position: 'absolute', top: 8, left: 8, zIndex: 100,
+        position: 'absolute', top: 8, left: 8, zIndex: Z_INDEX.modal,
         background: 'rgba(0,0,0,0.72)', color: '#7fffb2',
         fontFamily: 'monospace', fontSize: 10, padding: '6px 8px',
         borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',

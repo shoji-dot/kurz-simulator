@@ -396,8 +396,12 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
         }).map(c => (
           <div
             key={c.id}
-            className={`selectable-card ${selectedCaseId === c.id ? 'selected' : ''}`}
+            className={`selectable-card ${selectedCaseId === c.id ? 'selected' : ''} kz-focusable`}
             onClick={() => { setSelectedCaseId(c.id); setSelectedProductId(c.recommendedProductId); }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCaseId(c.id); setSelectedProductId(c.recommendedProductId); } }}
+            aria-pressed={selectedCaseId === c.id}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>{c.title}</span>
@@ -440,8 +444,12 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
             {kurzProducts.map(p => (
               <div
                 key={p.id}
-                className={`selectable-card ${selectedProductId === p.id ? 'selected' : ''}`}
+                className={`selectable-card ${selectedProductId === p.id ? 'selected' : ''} kz-focusable`}
                 onClick={() => setSelectedProductId(p.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProductId(p.id); } }}
+                aria-pressed={selectedProductId === p.id}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</span>
