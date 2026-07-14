@@ -6,3 +6,4 @@ dist
 *.log
 .vercel
 vite.config.ts.timestamp-*
+.tmp_voxtest

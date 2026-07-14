@@ -17,6 +17,7 @@ import type {
   DangerState,
   ScoreBreakdown,
   ScoreHistoryEntry,
+  ToolPoseSnapshot,
 } from './types';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -55,12 +56,18 @@ export function appendScoreHistory(entry: ScoreHistoryEntry): ScoreHistoryEntry[
 
 /** oticCapsuleへ連続荷重した場合に oticOvercut イベントとみなす継続時間 ms（暫定） */
 export const OTIC_OVERCUT_DWELL_MS = 1500;
+/** この発熱レベル(0-1)以上でoverheatイベントを1回発火する（Sprint6・Heat、暫定閾値）。 */
+export const HEAT_OVERHEAT_THRESHOLD = 0.85;
+/** overheatFiredフラグをこの発熱レベルまで下がったら解除する（ヒステリシス、境界付近での連発防止）。 */
+export const HEAT_OVERHEAT_RESET_THRESHOLD = 0.5;
 
 export interface DamageTrackerState {
   lastZoneId: string | null;
   lastLevel: DangerLevel;
   oticDwellStartMs: number | null;
   oticOvercutFired: boolean;
+  /** Sprint6・Heat: 直近のoverheatイベント発火状態（ヒステリシス制御用） */
+  overheatFired: boolean;
 }
 
 export const initialDamageTrackerState: DamageTrackerState = {
@@ -68,6 +75,7 @@ export const initialDamageTrackerState: DamageTrackerState = {
   lastLevel: 'safe',
   oticDwellStartMs: null,
   oticOvercutFired: false,
+  overheatFired: false,
 };
 
 /**
@@ -75,12 +83,21 @@ export const initialDamageTrackerState: DamageTrackerState = {
  * - contact: ゾーンまたはlevelが変わった瞬間（新規遷移）のみ1回記録する（毎フレーム重複記録しない）。
  * - oticOvercut: oticCapsuleへの連続荷重が OTIC_OVERCUT_DWELL_MS を超えた瞬間に1回だけ記録する。
  */
+/** Sprint5（Post Session Review）: イベント発生位置・工具条件スナップショット（記録専用、判定には使わない）。 */
+export interface DamageEventContext {
+  position: { x: number; y: number; z: number };
+  toolPoseSnapshot: ToolPoseSnapshot;
+}
+
 export function stepDamageTracker(
   prev: DamageTrackerState,
   nowMs: number,
   dangerState: DangerState,
   isOnOticCapsule: boolean,
-  isActivelyDrilling: boolean
+  isActivelyDrilling: boolean,
+  context: DamageEventContext,
+  /** Sprint6・Heat: 現在の発熱レベル 0-1（removalModel.ts growHeatLevel） */
+  heatLevel: number
 ): { events: DamageEvent[]; next: DamageTrackerState } {
   const events: DamageEvent[] = [];
   const next: DamageTrackerState = { ...prev };
@@ -93,7 +110,10 @@ export function stepDamageTracker(
         t: nowMs,
         type: 'contact',
         zoneId: dangerState.zone.id,
+        zoneNameJa: dangerState.zone.nameJa,
         severity: dangerState.level === 'critical' ? 'critical' : 'warn',
+        position: context.position,
+        toolPoseSnapshot: context.toolPoseSnapshot,
       });
     }
     next.lastZoneId = dangerState.zone.id;
@@ -108,12 +128,39 @@ export function stepDamageTracker(
     next.oticDwellStartMs = dwellStart;
     const dwellMs = nowMs - dwellStart;
     if (!prev.oticOvercutFired && dwellMs >= OTIC_OVERCUT_DWELL_MS) {
-      events.push({ t: nowMs, type: 'oticOvercut', severity: 'warn' });
+      events.push({
+        t: nowMs,
+        type: 'oticOvercut',
+        zoneNameJa: '骨迷路（otic capsule）',
+        severity: 'warn',
+        position: context.position,
+        toolPoseSnapshot: context.toolPoseSnapshot,
+      });
       next.oticOvercutFired = true;
     }
   } else {
     next.oticDwellStartMs = null;
     next.oticOvercutFired = false;
+  }
+
+  // Sprint6・Heat: 発熱がHEAT_OVERHEAT_THRESHOLDへ到達した瞬間に1回だけ記録する
+  // （oticOvercutと同様の一発火+ヒステリシスパターン。危険構造近傍かどうかでseverityを分ける
+  // ＝近傍では接触なしでも熱損傷しうるためcritical、それ以外はwarn）。
+  if (isActivelyDrilling && heatLevel >= HEAT_OVERHEAT_THRESHOLD) {
+    if (!prev.overheatFired) {
+      events.push({
+        t: nowMs,
+        type: 'overheat',
+        zoneId: dangerState.zone?.id,
+        zoneNameJa: dangerState.zone ? `発熱（${dangerState.zone.nameJa}近傍）` : '発熱',
+        severity: dangerState.level !== 'safe' ? 'critical' : 'warn',
+        position: context.position,
+        toolPoseSnapshot: context.toolPoseSnapshot,
+      });
+      next.overheatFired = true;
+    }
+  } else if (heatLevel < HEAT_OVERHEAT_RESET_THRESHOLD) {
+    next.overheatFired = false;
   }
 
   return { events, next };
@@ -263,6 +310,65 @@ export function generateScoreReview(
   }
 
   return items;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Sprint5: Post Session Review（個別ダメージイベントの空間紐付けレビュー）
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * describeDamageEvent(): 1件のDamageEventを「事実→意味→改善策」形式で説明する。
+ * generateScoreReview()がセッション全体の集計（回数ベース）であるのに対し、こちらは
+ * 3Dピン1個＝1イベントに対応する個別説明（Sprint5 Post Session Reviewで使用）。
+ */
+export function describeDamageEvent(event: DamageEvent): ScoreReviewItem {
+  const pose = event.toolPoseSnapshot;
+  const poseNoteJa = pose
+    ? `（${pose.burrId.startsWith('cutting') ? 'Cuttingバー' : 'Diamondバー'}・RPM${
+        pose.rpmPreset === 'low' ? '低' : pose.rpmPreset === 'mid' ? '中' : '高'
+      }・荷重${Math.round(pose.pressure * 100)}%）`
+    : '';
+  const zoneLabel = event.zoneNameJa ?? '危険構造';
+
+  if (event.type === 'contact' && event.severity === 'critical') {
+    return {
+      factJa: `${zoneLabel}へのcritical接触が発生しました${poseNoteJa}。`,
+      meaningJa: '実臨床では House-Brackmann grade 3以上の顔面神経麻痺や大量出血など、不可逆的な合併症に直結しうる接近です。',
+      improvementJa: 'この地点では削開速度を落とし、Diamondバーへ切り替えて接触角を浅くしてから再アプローチしてください。',
+    };
+  }
+  if (event.type === 'contact') {
+    return {
+      factJa: `${zoneLabel}へ接近（warn）しました${poseNoteJa}。`,
+      meaningJa: 'まだ接触には至っていませんが、安全マージンが縮まっている状態です。',
+      improvementJa: 'この距離感を覚えておき、次回はより早い段階で減速・バー交換を検討してください。',
+    };
+  }
+  if (event.type === 'oticOvercut') {
+    return {
+      factJa: `${zoneLabel}へ${OTIC_OVERCUT_DWELL_MS / 1000}秒以上連続して荷重しました${poseNoteJa}。`,
+      meaningJa: 'otic capsuleは象牙骨で構成される「硬さの壁」であり、本来ほとんど削るべきではない領域です。',
+      improvementJa: '硬い手応え＋高音を感じたら削開を止め、境界（リージョン変化）を確認してから方向を変えてください。',
+    };
+  }
+  if (event.type === 'overheat') {
+    // Sprint6・Heat: 文献根拠は removalModel.ts のHeatセクション参照
+    // （47℃60秒/50℃30秒で熱壊死、無注水連続照射で顔面神経管内温度33℃上昇の報告）。
+    const nearDanger = event.severity === 'critical';
+    return {
+      factJa: `発熱が蓄積しました${poseNoteJa}。`,
+      meaningJa: nearDanger
+        ? '骨組織は47℃で60秒、50℃で30秒の熱曝露で熱壊死を起こしうるとされます。特に危険構造（顔面神経等）は熱伝導による損傷を受けやすく、バーが直接触れていなくても熱で損傷しうることが報告されています。'
+        : '骨組織は47℃で60秒、50℃で30秒の熱曝露で熱壊死を起こしうるとされます。連続した削開は間欠的な削開より発熱が有意に大きくなります。',
+      improvementJa: 'バーを一度浮かせて間欠的に削り、同じ場所に留まらないこと。危険構造近傍では特に荷重と回転数を落としてください。',
+    };
+  }
+  // その他（現状未発火の型が今後追加された場合のフォールバック）
+  return {
+    factJa: `記録されたイベントが発生しました${poseNoteJa}。`,
+    meaningJa: '詳細な説明が未定義のイベント種別です。',
+    improvementJa: '教育カード・危険アラートの表示内容を確認してください。',
+  };
 }
 
 /** 削開結果からリージョン別ホール数を集計する補助関数（UI表示・デバッグ用） */

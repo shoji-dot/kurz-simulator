@@ -79,6 +79,7 @@ function DrillPracticeScreen() {
       <InteractiveDrillScene
         viewMode={viewMode}
         positionMode={positionMode}
+        onPositionModeChange={setPositionMode}
         drillActive={drillActive}
         onDrillToggle={() => setDrillActive(v => !v)}
         rightOverlayOffset={110}
@@ -110,22 +111,6 @@ function DrillPracticeScreen() {
             >{icon} {label}</button>
           ))}
         </div>
-
-        {/* 顕微鏡: 固定/移動中 */}
-        {viewMode === 'microscope' && (
-          <button
-            onClick={() => setPositionMode(v => !v)}
-            style={{
-              pointerEvents: 'auto',
-              padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
-              fontSize: 11, fontWeight: positionMode ? 700 : 400,
-              border: `1px solid ${positionMode ? 'rgba(0,180,216,0.5)' : 'rgba(255,255,255,0.18)'}`,
-              background: positionMode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
-              color: positionMode ? '#00c4e8' : '#7a8898',
-              backdropFilter: 'blur(6px)', transition: 'all .15s',
-            }}
-          >{positionMode ? '🔓 移動中' : '🔒 固定'}</button>
-        )}
 
         {/* カッターバーサイズ + ドリル開始ボタン */}
         <div style={{ display: 'flex', gap: 3, pointerEvents: 'auto', alignItems: 'center' }}>

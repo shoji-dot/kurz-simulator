@@ -42,6 +42,7 @@ import {
   type StructureKey,
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
+import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Z_INDEX } from './ui';
 
 // ── スコア履歴 (localStorage) ──────────────────────────────────────
 interface HistoryEntry {
@@ -1150,32 +1151,32 @@ function PlacementStep() {
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
-        {/* 顕微鏡モード ビネットオーバーレイ */}
+        {/* 顕微鏡モード ビネットオーバーレイ（KURZ Design System v1: --z-vignette層） */}
         {viewMode === 'microscope' && (
           <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.vignette,
             background: 'radial-gradient(circle at center, transparent 28%, rgba(0,0,0,0.55) 52%, rgba(0,0,0,0.90) 68%, black 82%)',
           }} />
         )}
         {/* 内視鏡モード: 円形ビネット + 青みフィルター */}
         {viewMode === 'endoscope' && (
           <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.vignette,
             background: 'radial-gradient(circle at center, rgba(0,0,0,0.0) 36%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.88) 62%, black 72%)',
           }} />
         )}
         {viewMode === 'endoscope' && (
           <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: Z_INDEX.vignette,
             background: 'rgba(10, 25, 60, 0.08)',
           }} />
         )}
 
 
-        {/* カメラデバッグオーバーレイ */}
+        {/* カメラデバッグオーバーレイ（KURZ Design System v1: --z-hud層） */}
         {showCamDebug && camInfo && (
           <div style={{
-            position: 'absolute', bottom: 80, left: 12, zIndex: 20, pointerEvents: 'none',
+            position: 'absolute', bottom: 80, left: 12, zIndex: Z_INDEX.hud, pointerEvents: 'none',
             background: 'rgba(0,0,0,.85)', padding: '6px 10px', borderRadius: 6,
             fontFamily: 'monospace', fontSize: 10, color: '#7dd8e8',
             backdropFilter: 'blur(4px)', border: '1px solid rgba(0,180,216,0.35)',
@@ -1195,144 +1196,78 @@ function PlacementStep() {
             lesionTags={selectedCase.tags.lesion}
           />
         </div>
-        {/* ── Top toolbar: top-right, 3 pills, wraps on mobile ── */}
-        <div className="placement-toolbar" style={{
-          position: 'absolute', top: 10, right: 10,
-          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 40, gap: 4,
-          maxWidth: 'calc(100% - 20px)',
-        }}>
-          {/* Row 1: 3 pills — wrap on narrow screens */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-
-            {/* Pill A: 操作モード [移動|視点] */}
-            <div style={{
-              display: 'flex', gap: 3, alignItems: 'center',
-              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
-              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              {(['move', 'view'] as const).map(m => (
-                <button key={m}
-                  onClick={() => setDragMode(m)}
-                  style={{
-                    padding: '5px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                    background: dragMode === m ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
-                    color: dragMode === m ? '#fff' : 'var(--text-muted)',
-                    transition: 'all .15s',
-                  }}
-                >{m === 'move' ? '移動' : '視点'}</button>
-              ))}
-            </div>
-
-            {/* Pill B: 視野モード [通常|顕微鏡|内視鏡] */}
-            <div style={{
-              display: 'flex', gap: 3, alignItems: 'center',
-              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
-              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              {([
-                // M1(b): 顕微鏡モード選択肢を削除（設計変更書2026-07-03。教育的意味付け不足のため通常/内視鏡2択に縮小）
-                { mode: 'normal' as SimViewMode,     icon: '👁',  label: '通常',   activeColor: 'rgba(255,255,255,0.15)', activeText: '#c8d0e0' },
-                { mode: 'endoscope' as SimViewMode,  icon: '🔭', label: '内視鏡', activeColor: 'rgba(100,200,100,0.22)', activeText: '#80e080' },
-              ]).map(({ mode, icon, label, activeColor, activeText }) => (
-                <button key={mode}
-                  onClick={() => {
-                    setViewMode(mode);
-                    if (mode === 'microscope') {
-                      setDragMode('view');
-                      setMicroscopePositionMode(false);
-                      setSimPanMode(false);
-                    }
-                  }}
-                  style={{
-                    padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
-                    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                    background: viewMode === mode ? activeColor : 'rgba(255,255,255,0.07)',
-                    color: viewMode === mode ? activeText : 'var(--text-muted)',
-                    border: viewMode === mode ? `1px solid ${activeText}55` : '1px solid transparent',
-                    transition: 'all .15s',
-                  }}
-                  title={`${label}モード`}
-                >{icon} {label}</button>
-              ))}
-            </div>
-
-            {/* Pill C: 理想位置 + 軟骨スライス */}
-            <div style={{
-              display: 'flex', gap: 3, alignItems: 'center',
-              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
-              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              <button
-                onClick={() => setShowIdeal(!showIdeal)}
-                style={{
-                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                  background: showIdeal ? 'rgba(6,214,160,0.2)' : 'rgba(255,255,255,0.07)',
-                  color: showIdeal ? '#06d6a0' : 'var(--text-muted)',
-                  border: showIdeal ? '1px solid rgba(6,214,160,0.45)' : '1px solid transparent',
-                  transition: 'all .15s',
-                }}
+        {/* ── ツールバー: top-right（KURZ Design System v1: ToolbarContainer + PillToggleGroup） ── */}
+        <ToolbarContainer anchor="top-right" style={{ alignItems: 'flex-end', maxWidth: 'calc(100% - 20px)', padding: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <PillToggleGroup<DragMode>
+              ariaLabel="操作モード"
+              value={dragMode}
+              onChange={setDragMode}
+              options={[
+                { value: 'move', label: '移動' },
+                { value: 'view', label: '視点' },
+              ]}
+            />
+            <PillToggleGroup<SimViewMode>
+              ariaLabel="視野モード"
+              value={viewMode}
+              onChange={(mode) => {
+                setViewMode(mode);
+                if (mode === 'microscope') {
+                  setDragMode('view');
+                  setMicroscopePositionMode(false);
+                  setSimPanMode(false);
+                }
+              }}
+              options={[
+                { value: 'normal' as SimViewMode, label: '👁 通常' },
+                { value: 'endoscope' as SimViewMode, label: '🔭 内視鏡' },
+              ]}
+            />
+            <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
+              <IconButton
+                aria-label="理想配置位置を表示/非表示"
                 title="理想配置位置を表示/非表示"
-              >📍 理想位置</button>
-              <button
-                onClick={() => setShowCartilage(!showCartilage)}
-                style={{
-                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                  background: showCartilage ? 'rgba(255,150,80,0.2)' : 'rgba(255,255,255,0.07)',
-                  color: showCartilage ? '#ffb366' : 'var(--text-muted)',
-                  border: showCartilage ? '1px solid rgba(255,150,80,0.45)' : '1px solid transparent',
-                  transition: 'all .15s',
-                }}
+                active={showIdeal}
+                onClick={() => setShowIdeal(!showIdeal)}
+                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
+              >📍 理想位置</IconButton>
+              <IconButton
+                aria-label="軟骨スライスを表示/非表示"
                 title="軟骨スライスを表示/非表示"
-              >🩺 軟骨</button>
+                active={showCartilage}
+                onClick={() => setShowCartilage(!showCartilage)}
+                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
+              >🩺 軟骨</IconButton>
             </div>
           </div>
 
-          {/* Row 2: 顕微鏡時のみ — 固定/移動中 + 回転/平行移動 */}
+          {/* 顕微鏡時のみ — 固定/移動中 + 回転/平行移動 */}
           {viewMode === 'microscope' && (
-            <div style={{
-              display: 'flex', gap: 3, alignItems: 'center',
-              background: 'rgba(8,14,24,0.88)', padding: '4px 8px', borderRadius: 10,
-              backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
-            }}>
-              <button
-                onClick={() => setMicroscopePositionMode(v => !v)}
+            <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
+              <IconButton
+                aria-label={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
                 title={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
-                style={{
-                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                  background: microscopePositionMode ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.07)',
-                  color: microscopePositionMode ? '#00c4e8' : 'var(--text-muted)',
-                  border: microscopePositionMode ? '1px solid rgba(0,180,216,0.5)' : '1px solid transparent',
-                  transition: 'all .15s',
-                }}
+                active={microscopePositionMode}
+                onClick={() => setMicroscopePositionMode(v => !v)}
+                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
               >
                 {microscopePositionMode ? '🔓 移動中' : '🔒 固定'}
-              </button>
+              </IconButton>
               {microscopePositionMode && (
-                <>
-                  <div style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 2px' }} />
-                  <button
-                    onClick={() => setSimPanMode(v => !v)}
-                    title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
-                    style={{
-                      padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
-                      fontSize: 11, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                      background: simPanMode ? 'rgba(167,139,250,0.22)' : 'rgba(255,255,255,0.07)',
-                      color: simPanMode ? '#a78bfa' : 'var(--text-muted)',
-                      border: simPanMode ? '1px solid rgba(167,139,250,0.5)' : '1px solid transparent',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
-                  </button>
-                </>
+                <IconButton
+                  aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+                  title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+                  active={simPanMode}
+                  onClick={() => setSimPanMode(v => !v)}
+                  style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
+                >
+                  {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+                </IconButton>
               )}
             </div>
           )}
-        </div>
+        </ToolbarContainer>
       </div>
 
       {/* Controls */}
@@ -1341,12 +1276,9 @@ function PlacementStep() {
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{selectedProduct.name}</div>
 
           {/* ── スナップ + リセット ── */}
-          <button
-            style={{
-              width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg,#0096c7,#0077a8)',
-              color: '#fff', fontSize: 13, fontWeight: 700, marginBottom: 6, letterSpacing: '.02em',
-            }}
+          <Button
+            variant="primary"
+            style={{ width: '100%', marginBottom: 'var(--space-2)', letterSpacing: '.02em' }}
             onClick={() => updatePlacement({
               lateralOffset: selectedCase.idealLateralOffset,
               anteriorOffset: 0, verticalOffset: 0,
@@ -1355,10 +1287,11 @@ function PlacementStep() {
             })}
           >
             理想位置に配置
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ width: '100%', marginBottom: 12, fontSize: 11 }}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            style={{ width: '100%', marginBottom: 'var(--space-4)' }}
             onClick={() => updatePlacement({
               lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0,
               angleTilt: 0, angleTiltZ: 0,
@@ -1366,7 +1299,7 @@ function PlacementStep() {
             })}
           >
             ↺ すべてリセット
-          </button>
+          </Button>
 
           {/* ── 詳細調整（H2-b: 既定折りたたみ。3Dドラッグを一次操作、数値微調整は二次操作として序列化） ── */}
           <div
@@ -1519,26 +1452,18 @@ function PlacementStep() {
         </div>
 
         {/* ── 視点保存 ── */}
-        <div style={{ display: 'flex', gap: 6, padding: '0 4px' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ flex: 1, fontSize: 11 }}
-            onClick={saveSimCam}
-          >
+        <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '0 4px' }}>
+          <Button variant="ghost" size="sm" style={{ flex: 1 }} onClick={saveSimCam}>
             視点を保存
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)' }}
-            onClick={resetSimCam}
-          >
+          </Button>
+          <Button variant="ghost" size="sm" style={{ flex: 1, color: 'var(--color-text-muted)' }} onClick={resetSimCam}>
             視点リセット
-          </button>
+          </Button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
-          <button className="btn btn-ghost" onClick={() => setSimStep('product-select')}>← 戻る</button>
-          <button className="btn btn-primary" onClick={handleConfirm}>評価する →</button>
+          <Button variant="ghost" onClick={() => setSimStep('product-select')}>← 戻る</Button>
+          <Button variant="primary" onClick={handleConfirm}>評価する →</Button>
         </div>
       </div>
     </div>
@@ -1625,10 +1550,7 @@ function ScoreStep() {
             {/* 数値行 */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>ABG改善量</div>
-                <div style={{ fontSize: 42, fontWeight: 900, color: abgColor, lineHeight: 1 }}>
-                  −{abg.improvementDb}<span style={{ fontSize: 18, marginLeft: 3 }}>dB</span>
-                </div>
+                <ScoreStat label="ABG改善量" value={`−${abg.improvementDb}`} unit="dB" color={abgColor} />
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ padding: '5px 14px', borderRadius: 999, background: abgColor + '22', border: `1px solid ${abgColor}66`, fontSize: 13, fontWeight: 700, color: abgColor, marginBottom: 8, display: 'inline-block' }}>
@@ -1647,13 +1569,13 @@ function ScoreStep() {
             </div>
           </>
         ) : (
-          <div style={{ textAlign: 'center', padding: '12px 0' }}>
-            <div style={{ fontSize: 48, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
-              {scoreResult.total}<span style={{ fontSize: 18, color: 'var(--text-muted)', marginLeft: 6 }}>/ 100</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>
-              {selectedCase.title}　|　{selectedProduct.name} {placement.selectedLength}mm
-            </div>
+          <div style={{ padding: '12px 0' }}>
+            <ScoreStat
+              label="総合スコア"
+              value={String(scoreResult.total)}
+              unit="/ 100"
+              caption={`${selectedCase.title}　|　${selectedProduct.name} ${placement.selectedLength}mm`}
+            />
           </div>
         )}
       </div>
@@ -1697,24 +1619,18 @@ function ScoreStep() {
             <div className="section-title" style={{ marginBottom: 12 }}>総合レビュー</div>
             {goodItems.length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#4ade80', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  ✓ 良かった点
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-success)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  良かった点
                 </div>
-                {goodItems.map(item => (
-                  <div key={item.key} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '5px 0 5px 8px', borderLeft: '2px solid rgba(74,222,128,.4)', marginBottom: 6, lineHeight: 1.6 }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}：</span>{item.goodNote}
-                  </div>
-                ))}
+                <Feedback items={goodItems.map(item => ({ tone: 'positive' as const, text: `${item.label}：${item.goodNote}` }))} />
               </div>
             )}
             {worstItem.score < worstItem.max && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#ffd166', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  📌 次回意識するポイント
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-warning)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  次回意識するポイント
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '5px 0 5px 8px', borderLeft: '2px solid rgba(255,209,102,.4)', lineHeight: 1.6 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{worstItem.label}（{worstItem.score}/{worstItem.max}点）：</span>{worstItem.improveTip}
-                </div>
+                <Feedback items={[{ tone: 'improvement' as const, text: `${worstItem.label}（${worstItem.score}/${worstItem.max}点）：${worstItem.improveTip}` }]} />
               </div>
             )}
           </div>
@@ -1744,20 +1660,12 @@ function ScoreStep() {
       )}
 
       {selectedCase && selectedCase.teachingPoints.length > 0 && (
-        <div className="card" style={{ borderColor: 'rgba(0,180,216,0.2)', background: 'rgba(0,180,216,0.03)' }}>
-          <div className="section-title" style={{ color: 'var(--accent)', marginBottom: 12 }}>
-            📚 この症例から学ぶこと
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        <LearningPanel title="📚 この症例から学ぶこと">
+          <div style={{ font: 'var(--text-small)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)', lineHeight: 1.5 }}>
             {selectedCase.clinicalNotes}
           </div>
-          {selectedCase.teachingPoints.map((tp, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 12, flexShrink: 0, minWidth: 20 }}>{i + 1}.</span>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{tp}</span>
-            </div>
-          ))}
-        </div>
+          <TeachingPointList points={selectedCase.teachingPoints} />
+        </LearningPanel>
       )}
 
       {judgmentResult && (
@@ -1929,10 +1837,10 @@ function ScoreStep() {
         );
       })()}
 
-      <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>← やり直す</button>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => resetSimulation()}>別の症例へ</button>
-        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setScreen('stepflow')}>🎬 手術フローへ</button>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '0 4px 24px' }}>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>← やり直す</Button>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={() => resetSimulation()}>別の症例へ</Button>
+        <Button variant="primary" style={{ flex: 1 }} onClick={() => setScreen('stepflow')}>🎬 手術フローへ</Button>
       </div>
     </div>
   );
@@ -1973,53 +1881,25 @@ export function SimulationMode() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 56px)' }}>
-      {/* ── 6ステップ プログレスバー ── */}
+      {/* ── 6ステップ プログレスバー（KURZ Design System v1: 共通StepProgress） ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', padding: '0 16px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
         height: 36, borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
       }}>
-        {SIM_STEPS.map((s, i) => {
-          const done   = i < currentIdx;
-          const active = i === currentIdx;
-          return (
-            <React.Fragment key={s.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{
-                  width: 18, height: 18, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, fontWeight: 700, flexShrink: 0,
-                  background: done ? 'var(--accent)' : active ? 'rgba(0,180,216,0.22)' : 'rgba(255,255,255,0.07)',
-                  border: active ? '1.5px solid var(--accent)' : 'none',
-                  color: done ? '#001a20' : active ? 'var(--accent)' : 'rgba(255,255,255,0.25)',
-                  transition: 'all .2s',
-                }}>
-                  {done ? '✓' : i + 1}
-                </div>
-                <span style={{
-                  fontSize: 10, whiteSpace: 'nowrap',
-                  color: active ? 'var(--accent)' : done ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)',
-                  fontWeight: active ? 700 : 400,
-                }}>
-                  {s.label}
-                </span>
-              </div>
-              {i < SIM_STEPS.length - 1 && (
-                <div style={{
-                  flex: 1, height: 1, margin: '0 5px',
-                  background: i < currentIdx ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                  transition: 'background .3s',
-                }} />
-              )}
-            </React.Fragment>
-          );
-        })}
+        <StepProgress
+          items={SIM_STEPS.map((s, i) => ({
+            key: s.id,
+            label: s.label,
+            status: i < currentIdx ? 'done' as const : i === currentIdx ? 'current' as const : 'upcoming' as const,
+          }))}
+        />
         {skipQuiz && (
           <div
             title="設定でスキップされています。症例選択画面のトグルで解除できます。"
             style={{
-              marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center',
+              flexShrink: 0, display: 'flex', alignItems: 'center',
               padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 700,
-              background: 'rgba(255,209,102,0.14)', border: '1px solid rgba(255,209,102,0.35)', color: '#ffd166',
+              background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning)', color: 'var(--color-warning)',
             }}
           >
             判断クイズ: OFF（設定）

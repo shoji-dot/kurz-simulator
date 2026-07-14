@@ -21,16 +21,23 @@ import * as THREE from 'three';
 import { DANGER_ZONES } from '../data/dangerZones';
 import { regionAt, BONE_MATERIALS, remainingThicknessToDanger } from '../engine/boneMaterial';
 import { DEFAULT_BURR, DRILL_BURRS, getBurrById } from '../engine/drillModel';
-import { computeContactAngleDeg, growthRateMmPerSec, advanceHole } from '../engine/removalModel';
+import { computeContactAngleDeg, growthRateMmPerSec, growClogLevel, clearClogLevel, advanceDwellMs, growHeatLevel, coolHeatLevel } from '../engine/removalModel';
+import { particleSpawnRatePerSec, PARTICLE_MAX_COUNT, PARTICLE_LIFETIME_SEC, PARTICLE_MAX_SPAWN_PER_FRAME } from '../engine/particleModel';
 import { DrillAudioEngine, computeAudioState } from '../engine/audioEngine';
 import { computeDangerState, dangerTintColor } from '../engine/dangerModel';
+import { remainingThicknessToLayer } from '../engine/anatomyLayer'; // Sprint4: AnatomyLayer配線（顔面神経ポリライン統合）
 import { selectEducationCard } from '../engine/educationCards';
 import {
   computeScoreBreakdown, stepDamageTracker, initialDamageTrackerState,
-  appendScoreHistory, generateScoreReview,
+  appendScoreHistory, generateScoreReview, describeDamageEvent,
 } from '../engine/scoring';
 import type { ScoreReviewItem } from '../engine/scoring';
-import type { DrillHoleState, RpmPreset, EducationCardContent, ScoreBreakdown, DamageEvent } from '../engine/types';
+import type { RpmPreset, EducationCardContent, ScoreBreakdown, DamageEvent, BoneRegionId } from '../engine/types';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createMeshInsideTest, createBoneVolumeSource } from '../engine/volumeSource';
+import { VoxelVolume, baseChunkGridDims, indexToMaterialId } from '../engine/voxelVolume';
+import { RemeshQueue } from '../engine/remeshQueue';
+import type { RemeshResponsePayload } from '../workers/voxelRemeshWorker';
 
 
 // ── FovController: 顕微鏡モード FOV 切替 ─────────────────────────────
@@ -50,13 +57,16 @@ function FovController({ viewMode }: { viewMode: string }) {
 }
 
 // ── 定数 ──────────────────────────────────────────────────────────────
-const MAX_HOLES      = 200;  // シェーダー配列サイズ（WebGL2上限内で200まで実用的）
 const DRILL_RADIUS   = 1.5;  // 3mm 径バーの半径 (scene unit = 1mm)
 const MIN_HOLE_DIST  = 0.55; // 連続ホール間の最小距離 mm
 const DRILL_INTERVAL = 80;   // ms ごとに 1 ホール追加
+// Feed Rate（経路分配方式、2026-07-12・Sprint3・[[drill-mves-design]]）: 1フレーム分の
+// 除去量(amount)を前フレーム位置→現在位置の掃引経路へサブステップ分配する際の設定。
+// growthRateMmPerSecの式自体は不変（二重補正を避けるための設計判断）。
+const FEED_RATE_MAX_SUBSTEPS = 6;        // 1フレームあたりの最大サブステップ数（性能上限）
+const FEED_RATE_SUBSTEP_FRACTION = 0.5;  // バー半径のこの割合移動するごとに1サブステップ追加
 // WARN_DIST/DANGER_DIST は T7 dangerModel.ts の WARN_DIST_MM/DANGER_DIST_MM を re-export importで使用
 const BASE_BONE_COLOR = '#c8b090'; // T7: 色透見ブレンドの基準色（DrillBoneの既定骨色と同値）
-const OTIC_WASTE_RADIUS_THRESHOLD_MM = 0.3; // T9: oticCapsuleホールを「誤削開」とみなす最小成長半径
 
 // T10: 荷重・RPM・バー選択はInteractiveDrillScene本体の内部UIで管理する（旧cutterSizeMm橋渡しを廃止）。
 
@@ -72,119 +82,285 @@ const ANTRUM_POS          = new THREE.Vector3(-3.5, 7.0, 10.0);
 const ANTRUM_RADIUS       = 3.5;   // 乳突洞半径 mm（成人平均）
 const ANTRUM_REACHED_DIST = 2.5;   // 到達判定距離 mm
 
-// ── ドリルホールシェーダー注入ユーティリティ ─────────────────────────
-function applyDrillShader(
-  mat: THREE.MeshStandardMaterial,
-  uniforms: {
-    drillHoles:     { value: THREE.Vector3[] };
-    drillHoleCount: { value: number };
-    drillHoleRadii: { value: number[] };
-  }
-) {
-  mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+// ── 骨表面の質感シェーダー（2026-07-13・低ポリ感/「マインクラフト感」対応） ──────────
+// 方針（shojiさんへ提案・承認済み、[[drill-mves-design]]参照）: ボクセル解像度(0.6mm)は
+// 変更せず、既存BONE_MATERIALSのparticleAmount（部位ごとの骨粉量係数。乳突蜂巣=多孔質
+// で高い/骨迷路=緻密で低い、既存の目詰まりモデルで再利用済みの値をそのまま流用）を
+// 「表面の多孔質感の強さ」としても再利用し、フラグメントシェーダーでワールド座標ベースの
+// 3Dプロシージャルノイズから法線を有限差分で摂動する（UV座標が無いMarching Cubesメッシュへ
+// テクスチャを貼る代わりに使われる標準的な手法。3Dノイズ自体はどの向きから見ても継ぎ目が
+// 出ないため、2Dテクスチャ用のtriplanar軸ブレンドは不要で、ワールド座標を直接ノイズへ渡すだけでよい）。
+// ジオメトリ・頂点数・チャンク再メッシュコストは一切変更しないため、60FPS優先方針への
+// 影響はフラグメントシェーダー内の追加計算のみに限定される。
+// 【要ローカル見た目確認】sandboxでは実描画不可のため、強度(BONE_BUMP_AMOUNT)は暫定値。
+// 効きすぎ/効かなすぎの場合はこの1行の値のみ調整すればよい。見た目が破綻する場合は
+// ENABLE_BONE_SURFACE_DETAIL を false にすれば即座に旧来の平滑シェーディングへ戻せる。
+const ENABLE_BONE_SURFACE_DETAIL = true;
+// 2026-07-13追補: shojiさんローカル確認で「表面が黒カビみたいに見える部分がある、商売視点で
+// キレイ目にしたい」とのフィードバック。強い法線摂動×点光源の組み合わせで暗い斑点状の陰影が
+// 強調されていたのが原因と考えられるため、ブレンド比率・振幅・ノイズ周波数すべてを大幅に
+// 弱め、控えめな質感（輪郭のごまかしよりも「艶のある滑らかな骨」寄り）へ調整した。
+const BONE_BUMP_AMOUNT = 0.35; // 0-1: 摂動法線と元の法線のブレンド比率（1=摂動を全反映、旧0.9から弱めた）
 
-    // Vertex: vDrillWorldPos varying を追加
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        'void main() {',
-        'varying vec3 vDrillWorldPos;\nvoid main() {'
-      )
-      .replace(
-        '#include <fog_vertex>',
-        '#include <fog_vertex>\nvDrillWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+const BONE_SURFACE_DETAIL_GLSL = {
+  vertexDeclare: `
+    attribute float porosity;
+    varying vec3 vBoneWorldPos;
+    varying vec3 vBoneWorldNormal;
+    varying float vPorosity;
+  `,
+  vertexInject: `
+    vBoneWorldPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+    vBoneWorldNormal = normalize( mat3( modelMatrix ) * objectNormal );
+    vPorosity = porosity;
+  `,
+  fragmentDeclare: `
+    varying vec3 vBoneWorldPos;
+    varying vec3 vBoneWorldNormal;
+    varying float vPorosity;
+
+    float boneHash13(vec3 p) {
+      p = fract(p * 0.3183099 + 0.1);
+      p *= 17.0;
+      return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+    }
+    float boneNoise3(vec3 x) {
+      vec3 i = floor(x);
+      vec3 f = fract(x);
+      f = f * f * (3.0 - 2.0 * f);
+      float n000 = boneHash13(i + vec3(0.0, 0.0, 0.0));
+      float n100 = boneHash13(i + vec3(1.0, 0.0, 0.0));
+      float n010 = boneHash13(i + vec3(0.0, 1.0, 0.0));
+      float n110 = boneHash13(i + vec3(1.0, 1.0, 0.0));
+      float n001 = boneHash13(i + vec3(0.0, 0.0, 1.0));
+      float n101 = boneHash13(i + vec3(1.0, 0.0, 1.0));
+      float n011 = boneHash13(i + vec3(0.0, 1.0, 1.0));
+      float n111 = boneHash13(i + vec3(1.0, 1.0, 1.0));
+      return mix(
+        mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+        mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y),
+        f.z
       );
+    }
+    // 2オクターブfbm: 多孔質な骨表面の細かいピット感を表現（骨梁・蜂巣状の質感の簡易近似）
+    float boneFbm(vec3 p) {
+      float n = boneNoise3(p) * 0.65;
+      n += boneNoise3(p * 2.7) * 0.35;
+      return n;
+    }
+    // 有限差分による法線摂動（UV/タンジェント空間なしでも成立する手法。法線に直交する
+    // 2方向を都度構成し、その方向へのノイズ勾配だけ法線を傾ける）
+    vec3 boneBumpNormal(vec3 worldPos, vec3 worldNormal, float porosityAmt) {
+      // 2026-07-13: scaleを6.0→3.0（ピットを大きく・粗さを抑える）、ampを弱めて
+      // 「黒カビ」に見えていた高周波・高振幅の暗い斑点を解消（下記amp参照）
+      float scale = 3.0;  // ノイズの空間周波数（1/mm相当、ピットの大きさの目安）
+      float eps = 0.15;   // 有限差分オフセット mm
 
-    // Fragment: discard inside drill holes (per-hole radius)
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'void main() {',
-      `varying vec3 vDrillWorldPos;
-uniform int  drillHoleCount;
-uniform float drillHoleRadii[${MAX_HOLES}];
-uniform vec3 drillHoles[${MAX_HOLES}];
-void main() {
-  for (int i = 0; i < ${MAX_HOLES}; i++) {
-    if (i >= drillHoleCount) break;
-    if (distance(vDrillWorldPos, drillHoles[i]) < drillHoleRadii[i]) discard;
-  }`
-    );
-  };
-  mat.customProgramCacheKey = () => `drill-bone-${MAX_HOLES}`;
-  mat.needsUpdate = true;
-}
+      vec3 up = abs(worldNormal.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+      vec3 t = normalize(cross(up, worldNormal));
+      vec3 b = normalize(cross(worldNormal, t));
+
+      float h0 = boneFbm(worldPos * scale);
+      float ht = boneFbm((worldPos + t * eps) * scale);
+      float hb = boneFbm((worldPos + b * eps) * scale);
+
+      // particleAmount(porosity)が高い部位（乳突蜂巣等）ほど強く、骨迷路等の緻密骨は
+      // ほぼ滑らかに近づける（既存BONE_MATERIALS.particleAmountの値をそのまま流用、
+      // 新規の推測パラメータは追加しない）。2026-07-13: 上限0.16→0.045へ大幅に弱め、
+      // 「黒カビ」に見えていた強い暗部を解消（商売視点でキレイ目に、とのフィードバック対応）
+      float amp = mix(0.006, 0.045, clamp(porosityAmt, 0.0, 1.0));
+      vec3 perturbed = worldNormal - t * ((ht - h0) / eps) * amp - b * ((hb - h0) / eps) * amp;
+      return normalize(perturbed);
+    }
+  `,
+};
 
 // ── DrillBone ─────────────────────────────────────────────────────────
+// V5: レイキャスト対象を実ボクセル幾何へ一本化。VoxelVolume/RemeshQueueをコンポーネント
+// 生存期間中ずっと保持し、carveRef経由でDrillCanvas3Dから毎フレーム実際のボクセル除去
+// （applyBrush）を呼び出せるようにする。再メッシュ結果はチャンク単位でGroupへ増分反映
+// （変化したチャンクだけを差し替え・三角形0枚になったチャンクは削除）するため、
+// 「削った箇所がそのまま当たり判定になる＝奥へ削り進められる」挙動が成立する（設計書V5）。
+// V4のdiscardシェーダー方式（頂点色は変わるが実ジオメトリは不変の見た目だけの穴）は廃止。
 type VisMode = 'solid' | 'ghost' | 'hidden';
 
 interface DrillBoneProps {
-  uniformsRef: React.MutableRefObject<{
-    drillHoles:     { value: THREE.Vector3[] };
-    drillHoleCount: { value: number };
-    drillHoleRadii: { value: number[] };
-  } | null>;
+  /** DrillCanvas3Dが毎フレーム呼び出す実ボクセル除去関数。DrillBoneがマウント後に設定する。 */
+  carveRef: React.MutableRefObject<((center: THREE.Vector3, radiusMm: number, amount: number) => void) | null>;
+  /** 2026-07-13: 宙に浮いた骨片除去（VoxelVolume.pruneDisconnectedIslands）を
+      DrillCanvas3D側のstopDrilling()から呼び出すためのref（carveRefと同じ配線パターン）。 */
+  pruneIslandsRef: React.MutableRefObject<(() => void) | null>;
   onPointerMove: (e: ThreeEvent<PointerEvent>) => void;
   onPointerDown: (e: ThreeEvent<PointerEvent>) => void;
   onPointerUp:   (e: ThreeEvent<PointerEvent>) => void;
   boneVis:       VisMode;
 }
 
-function DrillBone({ uniformsRef, onPointerMove, onPointerDown, onPointerUp, boneVis }: DrillBoneProps) {
+function DrillBone({ carveRef, pruneIslandsRef, onPointerMove, onPointerDown, onPointerUp, boneVis }: DrillBoneProps) {
   const { scene } = useGLTF('/models/Bone.glb');
-  const matRefs = useRef<THREE.MeshStandardMaterial[]>([]);
+  const groupRef = useRef<THREE.Group>(null!);
+  const chunkMeshesRef = useRef(new Map<string, THREE.Mesh>());
 
-  const cloned = useMemo(() => {
-    const sentinels = Array.from({ length: MAX_HOLES }, () => new THREE.Vector3(9999, 9999, 9999));
-    const uniforms = {
-      drillHoles:     { value: sentinels },
-      drillHoleCount: { value: 0 },
-      drillHoleRadii: { value: new Array(MAX_HOLES).fill(0.0) as number[] },
-    };
-    uniformsRef.current = uniforms;
-    matRefs.current = [];
+  // 頂点カラー(BONE_MATERIALS色)をそのまま表示する単一マテリアル（全チャンクで共有）
+  const material = useMemo(() => {
+    const mat = new THREE.MeshStandardMaterial({
+      color:        new THREE.Color('#ffffff'),
+      vertexColors: true,
+      roughness:    0.42,
+      metalness:    0.05,
+      side:         THREE.DoubleSide,
+      transparent:  true,
+      opacity:      1.0,
+      depthWrite:   true,
+    });
+    // 2026-07-13: 骨表面の質感（低ポリ感対応、BONE_SURFACE_DETAIL_GLSL参照）。
+    // ジオメトリ・頂点数は無変更、フラグメントシェーダーでのみ法線を摂動する。
+    if (ENABLE_BONE_SURFACE_DETAIL) {
+      mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', `${BONE_SURFACE_DETAIL_GLSL.vertexDeclare}\n#include <common>`)
+          .replace('#include <begin_vertex>', `#include <begin_vertex>\n${BONE_SURFACE_DETAIL_GLSL.vertexInject}`);
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', `${BONE_SURFACE_DETAIL_GLSL.fragmentDeclare}\n#include <common>`)
+          .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          {
+            vec3 boneWorldNormal = normalize(vBoneWorldNormal);
+            vec3 perturbedWorld = boneBumpNormal(vBoneWorldPos, boneWorldNormal, vPorosity);
+            vec3 perturbedView = normalize(mat3(viewMatrix) * perturbedWorld);
+            normal = normalize(mix(normal, perturbedView, ${BONE_BUMP_AMOUNT.toFixed(2)}));
+          }`);
+      };
+    }
+    return mat;
+  }, []);
 
-    const c = scene.clone(true);
-    c.traverse((obj) => {
+  // Bone.glb → ワールド座標系ジオメトリ（VoxelVolumeのinsideTest構築用、volumeSource.ts参照）
+  const worldGeometry = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    const geos: THREE.BufferGeometry[] = [];
+    scene.traverse((obj) => {
       if (!(obj as THREE.Mesh).isMesh) return;
       const mesh = obj as THREE.Mesh;
-      const geo = mesh.geometry.clone();
-      geo.deleteAttribute('normal');
-      geo.computeVertexNormals();
-      mesh.geometry = geo;
-
-      const mat = new THREE.MeshStandardMaterial({
-        color:       new THREE.Color('#c8b090'),
-        roughness:   0.72,
-        metalness:   0.03,
-        side:        THREE.DoubleSide,
-        transparent: true,
-        opacity:     1.0,
-        depthWrite:  true,
-      });
-      applyDrillShader(mat, uniforms);
-      mesh.material = mat;
-      matRefs.current.push(mat);
+      const g = mesh.geometry.clone();
+      g.applyMatrix4(mesh.matrixWorld);
+      geos.push(g);
     });
-    return c;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return geos.length === 1 ? geos[0] : (mergeGeometries(geos, false) ?? geos[0]);
   }, [scene]);
 
+  // Marching Cubes応答を1チャンク分シーンへ反映する（新規追加/差し替え/三角形0枚なら削除）
+  const applyChunkResult = useCallback((payload: RemeshResponsePayload) => {
+    const key = `${payload.coord.tier}:${payload.coord.cx},${payload.coord.cy},${payload.coord.cz}`;
+    const existing = chunkMeshesRef.current.get(key);
+
+    if (payload.vertexCount === 0) {
+      if (existing) {
+        groupRef.current.remove(existing);
+        existing.geometry.dispose();
+        chunkMeshesRef.current.delete(key);
+      }
+      return;
+    }
+
+    const colors = new Float32Array(payload.vertexCount * 3);
+    // 2026-07-13: 骨表面質感シェーダー用（既存particleAmountを多孔質感の強さとして再利用、
+    // 新規の推測パラメータは追加しない。BONE_SURFACE_DETAIL_GLSL参照）
+    const porosity = new Float32Array(payload.vertexCount);
+    for (let i = 0; i < payload.vertexCount; i++) {
+      const regionId = indexToMaterialId(payload.materialIndices[i]);
+      const c = new THREE.Color(BONE_MATERIALS[regionId].color);
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+      porosity[i] = BONE_MATERIALS[regionId].particleAmount;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(payload.positions, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(payload.normals, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('porosity', new THREE.BufferAttribute(porosity, 1));
+
+    if (existing) {
+      existing.geometry.dispose();
+      existing.geometry = geo;
+    } else {
+      const mesh = new THREE.Mesh(geo, material);
+      groupRef.current.add(mesh);
+      chunkMeshesRef.current.set(key, mesh);
+    }
+  }, [material]);
+
+  // マウント中ずっと生存: VoxelVolume構築 → 全Baseチャンク初回一括生成 → 以後はcarveRef経由の
+  // 実削開で発生したダーティチャンクをその都度再メッシュ化する（RemeshQueueが120msスロットル）。
   useEffect(() => {
-    const opacity    = boneVis === 'ghost' ? 0.18 : 1.0;
-    const depthWrite = boneVis !== 'ghost';
-    matRefs.current.forEach(mat => {
-      mat.opacity     = opacity;
-      mat.transparent = boneVis === 'ghost';
-      mat.depthWrite  = depthWrite;
-      // キャッシュキーに透明度を含めてシェーダー再コンパイルを強制
-      mat.customProgramCacheKey = () => `drill-bone-${MAX_HOLES}-${boneVis}`;
-      mat.needsUpdate = true;
+    let cancelled = false;
+    const insideTest = createMeshInsideTest(worldGeometry);
+    const source = createBoneVolumeSource(insideTest);
+    const volume = new VoxelVolume(source);
+    const queue = new RemeshQueue();
+
+    const unsubscribe = queue.onResult((payload) => {
+      if (cancelled) return;
+      applyChunkResult(payload);
     });
-    if (cloned) cloned.visible = boneVis !== 'hidden';
-  }, [boneVis, cloned]);
+
+    // 初回一括生成: 先に全Baseチャンクを生成してから再メッシュ要求する（2パス化）。
+    // ghost layer（getHalo()）は隣接チャンクが既に存在している前提で境界1層分を読むため、
+    // 生成と要求を同一ループで行うと後続チャンクがまだ存在せずhaloが欠けてしまう
+    // （2026-07-12・法線継ぎ目修正、[[drill-mves-design]]参照）。
+    const { nx, ny, nz } = baseChunkGridDims();
+    const initialChunks: ReturnType<typeof volume.getOrCreateChunk>[] = [];
+    for (let cz = 0; cz < nz; cz++) {
+      for (let cy = 0; cy < ny; cy++) {
+        for (let cx = 0; cx < nx; cx++) {
+          initialChunks.push(volume.getOrCreateChunk(cx, cy, cz, 'base'));
+        }
+      }
+    }
+    for (const chunk of initialChunks) {
+      queue.requestRemesh(chunk, volume.getHalo(chunk));
+    }
+
+    carveRef.current = (center, radiusMm, amount) => {
+      volume.applyBrush({ center, radiusMm, amount });
+      for (const chunk of volume.getDirtyChunks()) {
+        queue.requestRemesh(chunk, volume.getHalo(chunk));
+        volume.consumeDirty(chunk);
+      }
+    };
+
+    // 2026-07-13: 宙に浮いた骨片除去。stopDrilling()（ドリルを離した瞬間）からのみ呼ばれる想定
+    // （毎フレーム実行はしない。詳細はvoxelVolume.ts pruneDisconnectedIslands()のdocコメント参照）。
+    pruneIslandsRef.current = () => {
+      const changed = volume.pruneDisconnectedIslands();
+      for (const chunk of changed) {
+        queue.requestRemesh(chunk, volume.getHalo(chunk));
+        volume.consumeDirty(chunk);
+      }
+    };
+
+    return () => {
+      cancelled = true;
+      carveRef.current = null;
+      pruneIslandsRef.current = null;
+      unsubscribe();
+      queue.dispose();
+      for (const mesh of chunkMeshesRef.current.values()) mesh.geometry.dispose();
+      chunkMeshesRef.current.clear();
+    };
+  }, [worldGeometry, applyChunkResult, carveRef, pruneIslandsRef]);
+
+  useEffect(() => {
+    material.opacity     = boneVis === 'ghost' ? 0.18 : 1.0;
+    material.transparent = boneVis === 'ghost';
+    material.depthWrite  = boneVis !== 'ghost';
+    material.needsUpdate = true;
+  }, [boneVis, material]);
 
   return (
-    <primitive
-      object={cloned}
+    <group
+      ref={groupRef}
+      visible={boneVis !== 'hidden'}
       onPointerMove={onPointerMove}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
@@ -389,6 +565,103 @@ function DrillCursor({ groupRef, rotation, sizeMm = 3 }: {
       </mesh>
     </group>
   );
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DustParticles: 骨粉パーティクル（Sprint6・Particle）
+//
+// Object Pool方式: 固定サイズのFloat32Array上でring-bufferアロケーションし、
+// 生成・破棄のたびにオブジェクトを作らない（GC負荷ゼロ、60FPS維持を優先）。
+// あえてカスタムシェーダーは使わずTHREE.PointsMaterial（vertexColors）のみで構成する
+// （骨表面シェーダーで「黒カビっぽい」との指摘を受けた反省を踏まえ、見た目の制御が難しい
+// カスタムシェーダーの追加リスクを避ける判断。文献: Markey et al. 2021、[[drill-mves-design]]参照）。
+// 寿命が尽きた粒子はY座標を-9999へ飛ばして非表示にする（フェード用シェーダー不要の簡易処理。
+// 寿命0.5秒・粒径が小さいため視覚的な破綻はない）。
+// ══════════════════════════════════════════════════════════════════
+function DustParticles({ spawnRef, visible }: {
+  spawnRef: React.MutableRefObject<((center: THREE.Vector3, count: number, colorHex: THREE.ColorRepresentation) => void) | null>;
+  visible: boolean;
+}) {
+  const pointsRef   = useRef<THREE.Points>(null!);
+  const cursorIdxRef = useRef(0);
+
+  const pool = useMemo(() => {
+    const positions  = new Float32Array(PARTICLE_MAX_COUNT * 3);
+    const colors     = new Float32Array(PARTICLE_MAX_COUNT * 3);
+    const velocities = new Float32Array(PARTICLE_MAX_COUNT * 3);
+    const ages       = new Float32Array(PARTICLE_MAX_COUNT).fill(PARTICLE_LIFETIME_SEC + 1); // 全個非アクティブから開始
+    for (let i = 0; i < PARTICLE_MAX_COUNT; i++) positions[i * 3 + 1] = -9999; // 原点(0,0,0)に描画されるのを防ぐ
+    return { positions, colors, velocities, ages };
+  }, []);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pool.positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(pool.colors, 3));
+    return geo;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const material = useMemo(() => new THREE.PointsMaterial({
+    size: 0.12,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.75,
+    sizeAttenuation: true,
+    depthWrite: false,
+  }), []);
+
+  // carveRefと同じパターン: 親(DrillCanvas3D)のuseFrameから直接呼べるよう、生成関数をrefへ注入する
+  useEffect(() => {
+    spawnRef.current = (center, count, colorHex) => {
+      const tmpColor = new THREE.Color(colorHex).lerp(new THREE.Color('#ffffff'), 0.45); // 骨色→白寄りで「粉」らしい淡さに
+      for (let n = 0; n < count; n++) {
+        const i = cursorIdxRef.current;
+        cursorIdxRef.current = (i + 1) % PARTICLE_MAX_COUNT;
+        pool.positions[i * 3]     = center.x;
+        pool.positions[i * 3 + 1] = center.y;
+        pool.positions[i * 3 + 2] = center.z;
+        // ランダムな外向き＋上向きの初速（削開点から飛散する見た目）
+        const theta = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 2.5;
+        pool.velocities[i * 3]     = Math.cos(theta) * speed * 0.5;
+        pool.velocities[i * 3 + 1] = 1.0 + Math.random() * 1.5;
+        pool.velocities[i * 3 + 2] = Math.sin(theta) * speed * 0.5;
+        pool.colors[i * 3]     = tmpColor.r;
+        pool.colors[i * 3 + 1] = tmpColor.g;
+        pool.colors[i * 3 + 2] = tmpColor.b;
+        pool.ages[i] = 0;
+      }
+    };
+    return () => { spawnRef.current = null; };
+  }, [spawnRef, pool]);
+
+  useFrame((_, delta) => {
+    let anyActive = false;
+    for (let i = 0; i < PARTICLE_MAX_COUNT; i++) {
+      if (pool.ages[i] > PARTICLE_LIFETIME_SEC) continue;
+      anyActive = true;
+      // Object Pool: typed array内容のその場更新はGCゼロを保つための意図的な設計（[[drill-mves-design]]参照）
+      // eslint-disable-next-line react-hooks/immutability
+      pool.ages[i] += delta;
+      if (pool.ages[i] > PARTICLE_LIFETIME_SEC) {
+        pool.positions[i * 3 + 1] = -9999; // 寿命切れ→画面外へ退避（フェードシェーダー不要の簡易処理）
+        continue;
+      }
+      pool.velocities[i * 3 + 1] -= 4.0 * delta; // 重力
+      pool.positions[i * 3]     += pool.velocities[i * 3]     * delta;
+      pool.positions[i * 3 + 1] += pool.velocities[i * 3 + 1] * delta;
+      pool.positions[i * 3 + 2] += pool.velocities[i * 3 + 2] * delta;
+    }
+    if (anyActive) {
+      // BufferGeometryのneedsUpdateはthree.jsの標準的な差分更新API（毎フレーム再生成を避ける意図的使用）
+      // eslint-disable-next-line react-hooks/immutability
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+    }
+  });
+
+  return <points ref={pointsRef} geometry={geometry} material={material} visible={visible} frustumCulled={false} />;
 }
 
 // ── 方向ガイド計算 ────────────────────────────────────────────────────
@@ -651,6 +924,41 @@ function DangerSpheres() {
   );
 }
 
+// Sprint5（Post Session Review）: セッション終了後、位置付きDamageEventを3Dピンとして表示する。
+// クリックで選択→外側stateへ通知（詳細カードは外側InteractiveDrillScene側でdescribeDamageEvent()を
+// 使って表示する。判定ロジック自体には一切関与しない、記録の可視化専用コンポーネント）。
+function DamageReviewPins({
+  events,
+  selectedIndex,
+  onSelect,
+}: {
+  events: DamageEvent[];
+  selectedIndex: number | null;
+  onSelect: (index: number | null) => void;
+}) {
+  return (
+    <>
+      {events.map((ev, i) => {
+        if (!ev.position) return null; // 旧セッション履歴等、位置情報がないイベントはピン化できない
+        const isSelected = i === selectedIndex;
+        const color = ev.severity === 'critical' ? '#ef4444' : '#fbbf24';
+        return (
+          <mesh
+            key={i}
+            position={[ev.position.x, ev.position.y, ev.position.z]}
+            onClick={(e) => { e.stopPropagation(); onSelect(isSelected ? null : i); }}
+            onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+            onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+          >
+            <sphereGeometry args={[isSelected ? 0.6 : 0.42, 16, 16]} />
+            <meshBasicMaterial color={color} transparent opacity={isSelected ? 1 : 0.8} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 // ── DrillCanvas3D: R3F内部コンポーネント ────────────────────────────
 interface DrillCanvas3DProps {
   drillMode:        boolean;
@@ -660,9 +968,15 @@ interface DrillCanvas3DProps {
   onAntrumDist:     (dist: number | null) => void;
   onDrillDirection: (dir: string | null) => void;
   onDangerTint:     (color: string | null) => void;
+  // Sprint6・演出: 危険接近ビネット用の生proximity値（0-1）。dangerTintは既にブレンド済み色の
+  // ためUI側で強度を再計算できず、画面周辺ビネットの不透明度・色補間には別途この数値が必要。
+  onDangerProximity: (proximity: number) => void;
   onEducationCard:  (card: EducationCardContent | null) => void;
-  onScoreReady:     (result: { breakdown: ScoreBreakdown; review: ScoreReviewItem[] }) => void;
+  /** Sprint6・Heat: 発熱レベル 0-1（毎フレーム通知、UIゲージ表示用） */
+  onHeatLevel:      (level: number) => void;
+  onScoreReady:     (result: { breakdown: ScoreBreakdown; review: ScoreReviewItem[]; damageEvents: DamageEvent[] }) => void; // Sprint5: 3Dレビュー用にdamageEventsも渡す
   burrId:           string;
+  onBurrIdChange:   (id: string) => void; // V5: 数字キー(1-3)クイックバー切替
   pressure:         number;
   rpmPreset:        RpmPreset;
   showGuide:        boolean;
@@ -673,17 +987,27 @@ interface DrillCanvas3DProps {
   viewMode?:        'normal' | 'microscope' | 'endoscope';
   positionMode?:    boolean;
   cutterSizeMm?:    1 | 2 | 3;
+  // 2026-07-13: 削開/視点トグル（drillControlMode）を廃止し、顕微鏡モードの固定/移動中
+  // （positionMode）へ統一。通常モードでもpositionMode=true（移動中）でドラッグ=カメラ回転、
+  // false（固定）でドラッグ=削開となる（旧drillControlMode==='view'/'drill'に相当）。
+  // shojiさん指摘: 2つのトグルが機能的に衝突していたための整理（[[feedback]]参照）。
+  onPositionModeChange: (mode: boolean) => void; // スペースキー・内蔵ボタンでpositionModeを更新するため必要
+  // Sprint5（Post Session Review）: レビューモード中のみ非nullで渡される位置付きダメージイベント一覧。
+  // 3Dピン描画とクリック選択に使う。実データはfinalizeScore時にこのコンポーネント内で確定→
+  // onScoreReady経由で一度外側stateへ渡り、レビューを開いたときにここへ戻ってくる
+  // （単方向データフローを維持するための設計、DrillCanvas3D側の内部refを直接外へ公開しない）。
+  reviewEvents:         DamageEvent[] | null;
+  reviewSelectedIndex:  number | null;
+  onReviewSelect:       (index: number | null) => void;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, onDangerTint, onEducationCard, onScoreReady, burrId, pressure, rpmPreset, showGuide, expertMode, boneVis, ossicleVis, nerveVis, viewMode = 'normal', positionMode = false }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, onDangerTint, onDangerProximity, onEducationCard, onScoreReady, onHeatLevel, burrId, onBurrIdChange, pressure, rpmPreset, showGuide, expertMode, boneVis, ossicleVis, nerveVis, viewMode = 'normal', positionMode = false, onPositionModeChange, reviewEvents, reviewSelectedIndex, onReviewSelect }: DrillCanvas3DProps) {
   const { camera }      = useThree();
-  const uniformsRef    = useRef<{
-    drillHoles:     { value: THREE.Vector3[] };
-    drillHoleCount: { value: number };
-    drillHoleRadii: { value: number[] };
-  } | null>(null);
-  const holesRef        = useRef<DrillHoleState[]>([]);  // T5: ホール成長状態（uniformsと並行管理）
-  const activeIndexRef  = useRef(-1);                     // 現在成長中のホールindex
+  const carveRef        = useRef<((center: THREE.Vector3, radiusMm: number, amount: number) => void) | null>(null); // V5: DrillBoneへの実ボクセル除去呼び出し
+  const pruneIslandsRef = useRef<(() => void) | null>(null); // 2026-07-13: 宙に浮いた骨片除去呼び出し（stopDrillingで使用）
+  // 連続したstart/stop連打でpruneDisconnectedIslandsが密に呼ばれ続けないための最小間隔ガード
+  // （全Baseボクセル走査のBFSのため軽くはない処理。1回あたりの体感コストは要ローカル確認）。
+  const lastPruneCheckMsRef = useRef(0);
   const contactAngleRef = useRef(0);                      // 面法線×ドリル軸のなす角（度）
   const lastGrowthRateRef = useRef(0);                    // T6: 直近成長速度 mm/s（音量算出に使用）
   const audioEngineRef  = useRef<DrillAudioEngine | null>(null); // T6: WebAudioエンジン（ノード使い回し）
@@ -695,105 +1019,165 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
   const nearDangerCuttingMsRef = useRef(0);
   const reachedAntrumRef      = useRef(false);
   const scoreFinalizedRef     = useRef(false);
+  // V5: 実ボクセル除去とは別に、scoring.tsの較正値を変えないよう既存「80ms間隔+MIN_HOLE_DIST」
+  // 頻度のまま採点用の削開点数を数える（旧holesRef配列をカウンタ2本へ簡略化）
+  const totalDrillPointsRef       = useRef(0);
+  const oticCapsuleDrillPointsRef = useRef(0);
   const isDrillingRef  = useRef(false);
   const lastHolePosRef = useRef<THREE.Vector3 | null>(null);
   const lastDrillTime  = useRef(0);
   const cursorRef      = useRef<THREE.Group>(null!);
   const orbitRef       = useRef<any>(null);
+  // V5: Shift/Ctrl荷重クイック切替（押している間だけ最大/最小荷重へ一時的に上書き、スライダー値は不変）
+  const shiftHeldRef = useRef(false);
+  const ctrlHeldRef  = useRef(false);
+  // 2026-07-13: positionModeのref版（スペースキー処理でstate更新の非同期反映を待たず
+  // 即座にガード判定へ反映させるために必要。通常はpropと同期させる）
+  const positionModeRef = useRef(positionMode);
+  useEffect(() => { positionModeRef.current = positionMode; }, [positionMode]);
+  // Sprint3: バーのフルート目詰まり度 0-1（removalModel.ts clogFactor）。バー交換でリセットされる。
+  const clogLevelRef = useRef(0);
+  // Sprint3: Tool Pose速度(mm/s)・dwell(留まり)継続時間ms（removalModel.ts advanceDwellMs）
+  const prevPointRef    = useRef<THREE.Vector3 | null>(null);
+  const toolVelocityRef = useRef(0);
+  const dwellMsRef      = useRef(0);
+  // Sprint4: Expert Coach（educationCards.ts）がShift/Ctrlクイック切替後の実効荷重を
+  // 参照できるよう、useFrame内で算出したeffectivePressureをrefに保持しておく。
+  const effectivePressureRef = useRef(0.6);
+  // Sprint5（Post Session Review）: DamageEvent.tを「セッション内相対ms」にするため、
+  // 初回削開開始時刻を基準として保持する（performance.now()は絶対値で意味を持たないため）。
+  const sessionStartMsRef = useRef<number | null>(null);
+  // Sprint6・Heat: 発熱レベル 0-1（removalModel.ts growHeatLevel/coolHeatLevel）。
+  // バー交換やリセットでは明示的にリセットしない（熱は骨側の状態という想定のため、
+  // clogLevelRef=バー側の状態とは異なる。非削開中は徐々に放熱する）。
+  const heatLevelRef = useRef(0);
+
+  // Sprint6・Particle: 骨粉パーティクルのspawn呼び出し（DustParticles側からuseEffectで注入される、
+  // carveRefと同じ「ref経由でのコンポーネント間関数受け渡し」パターン）。
+  const spawnParticlesRef = useRef<((center: THREE.Vector3, count: number, colorHex: THREE.ColorRepresentation) => void) | null>(null);
+  // Sprint6・Particle: フレームごとの発生数は端数が出るため、次フレームへ持ち越す蓄積値。
+  const particleSpawnAccumRef = useRef(0);
 
   // T6: アンマウント時にAudioContextを解放（resetKeyでのremount毎のリーク防止）
   useEffect(() => {
     return () => { audioEngineRef.current?.dispose(); };
   }, []);
 
-  // ドリルホール追加: currentR=0で生成し、以降 growActiveHole() が毎フレーム成長させる
-  // （設計書 §4.4: 固定半径discardからホール半径成長方式への改修）
-  const addHole = useCallback((point: THREE.Vector3) => {
-    const u = uniformsRef.current;
-    if (!u || holesRef.current.length >= MAX_HOLES) return;
-    const last = lastHolePosRef.current;
-    if (last && last.distanceTo(point) < MIN_HOLE_DIST) return;
-
-    const idx = holesRef.current.length;
-    const targetR = getBurrById(burrId).diameterMm / 2; // T10: 選択中バーの径から算出
-    const hole: DrillHoleState = {
-      position: point.clone(),
-      currentR: 0,
-      targetR,
-      regionId: regionAt(point),
-    };
-    holesRef.current.push(hole);
-    activeIndexRef.current = idx;
-
-    u.drillHoles.value[idx].copy(point);
-    u.drillHoleRadii.value[idx] = 0;
-    u.drillHoleCount.value = idx + 1;
-    lastHolePosRef.current = point.clone();
+  // Sprint3: バー交換で目詰まりをリセット（バー交換の動機付け＝交換直後は切削効率が戻る）
+  useEffect(() => {
+    clogLevelRef.current = 0;
   }, [burrId]);
 
-  // アクティブホールを毎フレーム成長させる（除去モデル §4.4: Bone Material×Burr×RPM×Pressure×Angle）
-  const growActiveHole = useCallback((delta: number) => {
-    const idx = activeIndexRef.current;
-    const holes = holesRef.current;
-    const u = uniformsRef.current;
-    if (!u || idx < 0 || idx >= holes.length) { lastGrowthRateRef.current = 0; return; }
-    const hole = holes[idx];
-    if (hole.currentR >= hole.targetR) { lastGrowthRateRef.current = 0; return; }
+  // ドリル開始/停止（ポインタ押下・スペースキートグルの共通処理。下のキー監視useEffectより先に
+  // 定義しておく必要がある＝TSの「使用後宣言」エラー回避のための配置）
+  const startDrilling = useCallback(() => {
+    if (!drillMode || positionModeRef.current) return;
+    isDrillingRef.current = true;
+    if (sessionStartMsRef.current === null) sessionStartMsRef.current = performance.now(); // Sprint5: DamageEvent.tの基準時刻
+    if (cursorRef.current) cursorRef.current.visible = true;
+    lastDrillTime.current = DRILL_INTERVAL; // 即座に 1 記録
+    // T6: ユーザー操作起点でAudioContext生成/resume（autoplay制約回避）
+    if (!audioEngineRef.current) audioEngineRef.current = new DrillAudioEngine();
+    audioEngineRef.current.start();
+  }, [drillMode]);
 
-    const material = BONE_MATERIALS[hole.regionId];
-    const burr = getBurrById(burrId);
-    const rate = growthRateMmPerSec({
-      burr,
-      pressure,
-      rpmPreset,
-      contactAngleDeg: contactAngleRef.current,
-      material,
-    });
-    lastGrowthRateRef.current = rate;
-
-    const grown = advanceHole(hole, rate, delta);
-    if (grown !== hole) {
-      holes[idx] = grown;
-      u.drillHoleRadii.value[idx] = grown.currentR;
+  const stopDrilling = useCallback(() => {
+    isDrillingRef.current = false;
+    if (cursorRef.current) cursorRef.current.visible = false;
+    audioEngineRef.current?.stop();
+    onEducationCard(null);
+    // 2026-07-13: ドリルを離した瞬間に、主骨塊から切り離された骨片（宙に浮いた状態）が
+    // ないか確認し、あれば除去する（shojiさん指摘。詳細はvoxelVolume.ts参照）。
+    // 最小800ms間隔でガード（start/stop連打時の連続実行を防ぐ）。
+    const nowMs = performance.now();
+    if (nowMs - lastPruneCheckMsRef.current > 800) {
+      lastPruneCheckMsRef.current = nowMs;
+      pruneIslandsRef.current?.();
     }
-  }, [burrId, pressure, rpmPreset]);
+  }, [onEducationCard]);
 
-  // T6: アクティブホールの材料・残存骨厚・成長速度から音を更新する（設計書 §4.5）
-  const updateAudio = useCallback(() => {
-    const idx = activeIndexRef.current;
-    const holes = holesRef.current;
+  // 2026-07-12: スペースキー専用トグル。「削開中」→止めて視点操作へ、「待機中」→ドリルモードへ
+  // 切り替えてから即座に削開開始（shojiさん指示: 待機中にspaceを押しても何も起きないのは、
+  // view選択中はstartDrillingがガードで弾いていたため。ここでは先にrefを更新してから
+  // startDrillingを呼ぶことで、同一イベントハンドラ内で確実にガードを通過させる）。
+  const toggleDrillSpace = useCallback(() => {
+    if (!drillMode) return;
+    if (isDrillingRef.current) {
+      // 削開中 → 削開を止めて移動中（固定解除）へ
+      stopDrilling();
+      positionModeRef.current = true;
+      onPositionModeChange(true);
+    } else {
+      // 待機中 → 固定へ切り替えてから即座に削開開始
+      positionModeRef.current = false;
+      onPositionModeChange(false);
+      startDrilling();
+    }
+  }, [drillMode, stopDrilling, startDrilling, onPositionModeChange]);
+
+  // V5: Shift/Ctrl荷重クイック切替 + 数字キー(1-3)バー切替 + スペースキーでドリル開始/停止トグル
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = true;
+      if (e.key === 'Control') ctrlHeldRef.current = true;
+      const burrIdx = ['1', '2', '3'].indexOf(e.key);
+      if (burrIdx >= 0 && DRILL_BURRS[burrIdx]) onBurrIdChange(DRILL_BURRS[burrIdx].id);
+      // スペース: 待機中→削開開始（固定へ切替）／削開中→移動中へ切替（削開は停止）
+      // （オートリピートは無視。2026-07-13改修: 削開/視点ボタンを廃止し、固定/移動中
+      // （positionMode）の切替まで一体で行う設計に統一）
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault(); // ページスクロールを抑止
+        toggleDrillSpace();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') shiftHeldRef.current = false;
+      if (e.key === 'Control') ctrlHeldRef.current = false;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [onBurrIdChange, toggleDrillSpace]);
+
+  // T6: 現在の削開点(材料・残存骨厚・成長速度)から音を更新する（設計書 §4.5）
+  const updateAudio = useCallback((point: THREE.Vector3, regionId: BoneRegionId) => {
     const engine = audioEngineRef.current;
-    if (!engine || idx < 0 || idx >= holes.length) return;
-    const hole = holes[idx];
-    const material = BONE_MATERIALS[hole.regionId];
-    const remaining = remainingThicknessToDanger(hole.position);
-    engine.update(computeAudioState(material, remaining, lastGrowthRateRef.current));
-  }, []);
+    if (!engine) return;
+    const material = BONE_MATERIALS[regionId];
+    const remaining = remainingThicknessToDanger(point);
+    // Sprint6・Audio: RPM連動モーター音（rpmPresetをそのまま渡す。回転数プリセット変更で
+    // 基音ピッチが変わる。危険接近時の警報音程自体はRPM非依存のまま、詳細はaudioEngine.ts参照）
+    engine.update(computeAudioState(material, remaining, lastGrowthRateRef.current, rpmPreset));
+  }, [rpmPreset]);
 
-  // T8: 現在の材料・バー・危険状態から教育カードを1つ選び出す
-  const updateEducationCard = useCallback(() => {
-    const idx = activeIndexRef.current;
-    const holes = holesRef.current;
-    if (idx < 0 || idx >= holes.length) { onEducationCard(null); return; }
-    const hole = holes[idx];
-    const material = BONE_MATERIALS[hole.regionId];
+  // T8/Sprint4(Expert Coach): 現在の材料・バー・危険状態・Pressure/Angle/Feed Rate/RPMから
+  // 教育カードを1つ選び出す（危険判定はAnatomyLayerベースのremainingThicknessToLayerへ統一）
+  const updateEducationCard = useCallback((point: THREE.Vector3, regionId: BoneRegionId) => {
+    const material = BONE_MATERIALS[regionId];
     const burr = getBurrById(burrId);
-    const dangerState = computeDangerState(remainingThicknessToDanger(hole.position));
+    const dangerState = computeDangerState(remainingThicknessToLayer(point));
     onEducationCard(selectEducationCard({
       material,
       burr,
       dangerState,
       growthRateMmPerSec: lastGrowthRateRef.current,
+      clogLevel: clogLevelRef.current,
+      dwellMs: dwellMsRef.current,
+      pressure: effectivePressureRef.current,
+      rpmPreset,
+      contactAngleDeg: contactAngleRef.current,
+      toolVelocityMmPerSec: toolVelocityRef.current,
+      heatLevel: heatLevelRef.current,
     }));
-  }, [burrId, onEducationCard]);
+  }, [burrId, onEducationCard, rpmPreset]);
 
-  // T9: 危険接近時間・最小到達距離・ダメージイベントを毎フレーム追跡する
-  const updateScoringTrackers = useCallback((delta: number) => {
-    const idx = activeIndexRef.current;
-    const holes = holesRef.current;
-    if (idx < 0 || idx >= holes.length) return;
-    const hole = holes[idx];
-    const dangerState = computeDangerState(remainingThicknessToDanger(hole.position));
+  // T9/Sprint4: 危険接近時間・最小到達距離・ダメージイベントを毎フレーム追跡する
+  // （AnatomyLayerベースのremainingThicknessToLayerへ統一、2026-07-12）
+  const updateScoringTrackers = useCallback((delta: number, point: THREE.Vector3, regionId: BoneRegionId) => {
+    const dangerState = computeDangerState(remainingThicknessToLayer(point));
 
     if (dangerState.distMm !== null) {
       minDistToDangerRef.current =
@@ -808,28 +1192,42 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
       else nearDangerCuttingMsRef.current += delta * 1000;
     }
 
-    const isOnOticCapsule = hole.regionId === 'oticCapsule';
+    const isOnOticCapsule = regionId === 'oticCapsule';
+    // Sprint5: tはセッション内相対ms（sessionStartMsRef基準）。stepDamageTracker内のdwell計算は
+    // 差分のみを使うため、絶対値→相対値への変更でも既存ロジックへの影響はない。
+    const nowMs = performance.now() - (sessionStartMsRef.current ?? performance.now());
     const { events, next } = stepDamageTracker(
-      damageTrackerStateRef.current, performance.now(), dangerState, isOnOticCapsule, true
+      damageTrackerStateRef.current, nowMs, dangerState, isOnOticCapsule, true,
+      {
+        position: { x: point.x, y: point.y, z: point.z },
+        toolPoseSnapshot: {
+          burrId,
+          rpmPreset,
+          pressure: effectivePressureRef.current,
+          contactAngleDeg: contactAngleRef.current,
+          velocityMmPerSec: toolVelocityRef.current,
+          regionId,
+        },
+      },
+      heatLevelRef.current // Sprint6・Heat: overheatイベント発火判定に使用
     );
     damageTrackerStateRef.current = next;
     if (events.length > 0) damageEventsRef.current.push(...events);
-  }, [burrId]);
+  }, [burrId, rpmPreset]);
 
   // T9: セッション終了（到達 or アンマウント/リセット）時にスコアを確定・保存する。二重確定はしない。
   const finalizeScore = useCallback(() => {
-    if (scoreFinalizedRef.current || holesRef.current.length === 0) return;
+    if (scoreFinalizedRef.current || totalDrillPointsRef.current === 0) return;
     scoreFinalizedRef.current = true;
 
-    const oticCapsuleHolesCount = holesRef.current.filter(
-      (h) => h.regionId === 'oticCapsule' && h.currentR > OTIC_WASTE_RADIUS_THRESHOLD_MM
-    ).length;
-
+    // Sprint5: damageEventsRef.currentは以後もpushされ続けうる同一配列参照のため、確定時点で
+    // スナップショット（スプレッドコピー）を取っておく（レビュー内容が後から変わらないようにするため）。
+    const damageEventsSnapshot = [...damageEventsRef.current];
     const inputs = {
-      damageEvents: damageEventsRef.current,
+      damageEvents: damageEventsSnapshot,
       reachedAntrum: reachedAntrumRef.current,
-      oticCapsuleHolesCount,
-      totalHolesCount: holesRef.current.length,
+      oticCapsuleHolesCount: oticCapsuleDrillPointsRef.current,
+      totalHolesCount: totalDrillPointsRef.current,
       minDistToDangerMm: minDistToDangerRef.current,
       nearDangerDiamondMs: nearDangerDiamondMsRef.current,
       nearDangerCuttingMs: nearDangerCuttingMsRef.current,
@@ -840,11 +1238,11 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     appendScoreHistory({
       date: new Date().toISOString(),
       breakdown,
-      damageEvents: damageEventsRef.current,
+      damageEvents: damageEventsSnapshot,
       reachedAntrum: reachedAntrumRef.current,
     });
 
-    onScoreReady({ breakdown, review });
+    onScoreReady({ breakdown, review, damageEvents: damageEventsSnapshot });
   }, [onScoreReady]);
 
   // T9: アンマウント時（resetKey変更含む）に未確定スコアを確定・保存する
@@ -852,9 +1250,10 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     return () => { finalizeScore(); };
   }, [finalizeScore]);
 
-  // 危険部位チェック（T7: remainingThicknessToDanger基準に統一、色透見をUIへ配線）
+  // 危険部位チェック（T7: remainingThicknessToLayer基準に統一、色透見をUIへ配線。
+  // Sprint4でAnatomyLayerベースへ切替、2026-07-12）
   const checkDanger = useCallback((point: THREE.Vector3) => {
-    const remaining = remainingThicknessToDanger(point);
+    const remaining = remainingThicknessToLayer(point);
     const state = computeDangerState(remaining);
 
     if (state.zone && state.level !== 'safe' && state.distMm !== null) {
@@ -867,23 +1266,124 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     const material = BONE_MATERIALS[regionAt(point)];
     const tint = dangerTintColor(BASE_BONE_COLOR, material, state.proximity);
     onDangerTint(state.proximity > 0 ? `#${tint.getHexString()}` : null);
-  }, [onAlert, onDangerTint]);
+    onDangerProximity(state.proximity); // Sprint6・演出: 危険接近ビネット
+  }, [onAlert, onDangerTint, onDangerProximity]);
 
-  // useFrame: 新規ホール生成は一定間隔（既存間隔を踏襲）、成長は毎フレーム（positionMode時は中断）
+  // useFrame: V5では毎フレーム実ボクセル除去(carveRef)を行う。採点用の記録は既存の
+  // 80ms間隔+MIN_HOLE_DISTデデュープ頻度を踏襲する（positionMode時は中断）
   useFrame((_, delta) => {
-    if (!isDrillingRef.current || !cursorRef.current?.visible || !drillMode) return;
+    const drilling = isDrillingRef.current && !!cursorRef.current?.visible && drillMode;
+    if (!drilling) {
+      // 非削開中（間欠停止）は目詰まりが解消していく（文献: 間欠的な軽圧削開が目詰まりを防ぐ）
+      clogLevelRef.current = clearClogLevel(clogLevelRef.current, delta);
+      // 非削開中はTool Pose速度・dwell時間もリセット（次回削開開始時は留まり0からカウント）
+      prevPointRef.current = null;
+      toolVelocityRef.current = 0;
+      dwellMsRef.current = advanceDwellMs(dwellMsRef.current, 0, false, delta);
+      // Sprint6・Heat: 非削開中は放熱する（文献: 間欠的な休止による放熱が発熱抑制に有効）
+      heatLevelRef.current = coolHeatLevel(heatLevelRef.current, delta);
+      onHeatLevel(heatLevelRef.current);
+      return;
+    }
+
+    const point = cursorRef.current.position;
+
+    // Sprint3: Tool Pose速度(mm/s)＝直近フレームからの移動距離/dt。dwell(留まり)検知の基礎。
+    // Feed Rate（経路分配方式）: prevPointRefを上書きする前に前フレーム位置を保持しておき、
+    // 下記carve呼び出しの掃引経路サブステップ分配に使う。
+    const prevPoint = prevPointRef.current;
+    toolVelocityRef.current = prevPoint && delta > 0
+      ? point.distanceTo(prevPoint) / delta
+      : 0;
+    prevPointRef.current = point.clone();
+    dwellMsRef.current = advanceDwellMs(dwellMsRef.current, toolVelocityRef.current, true, delta);
+
+    // ドリル表示の向き: 視点(カメラ)方向へシャフトが受け流れ、右上からやや傾いて
+    // 差し込むように見せる（球の先端が切削点を向く。旧: 常にワールド+Y=真上固定だった）
+    const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const camUp    = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const camBack  = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+    const shaftDir = camBack.multiplyScalar(0.85).add(camUp.multiplyScalar(0.3)).add(camRight.multiplyScalar(0.3)).normalize();
+    cursorRef.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), shaftDir);
+
+    const regionId = regionAt(point);
+    const material = BONE_MATERIALS[regionId];
+    const burr = getBurrById(burrId);
+    // 削開中は目詰まりが蓄積する（material.particleAmountが高いほど早い、既存T2材料表を再利用）
+    clogLevelRef.current = growClogLevel(clogLevelRef.current, material, delta);
+    // Shift=荷重最大へ一時上書き、Ctrl=荷重最小へ一時上書き（クイック切替、スライダー値は不変）
+    const effectivePressure = shiftHeldRef.current ? 1.0 : ctrlHeldRef.current ? 0.2 : pressure;
+    effectivePressureRef.current = effectivePressure; // Sprint4: Expert Coachが参照
+
+    // Sprint6・Heat: 荷重・RPM・バー種(heatCoef)・留まり(dwell)・危険構造近接から発熱を蓄積する
+    // （文献根拠はremovalModel.tsのHeatセクション参照）。危険構造近接はここでのみ算出が必要なため
+    // 専用に1回computeDangerStateする（update*系コールバック内でも同様の計算を個別に行っており
+    // 既存の設計と同じ粒度の重複、新規の重い処理ではない）。
+    const dangerStateForHeat = computeDangerState(remainingThicknessToLayer(point));
+    heatLevelRef.current = growHeatLevel(heatLevelRef.current, {
+      burr,
+      pressure: effectivePressure,
+      rpmPreset,
+      isDwelling: dwellMsRef.current > 0,
+      dangerProximity: dangerStateForHeat.proximity,
+    }, delta);
+    onHeatLevel(heatLevelRef.current);
+
+    const rate = growthRateMmPerSec({
+      burr,
+      pressure: effectivePressure,
+      rpmPreset,
+      contactAngleDeg: contactAngleRef.current,
+      material,
+      clogLevel: clogLevelRef.current,
+    });
+    lastGrowthRateRef.current = rate;
+
+    // Sprint6・Particle: 骨粉パーティクル。particleAmount（材料由来）×除去速度から1秒あたりの
+    // 発生数を求め、フレームdeltaぶんを蓄積→整数個ぶんだけ生成（端数は次フレームへ持ち越す）。
+    particleSpawnAccumRef.current += particleSpawnRatePerSec(material.particleAmount, rate) * delta;
+    const spawnCount = Math.min(PARTICLE_MAX_SPAWN_PER_FRAME, Math.floor(particleSpawnAccumRef.current));
+    if (spawnCount > 0) {
+      particleSpawnAccumRef.current -= spawnCount;
+      spawnParticlesRef.current?.(point, spawnCount, material.color);
+    }
+
+    const amount = rate * delta;
+    if (amount > 0) {
+      // Feed Rate（経路分配方式、2026-07-12）: growthRateMmPerSecの式自体は変更せず、
+      // 1フレーム分のamountを前フレーム位置→現在位置の掃引経路へサブステップ分配する。
+      // 高速掃引時にカーソルがバー半径以上ジャンプし中間ボクセルが未接触になる
+      // 「トンネリング」を防ぐ（一般機械加工のMRR=送り速度×切込み深さ×切削速度の原理を、
+      // 除去率自体ではなく空間分配の正確化として適用。既存のdwell検知・目詰まりモデルとは
+      // 独立に効くため二重補正にはならない。文献的根拠と設計判断の詳細は[[drill-mves-design]]参照）。
+      const burrRadius = burr.diameterMm / 2;
+      const sweepDist = prevPoint ? point.distanceTo(prevPoint) : 0;
+      const steps = sweepDist > 0
+        ? Math.min(FEED_RATE_MAX_SUBSTEPS, Math.max(1, Math.ceil(sweepDist / (burrRadius * FEED_RATE_SUBSTEP_FRACTION))))
+        : 1;
+      const stepAmount = amount / steps;
+      for (let i = 0; i < steps; i++) {
+        const t = steps === 1 ? 1 : (i + 1) / steps;
+        const stepPoint = prevPoint ? prevPoint.clone().lerp(point, t) : point;
+        carveRef.current?.(stepPoint, burrRadius, stepAmount);
+      }
+    }
 
     lastDrillTime.current += delta * 1000;
     if (lastDrillTime.current >= DRILL_INTERVAL) {
       lastDrillTime.current = 0;
-      addHole(cursorRef.current.position);
+      const last = lastHolePosRef.current;
+      if (!last || last.distanceTo(point) >= MIN_HOLE_DIST) {
+        lastHolePosRef.current = point.clone();
+        totalDrillPointsRef.current++;
+        if (regionId === 'oticCapsule') oticCapsuleDrillPointsRef.current++;
+        onHoleCount(totalDrillPointsRef.current);
+      }
     }
 
-    growActiveHole(delta);
-    updateAudio();
-    updateEducationCard();
-    updateScoringTrackers(delta);
-    onHoleCount(holesRef.current.length);
+    updateAudio(point, regionId);
+    updateEducationCard(point, regionId);
+    updateScoringTrackers(delta, point, regionId);
   });
 
   // ── イベントハンドラ ──────────────────────────────────────────────
@@ -891,7 +1391,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     e.stopPropagation();
     if (cursorRef.current) {
       cursorRef.current.position.copy(e.point);
-      cursorRef.current.visible = true;
+      cursorRef.current.visible = isDrillingRef.current; // 「削開中」以外はドリル表示を出さない
     }
     checkDanger(e.point);
     const antrumDistNow = e.point.distanceTo(ANTRUM_POS);
@@ -915,18 +1415,12 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     if (!drillMode || e.button !== 0) return;
     e.stopPropagation();
-    isDrillingRef.current = true;
-    lastDrillTime.current = DRILL_INTERVAL; // 即座に 1 ホール
-    // T6: ユーザー操作起点でAudioContext生成/resume（autoplay制約回避）
-    if (!audioEngineRef.current) audioEngineRef.current = new DrillAudioEngine();
-    audioEngineRef.current.start();
-  }, [drillMode]);
+    startDrilling();
+  }, [drillMode, startDrilling]);
 
   const handlePointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
-    isDrillingRef.current = false;
-    audioEngineRef.current?.stop();
-    onEducationCard(null);
-  }, [onEducationCard]);
+    stopDrilling();
+  }, [stopDrilling]);
 
   const handlePointerLeave = useCallback(() => {
     isDrillingRef.current = false;
@@ -935,20 +1429,25 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
     onAntrumDist(null);
     onDrillDirection(null);
     onDangerTint(null);
+    onDangerProximity(0); // Sprint6・演出: カーソルが骨から離れたらビネットも消す
     onEducationCard(null);
     audioEngineRef.current?.stop();
-  }, [onAlert, onAntrumDist, onDrillDirection, onDangerTint, onEducationCard]);
+  }, [onAlert, onAntrumDist, onDrillDirection, onDangerTint, onDangerProximity, onEducationCard]);
 
   return (
     <>
-      {/* ライティング */}
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[10, 20, 15]} intensity={0.9} />
-      <directionalLight position={[-8, -5, -10]} intensity={0.25} />
+      {/* ライティング（解剖モード AnatomyScene.tsx と同一トーン。60FPS優先のためcastShadowは付けない） */}
+      <directionalLight position={[10, 15, 5]}  intensity={1.8}  color="#fff8f0" />
+      <directionalLight position={[18, 3, 2]}   intensity={0.9}  color="#ffe8d0" />
+      <directionalLight position={[-12, 2, -4]} intensity={0.6}  color="#c0d8ff" />
+      <directionalLight position={[5, -8, 0]}   intensity={0.25} color="#d0e4ff" />
+      <pointLight position={[-8, -2, 0]} intensity={3.0} color="#a0c8ff" distance={20} decay={2} />
+      <pointLight position={[4,   3, 1]} intensity={2.0} color="#fff4e0" distance={14} decay={2} />
 
       {/* 側頭骨（ドリルシェーダー付き） */}
       <DrillBone
-        uniformsRef={uniformsRef}
+        carveRef={carveRef}
+        pruneIslandsRef={pruneIslandsRef}
         onPointerMove={handlePointerMove}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
@@ -969,23 +1468,42 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
       {/* Mastoidectomy ガイドレイヤー */}
       {showGuide && <MastoidGuide expertMode={expertMode} />}
 
+      {/* Sprint5: Post Session Review ピン（レビューモード中のみ表示） */}
+      {reviewEvents && (
+        <DamageReviewPins
+          events={reviewEvents}
+          selectedIndex={reviewSelectedIndex}
+          onSelect={onReviewSelect}
+        />
+      )}
+
       {/* ドリルカーソル */}
       <DrillCursor groupRef={cursorRef} rotation={rotation} sizeMm={getBurrById(burrId).diameterMm as 1 | 2 | 3} />
+
+      {/* Sprint6・Particle: 骨粉パーティクル（削開中に発生、Object Pool管理） */}
+      <DustParticles spawnRef={spawnParticlesRef} visible={boneVis !== 'hidden'} />
 
       {/* FovController: viewMode に応じてカメラFOVを切替 */}
       <FovController viewMode={viewMode} />
 
       {/* OrbitControls */}
+      {/* 2026-07-13: 固定/移動中（positionMode）へ統一。固定（false）の間は1本指ドラッグ(タッチ)/
+          左ボタン(マウス)を削開専用にし、OrbitControlsのROTATEへは渡さない（2本指ピンチ/中ボタンでの
+          ズームは常時可能）。移動中（true）はマウス左ボタンもタッチ1本指も通常のROTATEへ戻す。 */}
       <OrbitControls
         ref={orbitRef}
         makeDefault
         mouseButtons={{
-          LEFT:   drillMode ? (THREE.MOUSE as any).NONE : THREE.MOUSE.ROTATE,
+          LEFT:   (drillMode && !positionMode) ? (THREE.MOUSE as any).NONE : THREE.MOUSE.ROTATE,
           MIDDLE: THREE.MOUSE.DOLLY,
           RIGHT:  THREE.MOUSE.ROTATE,
         }}
+        touches={{
+          ONE: (drillMode && !positionMode) ? undefined : THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN,
+        }}
         enableRotate={viewMode !== 'microscope' || positionMode}
-        enablePan={!drillMode && (viewMode !== 'microscope' || positionMode)}
+        enablePan={(!drillMode || positionMode) && (viewMode !== 'microscope' || positionMode)}
         enableZoom={true}
         target={[0, 0, 2]}
       />
@@ -997,6 +1515,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
 export interface InteractiveDrillSceneProps {
   viewMode?:           'normal' | 'microscope' | 'endoscope';
   positionMode?:       boolean;
+  onPositionModeChange?: (mode: boolean) => void; // 親が制御するとき（未指定時は内部stateへフォールバック）
   drillActive?:        boolean;      // 親が制御するとき
   onDrillToggle?:      () => void;   // 親が制御するとき
   rightOverlayOffset?: number;       // 右オーバーレイを下にずらすpx
@@ -1004,7 +1523,8 @@ export interface InteractiveDrillSceneProps {
 
 export function InteractiveDrillScene({
   viewMode = 'normal',
-  positionMode = false,
+  positionMode,
+  onPositionModeChange,
   drillActive,
   onDrillToggle,
   rightOverlayOffset = 0,
@@ -1013,8 +1533,18 @@ export function InteractiveDrillScene({
   // 制御モード判定
   const isControlled = onDrillToggle !== undefined;
   const drillMode    = isControlled ? !!drillActive : internalDrillMode;
+  // 2026-07-13: positionMode（固定/移動中）も同じ制御/非制御パターンを踏襲。
+  // 親（LearningMode.tsx等）がonPositionModeChangeを渡さない場合は内部stateへフォールバックし、
+  // スタンドアロン利用時も固定/移動中トグルが機能するようにする。
+  const [internalPositionMode, setInternalPositionMode] = useState(false);
+  const isPositionControlled = onPositionModeChange !== undefined;
+  const effectivePositionMode = isPositionControlled ? !!positionMode : internalPositionMode;
+  const handlePositionModeChange = useCallback((v: boolean) => {
+    if (isPositionControlled) onPositionModeChange!(v);
+    else setInternalPositionMode(v);
+  }, [isPositionControlled, onPositionModeChange]);
   // 実効ドリル: 移動中（positionMode=true）は中断
-  const effectiveDrill = drillMode && !positionMode;
+  const effectiveDrill = drillMode && !effectivePositionMode;
   const [showGuide,  setShowGuide]  = useState(true);
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
@@ -1022,11 +1552,16 @@ export function InteractiveDrillScene({
   const [antrumDist,    setAntrumDist]    = useState<number | null>(null);
   const [drillDirection, setDrillDirection] = useState<string | null>(null);
   const [dangerTint,     setDangerTint]     = useState<string | null>(null); // T7: 色透見
+  const [dangerProximity, setDangerProximity] = useState(0); // Sprint6・演出: 危険接近ビネット強度 0-1
   const [eduCard,        setEduCard]        = useState<EducationCardContent | null>(null); // T8
-  const [scoreResult,    setScoreResult]    = useState<{ breakdown: ScoreBreakdown; review: ScoreReviewItem[] } | null>(null); // T9
+  const [heatLevel,      setHeatLevel]      = useState(0); // Sprint6・Heat: 0-1、UIゲージ表示用
+  const [scoreResult,    setScoreResult]    = useState<{ breakdown: ScoreBreakdown; review: ScoreReviewItem[]; damageEvents: DamageEvent[] } | null>(null); // T9（Sprint5でdamageEventsを追加）
+  // Sprint5（Post Session Review）: スコアパネルから「3Dでレビュー」を開いたときの状態
+  const [reviewOpen,          setReviewOpen]          = useState(false);
+  const [reviewSelectedIndex, setReviewSelectedIndex] = useState<number | null>(null);
   const [burrId,         setBurrId]         = useState(DEFAULT_BURR.id);       // T10
   const [pressure,       setPressure]       = useState(0.6);                   // T10: 0.2-1.0既定0.6
-  const [rpmPreset,      setRpmPreset]      = useState<RpmPreset>('mid');      // T10
+  const [rpmPreset,      setRpmPreset]      = useState<RpmPreset>('high');     // T10（既定値: shoji指示によりhighからスタート, 2026-07-12）
   const [expertMode,     setExpertMode]     = useState(false);
   const [boneVis,        setBoneVis]        = useState<VisMode>('solid');
   const [ossicleVis,     setOssicleVis]     = useState<VisMode>('solid');
@@ -1040,7 +1575,10 @@ export function InteractiveDrillScene({
     setAntrumDist(null);
     setDrillDirection(null);
     setDangerTint(null);
+    setDangerProximity(0);
     setEduCard(null);
+    setReviewOpen(false);          // Sprint5: リセット時はレビュー状態も閉じる
+    setReviewSelectedIndex(null);
   };
 
   return (
@@ -1052,25 +1590,32 @@ export function InteractiveDrillScene({
         gl={{ antialias: true }}
       >
         <DrillCanvas3D
-          drillMode={effectiveDrill}
+          drillMode={drillMode}
           rotation={rotation}
           onAlert={setAlertMsg}
           onHoleCount={setHoleCount}
           onAntrumDist={setAntrumDist}
           onDrillDirection={setDrillDirection}
           onDangerTint={setDangerTint}
+          onDangerProximity={setDangerProximity}
           onEducationCard={setEduCard}
           onScoreReady={setScoreResult}
+          onHeatLevel={setHeatLevel}
           showGuide={showGuide}
           expertMode={expertMode}
           boneVis={boneVis}
           ossicleVis={ossicleVis}
           nerveVis={nerveVis}
           viewMode={viewMode}
-          positionMode={positionMode}
+          positionMode={effectivePositionMode}
           burrId={burrId}
+          onBurrIdChange={setBurrId}
+          onPositionModeChange={handlePositionModeChange}
           pressure={pressure}
           rpmPreset={rpmPreset}
+          reviewEvents={reviewOpen ? (scoreResult?.damageEvents ?? null) : null}
+          reviewSelectedIndex={reviewSelectedIndex}
+          onReviewSelect={setReviewSelectedIndex}
         />
       </Canvas>
 
@@ -1081,6 +1626,28 @@ export function InteractiveDrillScene({
           background: 'radial-gradient(circle at center, transparent 26%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0.92) 68%, black 82%)',
         }} />
       )}
+
+      {/* Sprint6・演出: 危険接近ビネット（多感覚出力の4つ目のチャンネル。dangerModel.tsの設計方針
+          「テキスト・音程上昇・色透見」に画面全体の視覚的緊張感を追加する。数値を出さない周辺視野
+          効果のため、専門医モード（Real Mode）でも既存の色透見・音程と同様に常時表示する
+          （v2.1追補§2: 実センサリーフィードバックは両モード共通、数値・警告バナーのみEducation限定）。
+          proximityは危険域(WARN_DIST_MM=4.5mm)からの接近度0-1、色はamber(注意)→red(危険接近)へ
+          連続補間、既存の🔴/⚠️アラートアイコンの色使いを踏襲。 */}
+      {dangerProximity > 0.05 && (() => {
+        const t = dangerProximity;
+        const r = Math.round(245 + (239 - 245) * t);
+        const g = Math.round(166 + (68  - 166) * t);
+        const b = Math.round(35  + (68  - 35)  * t);
+        const edgeOpacity = Math.min(0.55, t * 0.6);
+        const midOpacity  = edgeOpacity * 0.5;
+        return (
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
+            background: `radial-gradient(circle at center, transparent 55%, rgba(${r},${g},${b},${midOpacity}) 78%, rgba(${r},${g},${b},${edgeOpacity}) 100%)`,
+            transition: 'background 120ms linear',
+          }} />
+        );
+      })()}
 
       {/* ドリル開始 — スタンドアロン時のみ中央CTAを表示 */}
       {!isControlled && !drillMode && (
@@ -1150,7 +1717,7 @@ export function InteractiveDrillScene({
             </button>
           </>
         )}
-        {drillMode && !effectiveDrill && positionMode && (
+        {drillMode && !effectiveDrill && effectivePositionMode && (
           <span style={{
             padding: '5px 10px', borderRadius: 7,
             background: 'rgba(251,191,36,0.12)',
@@ -1160,7 +1727,10 @@ export function InteractiveDrillScene({
         )}
       </div>
 
-      {/* T10: バー選択トグル + RPMプリセット（左上、既存cutterSizeMm UIを置換） */}
+      {/* T10: バー選択トグル（左上1段目）。2026-07-13: RPM・削開/視点ボタンと3段に分離
+          （旧: バー選択+RPMを1つのflex-wrap divに同居させていたため、画面幅によって
+          RPM行が2行目へ折り返り、下に固定top配置していた削開/視点ボタンと被っていた。
+          3段それぞれを独立したtop固定divにすることで折り返りの影響を受けなくする） */}
       <div style={{
         position: 'absolute', top: 50, left: 10, zIndex: 10,
         display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 250,
@@ -1180,6 +1750,13 @@ export function InteractiveDrillScene({
             }}
           >{b.type === 'cutting' ? '🔵' : '💎'} {b.diameterMm}mm</button>
         ))}
+      </div>
+
+      {/* T10: RPMプリセット（左上2段目） */}
+      <div style={{
+        position: 'absolute', top: 84, left: 10, zIndex: 10,
+        display: 'flex', gap: 5, flexWrap: 'wrap', maxWidth: 250,
+      }}>
         {(['low', 'mid', 'high'] as const).map(p => (
           <button
             key={p}
@@ -1196,6 +1773,29 @@ export function InteractiveDrillScene({
         ))}
       </div>
 
+      {/* 2026-07-13: 固定/移動中トグル（左上3段目）。旧・削開/視点ボタンと顕微鏡モードの
+          固定/移動中ボタン（外側LearningMode.tsx等）が機能的に衝突していたため統一（[[feedback]]参照）。
+          通常・顕微鏡どちらのviewModeでも表示し、ボタンクリックまたはスペースキーで切替できる。 */}
+      {drillMode && (
+        <div style={{
+          position: 'absolute', top: 118, left: 10, zIndex: 10,
+          display: 'flex', gap: 5,
+        }}>
+          <button
+            onClick={() => handlePositionModeChange(!effectivePositionMode)}
+            title={effectivePositionMode ? '移動中 — クリック/スペースキーで固定へ（削開再開）' : '固定 — クリック/スペースキーで移動中へ（削開一時停止）'}
+            style={{
+              padding: '5px 9px', borderRadius: 7, cursor: 'pointer',
+              fontSize: 10, fontWeight: 700,
+              border: `1px solid ${effectivePositionMode ? '#00c4e8' : '#a78bfa'}`,
+              background: effectivePositionMode ? 'rgba(0,180,216,0.20)' : 'rgba(167,139,250,0.20)',
+              color: effectivePositionMode ? '#00c4e8' : '#a78bfa',
+              backdropFilter: 'blur(4px)', transition: 'all .15s',
+            }}
+          >{effectivePositionMode ? '🔓 移動中' : '🔒 固定'}</button>
+        </div>
+      )}
+
       {/* ホール数表示 */}
       {holeCount > 0 && (
         <div style={{
@@ -1204,7 +1804,34 @@ export function InteractiveDrillScene({
           background: 'rgba(0,0,0,0.65)', color: '#7dd8e8',
           fontSize: 11, backdropFilter: 'blur(4px)',
         }}>
-          削開: {holeCount} / {MAX_HOLES} ポイント
+          削開: {holeCount} ポイント
+        </div>
+      )}
+
+      {/* Sprint6・Heat: 発熱ゲージ（専門医モード=Real Mode相当では非表示。v2.1追補§2の
+          モード分岐方針: 数値表示・警告は教育的足場のためEducation Modeのみ。危険接近時と
+          同様に0.15以上で表示開始し、目立たせすぎないよう低いうちは隠す） */}
+      {!expertMode && effectiveDrill && heatLevel >= 0.15 && (
+        <div style={{
+          position: 'absolute', top: 108 + rightOverlayOffset, right: 10, zIndex: 10,
+          padding: '5px 10px', borderRadius: 7, width: 96,
+          background: 'rgba(0,0,0,0.65)',
+          border: heatLevel >= 0.85 ? '1px solid rgba(239,68,68,0.6)'
+                : heatLevel >= 0.6  ? '1px solid rgba(251,146,60,0.5)'
+                :                     '1px solid rgba(251,191,36,0.3)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, marginBottom: 3,
+            color: heatLevel >= 0.85 ? '#f87171' : heatLevel >= 0.6 ? '#fdba74' : '#fde047',
+          }}>🌡️ 発熱 {Math.round(heatLevel * 100)}%</div>
+          <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.round(heatLevel * 100)}%`, height: '100%',
+              background: heatLevel >= 0.85 ? '#ef4444' : heatLevel >= 0.6 ? '#fb923c' : '#fbbf24',
+              transition: 'width .15s',
+            }} />
+          </div>
         </div>
       )}
 
@@ -1244,8 +1871,10 @@ export function InteractiveDrillScene({
         </div>
       )}
 
-      {/* T8: 教育カード（なぜ削れた/危険/交換の3種を状況で出し分け、既存アラート帯の拡張） */}
-      {eduCard && (
+      {/* T8/Sprint4(Expert Coach): 教育カード（なぜ削れた/危険/交換の3種＋Pressure/Angle/
+          Feed Rate/RPMの技術指導を状況で出し分け、既存アラート帯の拡張）。
+          専門医モード(expertMode=Real Mode相当)では非表示（v2.1追補§2のモード分岐表） */}
+      {!expertMode && eduCard && (
         <div style={{
           position: 'absolute', bottom: alertMsg ? 52 : 10, left: '50%', transform: 'translateX(-50%)',
           maxWidth: 340, padding: '10px 14px', borderRadius: 10, zIndex: 20,
@@ -1271,8 +1900,11 @@ export function InteractiveDrillScene({
         </div>
       )}
 
-      {/* 危険部位アラート */}
-      {alertMsg && (
+      {/* 危険部位アラート（色透見バッジ含む）。専門医モード(Real Mode相当)では非表示
+          （v2.1追補§2のモード分岐表: 危険構造の距離表示・警告バナー/色調ブレンドは
+          Education Modeのみ。計算自体（onAlert/onDangerTint呼び出し）は両モードで常時
+          継続するため採点・レビューへの影響はない） */}
+      {!expertMode && alertMsg && (
         <div style={{
           position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
           padding: '8px 16px', borderRadius: 9, zIndex: 20,
@@ -1309,7 +1941,7 @@ export function InteractiveDrillScene({
           backdropFilter: 'blur(4px)',
         }}
       >
-        {expertMode ? '🧠 専門医モード' : '🧠 専門医モード OFF'}
+        {expertMode ? '🧠 専門医モード（ヒント非表示）' : '🧠 教育モード（ヒント表示）'}
       </button>
 
       {/* ガイドレイヤートグル */}
@@ -1415,7 +2047,7 @@ export function InteractiveDrillScene({
           fontSize: 10, backdropFilter: 'blur(4px)',
           lineHeight: 1.6,
         }}>
-          左ドラッグ: 回転　右ドラッグ: 回転　スクロール: ズーム
+          左ドラッグ: 回転　右ドラッグ: 回転　スクロール: ズーム　｜　1/2/3: バー切替
         </div>
       )}
       {effectiveDrill && (
@@ -1426,11 +2058,12 @@ export function InteractiveDrillScene({
           fontSize: 10, backdropFilter: 'blur(4px)',
           lineHeight: 1.6,
         }}>
-          左クリック&ドラッグ: 削開　右ドラッグ: 回転　スクロール: ズーム
+          左クリック&ドラッグ: 削開　右ドラッグ: 回転　スクロール: ズーム　｜　Space: 削開⇄視点切替　Shift: 荷重最大　Ctrl: 荷重最小　1/2/3: バー切替　｜　🔧/🎥: 1本指ドラッグの意味を切替(タッチ向け)
         </div>
       )}
       {/* T9: スコアパネル（リセット/到達時に表示、3軸内訳＋「事実→意味→改善策」レビュー） */}
-      {scoreResult && (
+      {/* Sprint5: reviewOpen中はこの大きいモーダルを隠し、3Dピン用のコンパクトなオーバーレイに切り替える */}
+      {scoreResult && !reviewOpen && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 40, display: 'flex',
           alignItems: 'center', justifyContent: 'center',
@@ -1475,16 +2108,108 @@ export function InteractiveDrillScene({
               ))}
             </div>
 
+            {/* Sprint5: Post Session Review — 位置付きダメージイベントがあれば3Dレビューへの導線を出す */}
+            {scoreResult.damageEvents.some(e => e.position) ? (
+              <button
+                onClick={() => { setReviewOpen(true); setReviewSelectedIndex(null); }}
+                style={{
+                  marginTop: 10, width: '100%', padding: '9px', borderRadius: 8,
+                  border: '1px solid rgba(125,216,232,0.4)', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, background: 'rgba(125,216,232,0.12)', color: '#7dd8e8',
+                }}
+              >📍 削開ポイントを3Dで振り返る（{scoreResult.damageEvents.filter(e => e.position).length}件）</button>
+            ) : (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
+                危険イベントはありませんでした。振り返り対象はありません。
+              </div>
+            )}
+
             <button
               onClick={() => setScoreResult(null)}
               style={{
-                marginTop: 16, width: '100%', padding: '9px', borderRadius: 8,
+                marginTop: 10, width: '100%', padding: '9px', borderRadius: 8,
                 border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer',
                 fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: '#e2e8f0',
               }}
             >閉じる</button>
           </div>
         </div>
+      )}
+
+      {/* Sprint5: Post Session Review — 3Dピンレビュー用オーバーレイ（上部バー＋イベントリスト＋選択詳細カード） */}
+      {scoreResult && reviewOpen && (
+        <>
+          <div style={{
+            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 40,
+            display: 'flex', gap: 8, alignItems: 'center',
+            padding: '7px 12px', borderRadius: 9,
+            background: 'rgba(14,20,32,0.9)', border: '1px solid rgba(125,216,232,0.3)',
+            backdropFilter: 'blur(4px)',
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#7dd8e8' }}>📍 削開ポイント 3Dレビュー</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>ピンをクリック、またはドラッグで回転して確認できます</span>
+            <button
+              onClick={() => setReviewOpen(false)}
+              style={{
+                padding: '4px 9px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: '#e2e8f0',
+              }}
+            >← スコアに戻る</button>
+            <button
+              onClick={() => { setScoreResult(null); setReviewOpen(false); setReviewSelectedIndex(null); }}
+              style={{
+                padding: '4px 9px', borderRadius: 6, border: '1px solid rgba(255,100,100,0.35)', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,0.3)', color: '#f87171',
+              }}
+            >閉じる</button>
+          </div>
+
+          {/* イベントリスト（左下、3Dピンと同じ選択stateを共有） */}
+          <div style={{
+            position: 'absolute', bottom: 50, left: 10, zIndex: 40,
+            display: 'flex', flexDirection: 'column', gap: 5,
+            maxHeight: '42%', overflowY: 'auto', width: 220,
+          }}>
+            {scoreResult.damageEvents.map((ev, i) => ev.position && (
+              <button
+                key={i}
+                onClick={() => setReviewSelectedIndex(reviewSelectedIndex === i ? null : i)}
+                style={{
+                  padding: '6px 9px', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+                  fontSize: 10.5, fontWeight: reviewSelectedIndex === i ? 700 : 400,
+                  border: `1px solid ${reviewSelectedIndex === i ? (ev.severity === 'critical' ? '#ef4444' : '#fbbf24') : 'rgba(255,255,255,0.15)'}`,
+                  background: reviewSelectedIndex === i ? 'rgba(255,255,255,0.10)' : 'rgba(10,15,26,0.75)',
+                  color: ev.severity === 'critical' ? '#f87171' : '#fbbf24',
+                  backdropFilter: 'blur(4px)',
+                }}
+              >{ev.severity === 'critical' ? '🔴' : '⚠️'} {ev.zoneNameJa ?? '危険構造'}（{(ev.t / 1000).toFixed(0)}s）</button>
+            ))}
+          </div>
+
+          {/* 選択イベント詳細カード（describeDamageEventで「事実→意味→改善策」を個別に説明） */}
+          {(() => {
+            if (reviewSelectedIndex === null) return null;
+            const ev = scoreResult.damageEvents[reviewSelectedIndex];
+            if (!ev) return null;
+            const item = describeDamageEvent(ev);
+            return (
+              <div style={{
+                position: 'absolute', bottom: 50, right: 10, zIndex: 40,
+                width: 'min(90%, 300px)', padding: '12px 14px', borderRadius: 10,
+                background: 'rgba(14,20,32,0.96)', border: '1px solid rgba(125,216,232,0.3)',
+                boxShadow: '0 8px 28px rgba(0,0,0,0.5)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>選択中のポイント</span>
+                  <span onClick={() => setReviewSelectedIndex(null)} style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>×</span>
+                </div>
+                <div style={{ fontSize: 11, color: '#e2e8f0', fontWeight: 700, marginBottom: 4 }}>{item.factJa}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginBottom: 4, lineHeight: 1.5 }}>{item.meaningJa}</div>
+                <div style={{ fontSize: 11, color: '#86efac', lineHeight: 1.5 }}>→ {item.improvementJa}</div>
+              </div>
+            );
+          })()}
+        </>
       )}
     </div>
   );

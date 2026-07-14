@@ -14,6 +14,8 @@ import { SimScene } from '../scenes/SimScene';
 import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
+import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX } from './ui';
+import type { BadgeTone } from './ui';
 
 // ── 症例別耳小骨visマップ生成 ────────────────────────────────────
 /**
@@ -33,6 +35,9 @@ function ossicleVisFromCase(c: SurgicalCase): VisibilityMap {
     stapes:  stapesToMode(c.ossicularStatus.stapes),
   };
 }
+
+const DIFF_TONE: Record<string, BadgeTone> = { beginner: 'success', intermediate: 'warning', advanced: 'error' };
+const DIFF_LABEL: Record<string, string> = { beginner: '初級', intermediate: '中級', advanced: '上級' };
 
 // ── ステップ定義 ──────────────────────────────────────────────────
 interface StepDef {
@@ -131,94 +136,38 @@ const STEPS: StepDef[] = [
   },
 ];
 
-// ── 進行バー ──────────────────────────────────────────────────────
-function StepProgressBar({ currentStep, totalSteps, onStepClick }: { currentStep: number; totalSteps: number; onStepClick?: (i: number) => void }) {
+// ── 進行バー（KURZ Design System v1: 共通StepProgressを使用） ────────
+function StepProgressBar({ currentStep, onStepClick }: { currentStep: number; totalSteps: number; onStepClick?: (i: number) => void }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 2,
-      padding: '10px 16px', borderBottom: '1px solid var(--border)',
-      background: 'rgba(6,10,26,0.9)',
+      padding: '10px 16px', borderBottom: '1px solid var(--color-border)',
+      background: 'var(--color-bg-secondary)',
       overflowX: 'auto',
     }}>
-      {STEPS.map((step, i) => {
-        const done    = i + 1 < currentStep;
-        const active  = i + 1 === currentStep;
-        const locked  = i + 1 > currentStep;
-        return (
-          <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <div
-              onClick={() => !locked && onStepClick?.(i + 1)}
-              title={step.title}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                cursor: locked ? 'default' : 'pointer',
-                opacity: locked ? 0.35 : 1,
-              }}
-            >
-              <div style={{
-                width: 30, height: 30, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: done ? 'var(--accent)' : active ? 'rgba(0,180,216,0.25)' : 'rgba(255,255,255,0.06)',
-                border: active ? '2px solid var(--accent)' : done ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                fontSize: done ? 12 : 13,
-                fontWeight: 700,
-                color: done ? '#001a20' : active ? 'var(--accent)' : '#555',
-                transition: 'all .2s',
-              }}>
-                {done ? '✓' : step.icon}
-              </div>
-              <span style={{
-                fontSize: 9, fontWeight: active ? 700 : 400,
-                color: active ? 'var(--accent)' : done ? 'var(--text-secondary)' : '#444',
-                whiteSpace: 'nowrap',
-              }}>
-                {step.id}. {step.title}
-              </span>
-            </div>
-            {i < totalSteps - 1 && (
-              <div style={{
-                width: 18, height: 1, flexShrink: 0, marginBottom: 12,
-                background: done ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                transition: 'background .2s',
-              }} />
-            )}
-          </div>
-        );
-      })}
+      <StepProgress
+        items={STEPS.map((s, i) => ({
+          key: String(s.id),
+          label: `${s.id}. ${s.title}`,
+          icon: s.icon,
+          status: i + 1 < currentStep ? 'done' as const : i + 1 === currentStep ? 'current' as const : 'upcoming' as const,
+          onClick: onStepClick ? () => onStepClick(i + 1) : undefined,
+        }))}
+      />
     </div>
   );
 }
 
 // ── コンテキストタグバー（症例情報） ─────────────────────────────
 function CaseTagBar({ surgicalCase }: { surgicalCase: SurgicalCase }) {
-  const diffColor: Record<string, string> = {
-    beginner: '#4ade80', intermediate: '#ffd166', advanced: '#f87171',
-  };
-  const diffLabel: Record<string, string> = {
-    beginner: '初級', intermediate: '中級', advanced: '上級',
-  };
   return (
     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
       {surgicalCase.tags.procedure.map(t => (
-        <span key={t} style={{
-          padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(0,180,216,0.15)', color: '#7dd8e8',
-          border: '1px solid rgba(0,180,216,0.3)',
-        }}>{t}</span>
+        <Badge key={t} tone="primary">{t}</Badge>
       ))}
       {surgicalCase.tags.lesion.map(t => (
-        <span key={t} style={{
-          padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(255,209,102,0.12)', color: '#ffd166',
-          border: '1px solid rgba(255,209,102,0.3)',
-        }}>{t}</span>
+        <Badge key={t} tone="warning">{t}</Badge>
       ))}
-      <span style={{
-        padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-        background: `${diffColor[surgicalCase.difficulty]}18`,
-        color: diffColor[surgicalCase.difficulty],
-        border: `1px solid ${diffColor[surgicalCase.difficulty]}44`,
-      }}>{diffLabel[surgicalCase.difficulty]}</span>
+      <Badge tone={DIFF_TONE[surgicalCase.difficulty] ?? 'neutral'}>{DIFF_LABEL[surgicalCase.difficulty] ?? surgicalCase.difficulty}</Badge>
     </div>
   );
 }
@@ -246,9 +195,9 @@ function StepGuidePanel({
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{surgicalCase.title}</div>
         <CaseTagBar surgicalCase={surgicalCase} />
         {product && (
-          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
-            選択製品: <strong style={{ color: 'var(--accent)' }}>{product.name}</strong>
-            {' / '}シャフト長: <strong style={{ color: 'var(--accent)' }}>{surgicalCase.recommendedLength} mm</strong>
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+            選択製品: <strong style={{ color: 'var(--color-primary)' }}>{product.name}</strong>
+            {' / '}シャフト長: <strong style={{ color: 'var(--color-primary)' }}>{surgicalCase.recommendedLength} mm</strong>
           </div>
         )}
       </div>
@@ -258,65 +207,46 @@ function StepGuidePanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 22 }}>{step.icon}</span>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--accent)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-primary)' }}>
               STEP {step.id} / {totalSteps} — {step.title}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{step.subtitle}</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{step.subtitle}</div>
           </div>
         </div>
 
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: 14 }}>
+        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 14 }}>
           {step.guide}
         </p>
 
         {step.clinicalNote && (
-          <div style={{
-            background: 'rgba(0,180,216,0.07)', border: '1px solid rgba(0,180,216,0.22)',
-            borderRadius: 8, padding: '8px 12px', marginBottom: 14,
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 4 }}>
-              💡 臨床メモ
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.65 }}>
-              {step.clinicalNote}
-            </div>
+          <div style={{ marginBottom: 14 }}>
+            <Alert tone="info">
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>💡 臨床メモ</div>
+                <div style={{ font: 'var(--text-small)', lineHeight: 1.65 }}>{step.clinicalNote}</div>
+              </div>
+            </Alert>
           </div>
         )}
 
         {/* ティーチングポイント（step 4,5,6 で表示） */}
         {[4, 5, 6].includes(step.id) && (
           <div style={{ marginBottom: 14 }}>
-            <div className="section-title" style={{ marginBottom: 6 }}>ティーチングポイント</div>
-            {surgicalCase.teachingPoints.slice(0, 2).map((tp, i) => (
-              <div key={i} style={{
-                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
-                paddingLeft: 10, borderLeft: '2px solid var(--border-bright)',
-                marginBottom: 6,
-              }}>
-                {tp}
-              </div>
-            ))}
+            <LearningPanel title="ティーチングポイント">
+              <TeachingPointList points={surgicalCase.teachingPoints.slice(0, 2)} />
+            </LearningPanel>
           </div>
         )}
       </div>
 
       {/* ナビゲーション */}
-      <div style={{ display: 'flex', gap: 8, padding: '8px 0' }}>
-        <button
-          className="btn btn-ghost"
-          style={{ flex: 1 }}
-          onClick={onPrev}
-          disabled={currentStepIndex === 0}
-        >
+      <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '8px 0' }}>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={onPrev} disabled={currentStepIndex === 0}>
           ← 前へ
-        </button>
-        <button
-          className={`btn ${isLast ? 'btn-secondary' : 'btn-primary'}`}
-          style={{ flex: 2 }}
-          onClick={onNext}
-        >
+        </Button>
+        <Button variant={isLast ? 'secondary' : 'primary'} style={{ flex: 2 }} onClick={onNext}>
           {isLast ? '↺ 最初から' : `次へ: STEP ${step.id + 1} →`}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -329,12 +259,12 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
   if (!scoreResult) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: 24 }}>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
+        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
           STEP 6 でプロステーシスを設置してからスコアを計算してください。
         </p>
-        <button className="btn btn-primary" onClick={computeScore}>
+        <Button variant="primary" onClick={computeScore}>
           📊 スコアを計算
-        </button>
+        </Button>
       </div>
     );
   }
@@ -362,7 +292,7 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
         ].map(([k, v, hint]) => (
           <div key={k} className="info-row">
             <span className="label">{k}</span>
-            <span className="value" style={{ fontSize: 11 }}>{v} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{hint}</span></span>
+            <span className="value" style={{ fontSize: 11 }}>{v} <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>{hint}</span></span>
           </div>
         ))}
       </div>
@@ -372,9 +302,9 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
         <div className="section-title" style={{ marginBottom: 8 }}>フィードバック</div>
         {feedback.map((f, i) => (
           <div key={i} style={{
-            fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
+            fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6,
             marginBottom: 6, paddingLeft: 10,
-            borderLeft: '2px solid var(--accent)',
+            borderLeft: '2px solid var(--color-primary)',
           }}>
             {f}
           </div>
@@ -385,6 +315,13 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
 }
 
 // ── サマリービュー（Step 8） ──────────────────────────────────────
+const ABG_TONE: Record<string, { text: string; bg: string; border: string }> = {
+  excellent: { text: 'var(--color-success)', bg: 'var(--color-success-bg)', border: 'var(--color-success)' },
+  good:      { text: 'var(--color-primary)', bg: 'var(--color-primary-tint)', border: 'var(--color-primary)' },
+  fair:      { text: 'var(--color-warning)', bg: 'var(--color-warning-bg)', border: 'var(--color-warning)' },
+  poor:      { text: 'var(--color-error)',   bg: 'var(--color-error-bg)',   border: 'var(--color-error)' },
+};
+
 function SummaryPanel({
   surgicalCase, onRestart, onHome,
 }: {
@@ -393,9 +330,8 @@ function SummaryPanel({
   onHome: () => void;
 }) {
   const { scoreResult } = useSimStore();
-  const ABG_COLOR: Record<string, string> = { excellent: '#4ade80', good: '#60b8e0', fair: '#ffd166', poor: '#ff6666' };
   const abg = scoreResult?.abgPrediction;
-  const abgColor = abg ? ABG_COLOR[abg.successCategory] : '#4ade80';
+  const abgTone = ABG_TONE[abg?.successCategory ?? 'excellent'];
 
   return (
     <div className="sidebar" style={{ overflowY: 'auto' }}>
@@ -406,39 +342,29 @@ function SummaryPanel({
 
       {scoreResult && abg && (
         <div className="card">
-          {abg && (
-            <div style={{ marginTop: 10, padding: '10px 14px', background: `${abgColor}12`, border: `1px solid ${abgColor}40`, borderRadius: 8, textAlign: 'left' }}>
-              <div style={{ fontSize: 10, color: abgColor, fontWeight: 700, marginBottom: 4 }}>📈 術後ABG改善予測</div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
-                <span style={{ fontSize: 13 }}>改善: <strong style={{ color: abgColor }}>+{abg.improvementDb} dB</strong></span>
-                <span style={{ fontSize: 13 }}>術後ABG目安: <strong style={{ color: abgColor }}>{abg.postOpAbg} dB</strong></span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{abg.clinicalInterpretation}</div>
+          <div style={{ marginTop: 10, padding: '10px 14px', background: abgTone.bg, border: `1px solid ${abgTone.border}`, borderRadius: 'var(--radius-md)', textAlign: 'left' }}>
+            <div style={{ fontSize: 10, color: abgTone.text, fontWeight: 700, marginBottom: 4 }}>📈 術後ABG改善予測</div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 4 }}>
+              <span style={{ fontSize: 13 }}>改善: <strong style={{ color: abgTone.text }}>+{abg.improvementDb} dB</strong></span>
+              <span style={{ fontSize: 13 }}>術後ABG目安: <strong style={{ color: abgTone.text }}>{abg.postOpAbg} dB</strong></span>
             </div>
-          )}
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{abg.clinicalInterpretation}</div>
+          </div>
         </div>
       )}
 
       <div className="card">
         <div className="section-title" style={{ marginBottom: 10 }}>今回の学習ポイント</div>
-        {surgicalCase.teachingPoints.map((tp, i) => (
-          <div key={i} style={{
-            fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.65,
-            paddingLeft: 10, borderLeft: '2px solid var(--accent)',
-            marginBottom: 8,
-          }}>
-            {tp}
-          </div>
-        ))}
+        <TeachingPointList points={surgicalCase.teachingPoints} />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, padding: '8px 0' }}>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onRestart}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '8px 0' }}>
+        <Button variant="ghost" style={{ flex: 1 }} onClick={onRestart}>
           ↺ 同症例で再挑戦
-        </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} onClick={onHome}>
+        </Button>
+        <Button variant="primary" style={{ flex: 1 }} onClick={onHome}>
           🏠 ホームへ
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -454,17 +380,14 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
   const selectedCase    = surgicalCases.find(c => c.id === selectedCaseId) ?? null;
   const selectedProduct = kurzProducts.find(p => p.id === selectedProductId) ?? null;
 
-  const diffColor: Record<string, string> = { beginner: '#4ade80', intermediate: '#ffd166', advanced: '#f87171' };
-  const diffLabel: Record<string, string> = { beginner: '初級', intermediate: '中級', advanced: '上級' };
-
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', padding: 24, height: '100%', overflowY: 'auto' }}>
-      <h2 style={{ marginBottom: 4, fontSize: 20 }}>🎬 手術フロー — 症例・製品選択</h2>
-      <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
+      <h2 style={{ marginBottom: 4, fontSize: 20, color: 'var(--color-text-primary)' }}>🎬 手術フロー — 症例・製品選択</h2>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: 13, marginBottom: 20 }}>
         8ステップで鼓室形成術の全工程をシミュレーションします。症例と使用製品を選択してください。
       </p>
 
-      <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--text-secondary)' }}>Step 1 — 症例を選択</h3>
+      <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--color-text-secondary)' }}>Step 1 — 症例を選択</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
         {[...surgicalCases].sort((a, b) => {
           const numA = parseInt(a.id.replace('case-', ''), 10);
@@ -478,22 +401,13 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>{c.title}</span>
-              <span style={{
-                padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-                background: `${diffColor[c.difficulty]}15`, color: diffColor[c.difficulty],
-                border: `1px solid ${diffColor[c.difficulty]}44`,
-                whiteSpace: 'nowrap',
-              }}>{diffLabel[c.difficulty]}</span>
+              <Badge tone={DIFF_TONE[c.difficulty] ?? 'neutral'}>{DIFF_LABEL[c.difficulty] ?? c.difficulty}</Badge>
             </div>
             {selectedCaseId === c.id && (
               <>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8, marginBottom: 6 }}>
-                  {c.tags.procedure.map(t => (
-                    <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,180,216,0.12)', color: '#7dd8e8', border: '1px solid rgba(0,180,216,0.25)' }}>{t}</span>
-                  ))}
-                  {c.tags.lesion.map(t => (
-                    <span key={t} style={{ padding: '2px 7px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(255,209,102,0.1)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.25)' }}>{t}</span>
-                  ))}
+                  {c.tags.procedure.map(t => <Badge key={t} tone="primary">{t}</Badge>)}
+                  {c.tags.lesion.map(t => <Badge key={t} tone="warning">{t}</Badge>)}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {([
@@ -503,18 +417,16 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
                   ] as const).map(({ key, label, status }) => {
                     const absent = status === 'absent';
                     const partial = status === 'partial' || status === 'footplate-only';
-                    const color = absent ? '#f87171' : partial ? '#ffd166' : '#4ade80';
-                    const bg = absent ? 'rgba(248,113,113,0.12)' : partial ? 'rgba(255,209,102,0.12)' : 'rgba(74,222,128,0.12)';
+                    const tone: BadgeTone = absent ? 'error' : partial ? 'warning' : 'success';
                     const statusLabel = absent ? '欠損' : partial ? '部分' : '温存';
                     return (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 5, background: bg, border: `1px solid ${color}44` }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color }}>{label}</span>
-                        <span style={{ fontSize: 9, color, opacity: 0.85 }}>{statusLabel}</span>
-                      </div>
+                      <Badge key={key} tone={tone}>
+                        {label} {statusLabel}
+                      </Badge>
                     );
                   })}
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, marginTop: 6 }}>{c.description}</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.55, marginTop: 6 }}>{c.description}</p>
               </>
             )}
           </div>
@@ -523,7 +435,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
       {selectedCase && (
         <>
-          <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--text-secondary)' }}>Step 2 — 製品を確認</h3>
+          <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--color-text-secondary)' }}>Step 2 — 製品を確認</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
             {kurzProducts.map(p => (
               <div
@@ -533,23 +445,23 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</span>
-                  <span className={`badge badge-${p.type === 'PORP' ? 'blue' : 'green'}`}>{p.type}</span>
+                  <Badge tone={p.type === 'PORP' ? 'primary' : 'success'}>{p.type}</Badge>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{p.description}</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>{p.description}</p>
               </div>
             ))}
           </div>
         </>
       )}
 
-      <button
-        className="btn btn-primary"
+      <Button
+        variant="primary"
         style={{ width: '100%', fontSize: 15, padding: '14px 0' }}
         disabled={!selectedCase || !selectedProduct}
         onClick={() => selectedCase && selectedProduct && onStart(selectedCase, selectedProduct)}
       >
         🎬 フローを開始 →
-      </button>
+      </Button>
     </div>
   );
 }
@@ -673,14 +585,14 @@ export function StepFlowMode() {
           {/* 操作モードトグル + ズームボタン */}
           {!step.useSimScene && (
             <>
-              <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4, background: 'rgba(0,0,0,.65)', padding: '4px 6px', borderRadius: 8, backdropFilter: 'blur(4px)', zIndex: 10 }}>
-                <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--accent)' : 'rgba(255,255,255,0.08)', color: !panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>🔄 回転</button>
-                <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? '#4ade80' : 'rgba(255,255,255,0.08)', color: panMode ? '#001a20' : 'var(--text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
+              <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4, background: 'var(--glass-bg)', padding: '4px 6px', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar }}>
+                <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--color-primary)' : 'var(--color-surface-hover)', color: !panMode ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>🔄 回転</button>
+                <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? 'var(--color-success)' : 'var(--color-surface-hover)', color: panMode ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
               </div>
-              <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10 }}>
+              <div style={{ position: 'absolute', bottom: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4, zIndex: Z_INDEX.toolbar }}>
                 {[{ label: '＋', delta: 1 }, { label: '－', delta: -1 }].map(({ label, delta }) => (
                   <button key={label} onClick={() => setZoomLevel(z => z + delta)}
-                    style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(10,15,26,0.80)', color: '#c0d8e8', fontSize: 18, cursor: 'pointer', backdropFilter: 'blur(6px)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                    style={{ width: 34, height: 34, borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-bright)', background: 'var(--glass-bg)', color: 'var(--color-text-primary)', fontSize: 18, cursor: 'pointer', backdropFilter: 'var(--glass-blur)', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
                     {label}
                   </button>
                 ))}
@@ -690,41 +602,42 @@ export function StepFlowMode() {
 
           {/* 側頭骨不透明度スライダー（骨が ghost の場合） */}
           {!step.useSimScene && visForScene.bone === 'ghost' && (
-            <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', writingMode: 'vertical-rl' }}>骨透明度</span>
+            <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: Z_INDEX.toolbar, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', writingMode: 'vertical-rl' }}>骨透明度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
-                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: '#00b4d8' } as unknown as React.CSSProperties} />
-              <span style={{ fontSize: 9, color: '#c0d8e8' }}>{Math.round(boneGhostOpacity * 100)}%</span>
+                style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: 'var(--color-primary)' } as unknown as React.CSSProperties} />
+              <span style={{ fontSize: 9, color: 'var(--color-text-primary)' }}>{Math.round(boneGhostOpacity * 100)}%</span>
             </div>
           )}
 
           {/* キャンバスオーバーレイ: コンテキストタグ */}
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 15, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: Z_INDEX.hud, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {flowCase.tags.procedure.map(t => (
-              <span key={t} style={{ padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,0,0,0.7)', color: '#7dd8e8', border: '1px solid rgba(0,180,216,0.4)', backdropFilter: 'blur(4px)' }}>{t}</span>
+              <Badge key={t} tone="primary" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}>{t}</Badge>
             ))}
             {flowCase.tags.lesion.map(t => (
-              <span key={t} style={{ padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'rgba(0,0,0,0.7)', color: '#ffd166', border: '1px solid rgba(255,209,102,0.4)', backdropFilter: 'blur(4px)' }}>{t}</span>
+              <Badge key={t} tone="warning" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}>{t}</Badge>
             ))}
           </div>
 
           {/* 軟骨スライストグル（SimScene表示時のみ） */}
           {step.useSimScene && (
-            <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 10 }}>
-              <button
-                className={`btn btn-sm ${showCartilage ? 'btn-secondary' : 'btn-ghost'}`}
+            <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: Z_INDEX.toolbar }}>
+              <Button
+                variant={showCartilage ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setShowCartilage(v => !v)}
-                style={{ backdropFilter: 'blur(6px)' }}
+                style={{ backdropFilter: 'var(--glass-blur)' }}
               >
                 🟡 軟骨スライス
-              </button>
+              </Button>
             </div>
           )}
 
           {/* 操作ヒント */}
           <div className="canvas-overlay bottom-left">
-            <div style={{ background: 'rgba(0,0,0,.6)', padding: '5px 9px', borderRadius: 6, backdropFilter: 'blur(4px)', fontSize: 11 }}>
+            <div style={{ background: 'rgba(0,0,0,.6)', padding: '5px 9px', borderRadius: 6, backdropFilter: 'var(--glass-blur)', fontSize: 11 }}>
               {step.useSimScene
                 ? '🖱 矢印ハンドル: ドラッグ配置 ｜ ハンドル外: 視点回転'
                 : 'ドラッグ: 回転 ｜ ホイール: ズーム'}

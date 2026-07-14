@@ -11,7 +11,12 @@
  */
 
 import * as THREE from 'three';
-import type { BoneMaterial, BoneRegionId, RemainingThicknessResult } from './types';
+import type {
+  BoneMaterial,
+  BoneQualityProfile,
+  BoneRegionId,
+  RemainingThicknessResult,
+} from './types';
 import { DANGER_ZONES } from '../data/dangerZones';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -65,17 +70,33 @@ const SINUS_CENTER = new THREE.Vector3(...sigmoidSinusZone.position);
 // resistance（手応え）と damageThreshold（Month2用）は設計書の材料表に個別値の
 // 記載がないため、暫定的に hardness と同値を採用する（触覚差の実データが無い段階での
 // 仮置き。Month2で耳科医較正のうえ分離する）。
+//
+// color（2026-07-12 修正）: shojiさんから「削開練習の骨モデルが解剖モードの骨モデルより
+// 黄色みが強い」との指摘。文献確認の結果、乳突洞・皮質骨は基本的にアイボリー白（"ivory"）
+// であり（Ento Key/StatPearls「Mastoidectomy」: 半規管・骨迷路周囲を dense ivory bone と
+// 記述）、硬膜近接=ピンク／静脈洞近接=青という配色は側頭骨手術トレーニング教材でも標準的な
+// 色分け規約であること（Cambridge Core, temporal bone prototype評価論文: dura=pink,
+// sinus=blue, bone=whiteの塗装規約）を確認。旧色（airCells #d8c8a8 / cortex #c8b090）は
+// 黄土色〜茶色に寄りすぎていたため、解剖モード（RealAnatomyModels.tsx の bone
+// matKey= '#f2ead8'）と同系統のアイボリー白へ統一（cortexは解剖モードと同一色に合わせた）。
+// tegmen/sinusPlateのピンク/青の方向性自体は文献根拠ありのため維持し、彩度のみ調整。
 
 export const BONE_MATERIALS: Record<BoneRegionId, BoneMaterial> = {
   airCells: {
     id: 'airCells',
     density: 0.25,
-    hardness: 0.20,
-    resistance: 0.20,
+    // 2026-07-13: shojiさんの指示で相対的に柔らかく調整（0.20→0.10）。理由: トレーニングの
+    // 大半を占める乳突蜂巣の削開に時間がかかりすぎると利用者が離脱してしまう、という
+    // 事業判断（growthRateMmPerSecはhardnessに反比例するため、この変更だけで乳突蜂巣の
+    // 削開速度は約2倍になる）。cortex(0.50)/tegmen・sinusPlate(0.30)/oticCapsule(1.00)は
+    // 解剖学的な相対的硬さの順序を保つため変更していない（airCellsが最も軟らかいという
+    // 順序自体は元々正しく、その差をさらに広げる方向の調整）。
+    hardness: 0.10,
+    resistance: 0.10,
     basePitchHz: 260,
     particleAmount: 1.0,
-    color: '#d8c8a8',
-    damageThreshold: 0.20,
+    color: '#f1e8d4',
+    damageThreshold: 0.10,
     educationTagJa: '低密度・サクサク',
   },
   cortex: {
@@ -85,7 +106,7 @@ export const BONE_MATERIALS: Record<BoneRegionId, BoneMaterial> = {
     resistance: 0.50,
     basePitchHz: 480,
     particleAmount: 0.6,
-    color: '#c8b090',
+    color: '#f2ead8',
     damageThreshold: 0.50,
     educationTagJa: '中密度・皮質',
   },
@@ -96,7 +117,7 @@ export const BONE_MATERIALS: Record<BoneRegionId, BoneMaterial> = {
     resistance: 1.00,
     basePitchHz: 900,
     particleAmount: 0.15,
-    color: '#efe6d0',
+    color: '#f6f1e6',
     damageThreshold: 1.00,
     educationTagJa: '象牙骨・硬い壁',
   },
@@ -107,7 +128,7 @@ export const BONE_MATERIALS: Record<BoneRegionId, BoneMaterial> = {
     resistance: 0.30,
     basePitchHz: 1000,
     particleAmount: 0.2,
-    color: '#e8d0c0',
+    color: '#f0ddd2',
     damageThreshold: 0.30,
     educationTagJa: '硬膜直上・薄い',
   },
@@ -118,7 +139,7 @@ export const BONE_MATERIALS: Record<BoneRegionId, BoneMaterial> = {
     resistance: 0.30,
     basePitchHz: 1050,
     particleAmount: 0.2,
-    color: '#b8c0d8',
+    color: '#d2d9ea',
     damageThreshold: 0.30,
     educationTagJa: '洞直上・青み',
   },
@@ -176,4 +197,62 @@ export function remainingThicknessToDanger(p: THREE.Vector3): RemainingThickness
     }
   }
   return best;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Bone Quality Profile（v2.1追補・確定事項1）
+// ══════════════════════════════════════════════════════════════════════
+//
+// BONE_MATERIALS（上記, 構造分類=部位ごとの基準値）とは独立に、シナリオ単位の
+// グローバル個体差係数として BoneQualityProfile を適用する。骨迷路（oticCapsule）は
+// 胎生期軟骨内骨化由来の緻密骨であり生涯を通じてほぼ再構築されないため、含気化
+// （pneumatizationFactor）の影響を受けない（乳突蜂巣・皮質骨とは異なる）。
+// 【暫定】係数の絶対値は臨床論文からの直接較正ではなく、含気型/硬化型乳突の一般的な
+// 手応え差を表現するための仮置き。他の暫定値（LABYRINTH_CENTER等）と同様、耳科医較正が必要。
+
+export const BONE_QUALITY_PROFILES: Record<string, BoneQualityProfile> = {
+  standard: {
+    id: 'standard',
+    nameJa: '標準',
+    densityFactor: 1.0,
+    pneumatizationFactor: 1.0,
+    calcificationFactor: 1.0,
+  },
+  wellPneumatized: {
+    id: 'wellPneumatized',
+    nameJa: '含気型（若年・健常）',
+    densityFactor: 0.9,
+    pneumatizationFactor: 1.3,
+    calcificationFactor: 0.9,
+  },
+  sclerotic: {
+    id: 'sclerotic',
+    nameJa: '硬化型（高齢・慢性中耳炎既往）',
+    densityFactor: 1.2,
+    pneumatizationFactor: 0.6,
+    calcificationFactor: 1.3,
+  },
+};
+
+/**
+ * effectiveMaterial(): BONE_MATERIALS の基準値に BoneQualityProfile を合成し、
+ * シナリオ固有の実効材料パラメータを返す純関数。
+ * - density: densityFactor のみ反映
+ * - hardness/resistance: densityFactor × calcificationFactor を反映し、
+ *   さらに oticCapsule 以外（airCells/cortex/tegmen/sinusPlate）は
+ *   pneumatizationFactor の逆数を追加反映（含気化が進むほど手応えが柔らかくなる）
+ */
+export function effectiveMaterial(base: BoneMaterial, quality: BoneQualityProfile): BoneMaterial {
+  const pneumatizationAffects = base.id !== 'oticCapsule';
+  const hardnessFactor =
+    quality.densityFactor *
+    quality.calcificationFactor *
+    (pneumatizationAffects ? 1 / quality.pneumatizationFactor : 1);
+  const clamp = (v: number) => Math.min(1.3, Math.max(0.1, v));
+  return {
+    ...base,
+    density: clamp(base.density * quality.densityFactor),
+    hardness: clamp(base.hardness * hardnessFactor),
+    resistance: clamp(base.resistance * hardnessFactor),
+  };
 }

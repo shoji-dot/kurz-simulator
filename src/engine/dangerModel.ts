@@ -17,7 +17,7 @@
  */
 
 import * as THREE from 'three';
-import type { BoneMaterial, DangerLevel, DangerState, RemainingThicknessResult } from './types';
+import type { BoneMaterial, DangerLevel, DangerState, LayerThicknessResult } from './types';
 
 /** 黄色警告の閾値 mm（remainingThickness基準）。既存 InteractiveDrillScene.tsx の値を踏襲。 */
 export const WARN_DIST_MM = 4.5;
@@ -29,20 +29,27 @@ function clamp01(v: number): number {
 }
 
 /**
- * computeDangerState(): remainingThicknessToDanger() の結果から統合危険状態を算出する純関数。
+ * computeDangerState(): remainingThicknessToLayer()（anatomyLayer.ts）の結果から統合危険状態を
+ * 算出する純関数。
  * - level: dist < DANGER_DIST_MM → critical／ < WARN_DIST_MM → warn／それ以外 → safe。
  * - proximity: WARN_DIST_MM を基準にした接近度 0-1（危険なほど1に近づく）。色透見の入力。
  *   negative dist（dangerRadius内への侵入）でも 1 に飽和させる。
+ *
+ * 【2026-07-12・Sprint4】引数を旧remainingThicknessToDanger()（点ベース、顔面神経を3つの
+ * 独立した球として扱っていた）のRemainingThicknessResultから、AnatomyLayerベース
+ * （顔面神経を1本の連続したポリラインとして扱う、より正確）のLayerThicknessResultへ切替。
+ * 戻り値の形（DangerState.level/zone/distMm/proximity）自体は不変のため、呼び出し側
+ * （危険バナー・色透見・教育カード・採点）は無改修で正確な距離判定の恩恵を受ける。
  */
-export function computeDangerState(remaining: RemainingThicknessResult | null): DangerState {
+export function computeDangerState(remaining: LayerThicknessResult | null): DangerState {
   if (!remaining) {
     return { level: 'safe', zone: null, distMm: null, proximity: 0 };
   }
-  const { dist, zone } = remaining;
+  const { dist, layer } = remaining;
   const level: DangerLevel =
     dist < DANGER_DIST_MM ? 'critical' : dist < WARN_DIST_MM ? 'warn' : 'safe';
   const proximity = clamp01(1 - dist / WARN_DIST_MM);
-  return { level, zone, distMm: dist, proximity };
+  return { level, zone: layer, distMm: dist, proximity };
 }
 
 /**

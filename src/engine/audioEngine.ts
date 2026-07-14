@@ -8,7 +8,8 @@
  * 失敗した場合は全メソッドが無音でno-opする。
  */
 
-import type { AudioState, BoneMaterial, RemainingThicknessResult } from './types';
+import type { AudioState, BoneMaterial, RemainingThicknessResult, RpmPreset } from './types';
+import { rpmFactor } from './removalModel'; // Sprint6・Audio: RPM連動モーター音（既存rpmFactorをそのまま再利用、新規係数表は増やさない）
 
 // ══════════════════════════════════════════════════════════════════════
 // 純関数: 材料・危険接近・除去速度 → AudioState
@@ -18,6 +19,14 @@ import type { AudioState, BoneMaterial, RemainingThicknessResult } from './types
 export const THIN_FACTOR_DISTANCE_MM = 6;
 /** 危険接近時の到達音程上限 Hz（設計書 §4.5） */
 export const DANGER_PITCH_HZ = 1200;
+/**
+ * Sprint6・Audio: RPMプリセット→基音ピッチ倍率の下限。既定rpmPreset='high'（rpmFactor=1.0）で
+ * 倍率1.0となり、これまでチューニング済みだったpitch計算をhigh RPM時に完全維持する
+ * （low/mid RPMのみ基音を控えめに下げる）。危険接近時のDANGER_PITCH_HZ（警報の上限音程）自体は
+ * RPMで変化させない設計とし、低RPMでも危険信号の明瞭さを損なわないようにする
+ * （下記pitchHz計算参照。安全教育上、警報音の視認性＝聴認性を優先する判断）。
+ */
+export const RPM_PITCH_FACTOR_MIN = 0.6;
 
 /**
  * growthRate正規化の基準 mm/s。T4 removalModel.ts の理論最大値
@@ -44,11 +53,16 @@ function lerp(a: number, b: number, t: number): number {
 export function computeAudioState(
   material: BoneMaterial,
   remaining: RemainingThicknessResult | null,
-  growthRateMmPerSec: number
+  growthRateMmPerSec: number,
+  rpmPreset: RpmPreset
 ): AudioState {
   const dist = remaining?.dist ?? Infinity;
   const thinFactor = clamp01(1 - dist / THIN_FACTOR_DISTANCE_MM);
-  const pitchHz = lerp(material.basePitchHz, DANGER_PITCH_HZ, thinFactor);
+  // Sprint6・Audio: RPMは基音（材料由来のbasePitchHz）にのみ乗算し、危険接近時のDANGER_PITCH_HZは
+  // 固定のまま補間する。こうすることで「低RPMでもモーター音の高さは変わるが、危険域に近づけば
+  // 必ず同じ警報音程へ収束する」という安全上望ましい挙動になる。
+  const rpmPitchMultiplier = RPM_PITCH_FACTOR_MIN + (1 - RPM_PITCH_FACTOR_MIN) * rpmFactor(rpmPreset);
+  const pitchHz = lerp(material.basePitchHz * rpmPitchMultiplier, DANGER_PITCH_HZ, thinFactor);
   const gain = clamp01(growthRateMmPerSec / MAX_EXPECTED_GROWTH_RATE_MM_S);
   const toneMix = clamp01(material.density);
   return { pitchHz, gain, toneMix };

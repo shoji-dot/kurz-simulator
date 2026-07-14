@@ -15,6 +15,7 @@ import {
   type StructureKey,
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
+import { PillToggleGroup, IconButton, Z_INDEX } from './ui';
 
 // ── 解剖構造リスト ────────────────────────────────────────────────
 const anatomyStructures = [
@@ -43,14 +44,14 @@ const VIS_ITEMS: { key: StructureKey; label: string; color: string; indent?: boo
 const CYCLE: OpacityMode[] = ['solid', 'ghost', 'hidden'];
 const MODE_LABEL: Record<OpacityMode, string> = { solid: '実体', ghost: '半透明', hidden: '非表示' };
 const MODE_BG: Record<OpacityMode, string> = {
-  solid:  'var(--accent)',
-  ghost:  'rgba(0,180,216,0.30)',
-  hidden: 'rgba(255,255,255,0.07)',
+  solid:  'var(--color-primary)',
+  ghost:  'var(--color-primary-tint)',
+  hidden: 'var(--color-surface-hover)',
 };
 const MODE_FG: Record<OpacityMode, string> = {
-  solid:  '#001a20',
-  ghost:  '#7dd8e8',
-  hidden: '#555',
+  solid:  'var(--color-bg-primary)',
+  ghost:  'var(--color-primary)',
+  hidden: 'var(--color-text-muted)',
 };
 
 // ── 術式データ ─────────────────────────────────────────────────────
@@ -363,6 +364,7 @@ export function LearningMode() {
                 <InteractiveDrillScene
                   viewMode={learningTab === 'drilling' ? viewMode : 'normal'}
                   positionMode={positionMode}
+                  onPositionModeChange={setPositionMode}
                   drillActive={s6DrillActive}
                   onDrillToggle={() => setS6DrillActive(v => !v)}
                   rightOverlayOffset={110}
@@ -414,7 +416,7 @@ export function LearningMode() {
           {viewMode === 'endoscope' && endoscopeAlerts.length > 0 && (
             <div style={{
               position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
-              zIndex: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              zIndex: Z_INDEX.toolbar, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               pointerEvents: 'none',
             }}>
               {/* 重大度が最も高いものを先に表示 */}
@@ -422,16 +424,14 @@ export function LearningMode() {
                 .sort((a, b) => (a.severity === 'danger' ? -1 : 1))
                 .map(alert => (
                   <div key={alert.id} style={{
-                    padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
-                    backdropFilter: 'blur(8px)',
+                    padding: '6px 16px', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
+                    backdropFilter: 'var(--glass-blur)',
                     background: alert.severity === 'danger'
-                      ? 'rgba(248,65,65,0.88)'
-                      : 'rgba(255,180,0,0.88)',
-                    color: alert.severity === 'danger' ? '#fff' : '#1a0a00',
-                    border: `1px solid ${alert.severity === 'danger' ? '#ff6060' : '#ffcc00'}`,
-                    boxShadow: alert.severity === 'danger'
-                      ? '0 0 12px rgba(255,60,60,0.7)'
-                      : '0 0 10px rgba(255,180,0,0.5)',
+                      ? 'var(--color-error)'
+                      : 'var(--color-warning)',
+                    color: alert.severity === 'danger' ? 'var(--color-text-primary)' : 'var(--color-bg-primary)',
+                    border: `1px solid ${alert.severity === 'danger' ? 'var(--color-error)' : 'var(--color-warning)'}`,
+                    boxShadow: 'var(--shadow-md)',
                     display: 'flex', alignItems: 'center', gap: 8,
                   }}>
                     <span>{alert.severity === 'danger' ? '⚠️ 危険' : '⚡ 注意'}</span>
@@ -445,53 +445,32 @@ export function LearningMode() {
           {/* ── ビューモードトグル + 操作モード切替 ── */}
           {(learningTab === 'anatomy' || learningTab === 'drilling') && (
             <div style={{
-              position: 'absolute', top: 12, right: 16, zIndex: 15,
+              position: 'absolute', top: 12, right: 16, zIndex: Z_INDEX.toolbar,
               display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end',
             }}>
-              {/* ビューモード */}
-              <div style={{ display: 'flex', gap: 5 }}>
-                {VIEW_MODES.map(({ mode, icon, label, desc }) => (
-                  <button
-                    key={mode}
-                    title={desc}
-                    onClick={() => {
-                      setViewMode(mode);
-                      if (mode === 'microscope') setPositionMode(true);
-                      else setPositionMode(false);
-                    }}
-                    style={{
-                      padding: '5px 11px',
-                      borderRadius: 7,
-                      border: `1px solid ${viewMode === mode ? 'var(--accent)' : 'rgba(255,255,255,0.18)'}`,
-                      background: viewMode === mode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
-                      color: viewMode === mode ? 'var(--accent)' : '#7a8898',
-                      fontSize: 11, fontWeight: viewMode === mode ? 700 : 400,
-                      cursor: 'pointer', backdropFilter: 'blur(6px)',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {icon} {label}
-                  </button>
-                ))}
-              </div>
-              {/* 顕微鏡モード: 視点固定/移動切替 */}
-              {viewMode === 'microscope' && (
-                <button
+              {/* ビューモード（KURZ Design System v1: 共通PillToggleGroup） */}
+              <PillToggleGroup<ViewMode>
+                ariaLabel="ビューモード"
+                value={viewMode}
+                onChange={(mode) => {
+                  setViewMode(mode);
+                  if (mode === 'microscope') setPositionMode(true);
+                  else setPositionMode(false);
+                }}
+                options={VIEW_MODES.map(({ mode, icon, label, desc }) => ({ value: mode, label: `${icon} ${label}`, title: desc }))}
+              />
+              {/* 顕微鏡モード: 視点固定/移動切替（削開タブ+s6はInteractiveDrillScene内蔵の
+                  固定/移動中ボタンへ統一済みのため、ここでは重複表示しない） */}
+              {viewMode === 'microscope' && !(learningTab === 'drilling' && drillScenario === 's6') && (
+                <IconButton
                   onClick={() => setPositionMode(v => !v)}
+                  aria-label={positionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
                   title={positionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 7,
-                    border: `1px solid ${positionMode ? 'rgba(0,180,216,0.5)' : 'rgba(255,255,255,0.18)'}`,
-                    background: positionMode ? 'rgba(0,180,216,0.22)' : 'rgba(10,15,26,0.78)',
-                    color: positionMode ? '#00c4e8' : '#7a8898',
-                    fontSize: 11, fontWeight: positionMode ? 700 : 400,
-                    cursor: 'pointer', backdropFilter: 'blur(6px)',
-                    transition: 'all .15s',
-                  }}
+                  active={positionMode}
+                  style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
                 >
                   {positionMode ? '🔓 移動中' : '🔒 固定'}
-                </button>
+                </IconButton>
               )}
               {/* カッターバーサイズ選択: 削開タブのみ */}
               {learningTab === 'drilling' && (

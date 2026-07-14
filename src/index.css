@@ -1,10 +1,72 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
+  /* 旧トークン（後方互換のため維持、Phase4で段階的に新トークンへ移行） */
   --bg-primary: #0a0e1a; --bg-secondary: #111827; --bg-card: #1a2235;
   --bg-card-hover: #1e2a42; --accent: #00b4d8; --accent-dim: #0077a8;
   --accent2: #06d6a0; --text-primary: #e8eaf0; --text-secondary: #8899bb;
   --text-muted: #4a5878; --border: #1e2d4a; --border-bright: #2e4470;
   --red: #ef476f; --yellow: #ffd166; --green: #06d6a0;
+
+  /* ===== KURZ Design System v1 (Phase2策定、2026-07-14) ===== */
+  --color-bg-primary: #0a0e1a;
+  --color-bg-secondary: #0e1420;
+  --color-surface: #131a28;
+  --color-surface-hover: #1a2233;
+  --color-surface-selected: #16283a;
+  --color-text-primary: #eef1f8;
+  --color-text-secondary: #a9b3c9;
+  --color-text-muted: #6f7a95;
+  --color-border: #232b3d;
+  --color-border-bright: #34405c;
+  --color-primary: #1fb6d6;
+  --color-primary-dim: #0f7f99;
+  --color-primary-tint: rgba(31,182,214,0.14);
+  --color-secondary: #6b7a99;
+  --color-accent: #c9a66b;
+  --color-success: #2fd6a6;
+  --color-warning: #f0b545;
+  --color-error: #ef5a72;
+  --color-success-bg: rgba(47,214,166,0.12);
+  --color-warning-bg: rgba(240,181,69,0.12);
+  --color-error-bg: rgba(239,90,114,0.12);
+
+  --font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic Pro', 'Yu Gothic UI', 'Segoe UI', sans-serif;
+  --text-caption: 500 11px/16px var(--font-family);
+  --text-small: 400 12px/18px var(--font-family);
+  --text-body: 400 14px/22px var(--font-family);
+  --text-body-lg: 400 16px/24px var(--font-family);
+  --text-subtitle: 600 18px/26px var(--font-family);
+  --text-title: 600 22px/30px var(--font-family);
+  --text-display: 700 32px/1.15 var(--font-family);
+  --text-hero: 700 44px/1.1 var(--font-family);
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.28);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.36);
+  --shadow-lg: 0 14px 36px rgba(0,0,0,0.42);
+  --shadow-focus-primary: 0 0 0 3px var(--color-primary-tint);
+  --shadow-glow-primary: 0 0 0 1px rgba(31,182,214,0.45), 0 0 18px rgba(31,182,214,0.16);
+
+  --glass-bg: rgba(16,21,34,0.72);
+  --glass-border: 1px solid rgba(255,255,255,0.08);
+  --glass-blur: blur(16px) saturate(140%);
+
+  --duration-fast: 120ms; --duration-base: 180ms; --duration-slow: 280ms; --duration-slower: 400ms;
+  --ease-standard: cubic-bezier(0.4,0,0.2,1);
+  --ease-decelerate: cubic-bezier(0,0,0.2,1);
+  --ease-accelerate: cubic-bezier(0.4,0,1,1);
+
+  --bp-mobile: 480px; --bp-tablet: 768px; --bp-desktop: 1200px;
+  --content-max-width: 1200px;
+  --gutter: var(--space-5);
+  --gutter-desktop: var(--space-8);
+
+  --z-canvas: 0; --z-vignette: 5; --z-hud: 10; --z-toolbar: 20; --z-panel: 30;
+  --z-modal-backdrop: 90; --z-modal: 100; --z-toast: 110;
 }
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic Pro', 'Yu Gothic UI', sans-serif; letter-spacing: -0.01em; background: var(--bg-primary); color: var(--text-primary); min-height: 100dvh; }
 #root { min-height: 100dvh; display: flex; flex-direction: column; }
@@ -114,3 +176,17 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
     bottom: 10px !important;
   }
 }
+
+/* ── KURZ Design System v1: フォーカス可視化ユーティリティ（アクセシビリティ対応） ── */
+.kz-focusable { outline: none; }
+.kz-focusable:focus-visible { box-shadow: var(--shadow-focus-primary); }
+
+/* ── KURZ Design System v1: Buttonバリアント別ホバー（inlineスタイルではpseudo-classを表現できないため） ── */
+.kz-btn-primary:hover:not(:disabled) { background: var(--color-primary-dim); }
+.kz-btn-secondary:hover:not(:disabled) { background: var(--color-surface-selected); }
+.kz-btn-ghost:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-primary); }
+.kz-btn-danger:hover:not(:disabled) { filter: brightness(0.9); }
+.kz-btn-primary:active:not(:disabled), .kz-btn-secondary:active:not(:disabled), .kz-btn-ghost:active:not(:disabled), .kz-btn-danger:active:not(:disabled) { transform: scale(0.98); }
+
+/* ── モジュールカード（HomeScreen）ホバー: JS不要でCSSのみ ── */
+.kz-module-card:hover:not(:disabled) { border-color: var(--color-primary) !important; transform: translateY(-1px); }
