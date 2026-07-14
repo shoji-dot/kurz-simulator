@@ -5,6 +5,7 @@ import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
 import { StepFlowMode } from './components/StepFlowMode';
 import { Splash } from './components/Splash';
+import { AdminGate } from './components/AdminGate';
 import { InteractiveDrillScene } from './scenes/InteractiveDrillScene';
 import { processAdminModeUrlParam, isAdminMode } from './utils/adminMode';
 
@@ -12,9 +13,9 @@ import { processAdminModeUrlParam, isAdminMode } from './utils/adminMode';
 // Drilling Simulator は VR/WebXR 対応まで無効化。
 // 再有効化する場合は FEATURE_DRILL_ENABLED を true に変更する。
 const FEATURE_DRILL_ENABLED = false;
-// 管理者プレビュー: ?admin=1 でアクセスした端末は削開練習を利用可能（一般利用者には非表示のまま）。
-// 真のセキュリティ境界ではない（詳細: src/utils/adminMode.ts）。
-processAdminModeUrlParam();
+// 管理者プレビュー: ?admin=1 でアクセスした端末はパスコード入力後に削開練習を利用可能
+// （一般利用者には非表示のまま）。真のセキュリティ境界ではない（詳細: src/utils/adminMode.ts）。
+const wantsAdminGate = processAdminModeUrlParam();
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCREEN_LABELS: Record<string, string> = {
@@ -137,6 +138,8 @@ function App() {
   const { screen, setScreen } = useSimStore();
   // 起動時のブランド体験（KURZ Design System v1 2節）。マウントごとに一度だけ表示する。
   const [showSplash, setShowSplash] = useState(true);
+  // ?admin=1 でアクセスされ、まだ管理者プレビューが未解除の場合にパスコード入力画面を表示する。
+  const [adminGateOpen, setAdminGateOpen] = useState(wantsAdminGate);
 
   // FEATURE_DRILL_ENABLED = false の間、drill スクリーンへの直接遷移をホームへリダイレクト
   // （管理者モード時は例外的に許可）
@@ -146,6 +149,15 @@ function App() {
 
   if (showSplash) {
     return <Splash onComplete={() => setShowSplash(false)} />;
+  }
+
+  if (adminGateOpen) {
+    return (
+      <AdminGate
+        onUnlock={() => setAdminGateOpen(false)}
+        onCancel={() => setAdminGateOpen(false)}
+      />
+    );
   }
 
   return (
