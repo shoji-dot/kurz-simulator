@@ -1,8 +1,0 @@
-[build]
-builder = "nixpacks"
-
-[deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 60
-restartPolicyType = "on_failure"
-startCommand = "caddy run --config /app/Caddyfile --adapter caddyfile"

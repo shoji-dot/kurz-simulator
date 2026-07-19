@@ -117,9 +117,11 @@ function createPlaceholderDiseaseInstances(): DiseaseInstance[] {
       id: 'cholesteatoma-attic-1',
       type: 'cholesteatoma',
       // P区画: Prussak腔（マレウス頸部の外側に隣接、上記コメント参照）
-      // 2026-07-15: 4.0mm→shojiさん指摘で1/3(1.33mm)へ縮小→「今度は小さすぎる」との指摘で半径5.0mmへ確定
+      // 2026-07-15: 4.0mm→1.33mm→5.0mmを経て一度確定。2026-07-19: 鼓膜・ツチ骨頸部・キヌタ骨短脚を
+      // 同時表示した状態でのshojiさん目視により「大きすぎる」との指摘、半径2.0mmへ再確定。
+      // Prussak腔の位置自体は同セッションでshojiさん確認済み（「良いのでは」）。
       position: [0.3, 6.0, 3.8],
-      radiusMm: 5.0,
+      radiusMm: 2.0,
       severity: 1,
       adherence: DISEASE_PRESETS.cholesteatoma.defaultAdherence,
       educationTagJa: DISEASE_PRESETS.cholesteatoma.educationTagJa,
