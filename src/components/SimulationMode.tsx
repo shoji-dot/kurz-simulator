@@ -31,7 +31,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
     return this.props.children;
   }
 }
-import { useSimStore, type JudgmentResult } from '../store/useSimStore';
+import { useSimStore, computeAssessmentStatus, type JudgmentResult } from '../store/useSimStore';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
@@ -43,6 +43,10 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX } from './ui';
+import { createSessionFromCaseCompletion, appendLearningEvidenceToSession, assessLearningSession, recommendFromAssessment } from '../engine/applicationIntegration';
+import { summarizeSession } from '../engine/learningSession';
+import { useLearningHistoryStore } from '../store/useLearningHistoryStore';
+import { useLearningEvidenceStore } from '../store/useLearningEvidenceStore';
 
 // ── スコア履歴 (localStorage) ──────────────────────────────────────
 interface HistoryEntry {
@@ -591,7 +595,7 @@ function JudgmentStep() {
 
 // ─── Step 2: Product selection ─────────────────────────────────────────────
 function ProductSelect() {
-  const { selectedCase, selectedProduct, placement, setSelectedProduct, setSimStep, updatePlacement } = useSimStore();
+  const { selectedCase, selectedProduct, placement, setSelectedProduct, setSimStep, updatePlacement, markSizeTouched } = useSimStore();
   // 症例選択時にsetSelectedCaseがrecommendedLengthをplacementにセット済み → それを初期値に使う
   const [selectedLength, setSelectedLength] = useState<number | null>(placement.selectedLength ?? null);
 
@@ -715,7 +719,7 @@ function ProductSelect() {
                     {p.shaftLengths.map((l) => (
                       <button
                         key={l}
-                        onClick={(e) => { e.stopPropagation(); setSelectedLength(l); updatePlacement({ selectedLength: l }); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedLength(l); updatePlacement({ selectedLength: l }); markSizeTouched(); }}
                         style={{
                           padding: '6px 14px',
                           borderRadius: 6,
@@ -1059,7 +1063,7 @@ function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCa
 
 // ─── Step 3: Placement ─────────────────────────────────────────────────────
 function PlacementStep() {
-  const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore } = useSimStore();
+  const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep, computeScore, interactionFlags, markSizeTouched, markPositionTouched, markAngleTouched } = useSimStore();
   const [showIdeal, setShowIdeal] = useState(false);
   const [showCartilage, setShowCartilage] = useState(false);
   // 症例の耳小骨欠損ステータスに基づいて初期表示を設定
@@ -1089,7 +1093,11 @@ function PlacementStep() {
   if (!selectedCase || !selectedProduct) return null;
 
   const handleConfirm = () => {
-    computeScore();
+    // Phase17.3: 未操作（InteractionFlagsすべてfalse）の場合はcomputeScore()を呼ばず、
+    // scoreResultをnullのまま結果画面へ進める（Phase17.1設計書「未評価と0点を混同しない」方針）。
+    if (computeAssessmentStatus(interactionFlags).hasUserInteracted) {
+      computeScore();
+    }
     setSimStep('score');
   };
 
@@ -1335,8 +1343,10 @@ function PlacementStep() {
               const lengths = selectedProduct.shaftLengths;
               const cur = safeP.selectedLength;
               const next = parseFloat((cur + d).toFixed(1));
-              if (next >= lengths[0] && next <= lengths[lengths.length - 1])
+              if (next >= lengths[0] && next <= lengths[lengths.length - 1]) {
                 updatePlacement({ selectedLength: next });
+                markSizeTouched();
+              }
             }}
             steps={[{ label: '−0.25', d: -0.25 }, { label: '+0.25', d: 0.25 }]}
           />
@@ -1360,7 +1370,7 @@ function PlacementStep() {
                   total > 0.005 ? `${pos} ${total.toFixed(2)}` :
                   total < -0.005 ? `${neg} ${(-total).toFixed(2)}` : '0.00'
                 }
-                onStep={(d) => updatePlacement({ [key]: Math.max(-3, Math.min(3, safeP[key] + d)) })}
+                onStep={(d) => { updatePlacement({ [key]: Math.max(-3, Math.min(3, safeP[key] + d)) }); markPositionTouched(); }}
                 steps={[
                   { label: `−0.1`, d: -0.1 },
                   { label: `+0.1`, d:  0.1 },
@@ -1384,7 +1394,7 @@ function PlacementStep() {
                 key={key}
                 label={label}
                 value={val === 0 ? '0°' : val > 0 ? `${pos} ${val}°` : `${neg} ${-val}°`}
-                onStep={(d) => updatePlacement({ [key]: Math.max(-180, Math.min(180, safeP[key] + d)) })}
+                onStep={(d) => { updatePlacement({ [key]: Math.max(-180, Math.min(180, safeP[key] + d)) }); markAngleTouched(); }}
                 steps={[
                   { label: `−5°`, d: -5 },
                   { label: `+5°`, d:  5 },
@@ -1489,6 +1499,10 @@ function ScoreStep() {
   const { selectedCase, selectedProduct, placement, scoreResult, judgmentResult, resetSimulation, setSimStep, setScreen } = useSimStore();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [scoreDetailOpen, setScoreDetailOpen] = useState(false);
+  // Phase14.1: React StrictMode(開発時)はuseEffectを1マウントにつき2回実行するため、
+  // このrefで「このマウントで既にLearning Flowを記録したか」を管理し、二重記録を防ぐ
+  // (Refはコンポーネントインスタンスが同一である限りStrictModeの2回実行をまたいで保持される)。
+  const learningFlowRecordedRef = useRef(false);
 
   useEffect(() => {
     if (scoreResult && selectedCase && selectedProduct) {
@@ -1505,13 +1519,69 @@ function ScoreStep() {
       };
       const updated = pushHistory(entry);
       setHistory(updated);
+
+      // Phase14.1: Learning Flow入口（Phase14_ApplicationIntegrationLayer_API設計_v1.0.md）。
+      // 既存のスコア履歴記録（上記）とは独立した副作用として追加するのみで、既存のスコア表示・
+      // 履歴機能には一切影響しない（try/catchで隔離、失敗しても上記の表示は継続する）。
+      // 保存先（Zustand slice等）はPhase14.3で決定するため、現時点ではconsole出力のみで動作確認
+      // する（GUI表示はPhase14.4以降）。
+      if (!learningFlowRecordedRef.current) {
+        learningFlowRecordedRef.current = true;
+        try {
+          const caseSession = createSessionFromCaseCompletion({
+            sessionId: crypto.randomUUID(),
+            startedAt: new Date().toISOString(),
+            caseId: selectedCase.id,
+          });
+          // Phase15.5: Interaction Evidence（Phase15.2 useLearningEvidenceStore、学習モードで
+          // 記録された構造物クリック集合）をLearningSessionへ反映する。既存の
+          // createSessionFromCaseCompletion()は無変更のまま、その戻り値へ独立API
+          // appendLearningEvidenceToSession()（Phase15.3）を追加適用するのみ
+          // （shojiさんPhase15.2レビュー指定「createSessionFromCaseCompletion()は変更禁止」を継続遵守）。
+          const learningSession = appendLearningEvidenceToSession(
+            caseSession,
+            useLearningEvidenceStore.getState().clickedTeachingNoteIds,
+          );
+          // Phase14.2: Assessment接続 → Phase14.3: Recommendation接続 + LearningHistory蓄積。
+          // AdaptiveLearningPlanの生成はここでは行わない（ダッシュボード側が表示時に都度導出する、
+          // Phase14_ApplicationIntegrationLayer_API設計_v1.0.md§4・useLearningHistoryStoreのコメント参照）。
+          const assessment = assessLearningSession(learningSession);
+          const recommendation = recommendFromAssessment(assessment);
+          useLearningHistoryStore.getState().addEntry({ assessment, recommendation });
+          console.info('[applicationIntegration] session recorded:', summarizeSession(learningSession));
+          // Phase15.5: この症例へInteraction Evidenceを反映し終えたのでstoreをクリアする
+          // （shojiさん指定「症例完了後にclear」。次の症例では学習モードでの新規クリックのみが
+          // 反映される。反映前に例外が発生した場合はcatch節でclearせず証拠を保持する）。
+          useLearningEvidenceStore.getState().clear();
+        } catch (e) {
+          console.warn('[applicationIntegration] failed to record learning session', e);
+        }
+      }
     } else {
       setHistory(loadHistory());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!scoreResult || !selectedCase || !selectedProduct) return null;
+  if (!selectedCase || !selectedProduct) return null;
+
+  // Phase17.3: 未操作（scoreResult===null）の場合は「未評価」表示のみ行う
+  // （Phase17.1設計書§3、"未評価"と"0点"を混同しない）。既存の操作済みフロー（下記）は無変更。
+  if (!scoreResult) {
+    return (
+      <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24 }}>
+        <Alert tone="info">
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>未評価</div>
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              インプラント設置操作が行われていないため、今回のスコアは算出されません。
+            </div>
+          </div>
+        </Alert>
+        <Button style={{ marginTop: 16 }} onClick={() => setSimStep('placement')}>設置画面へ戻る</Button>
+      </div>
+    );
+  }
 
   const RANK_COLOR: Record<string, string> = { S: 'var(--color-rank-s)', A: 'var(--color-success)', B: 'var(--color-primary)', C: 'var(--color-warning)', D: 'var(--color-error)' };
   const abg = scoreResult.abgPrediction;

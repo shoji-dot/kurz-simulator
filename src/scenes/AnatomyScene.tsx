@@ -2,16 +2,20 @@
  * AnatomyScene.tsx  ── 解剖学的中耳シーン（実モデル版）
  *
  * ▼ 座標系 v2（world空間）
- *   GLB[x, y, z] → world[z, -y, x]
+ *   【Phase3.1訂正】以前 GLB[x,y,z] → world[z,-y,x] と記載していたが誤りだった。
+ *   Phase3でThree.jsを実際に実行して検証した結果、正しい変換は
+ *   GLB[x, y, z] → world[-z, -y, -x] （詳細は
+ *   Phase3_AnatomicalValidationFoundation_実装レビュー_2026-07-17.md 参照）。
  *   X+ = 患者右側 / 外側 (Lateral)
  *   Y+ = 頭頂側   (Superior)
  *   Z+ = 顔面側   (Anterior)
  *
  * ▼ モデル変換
  *   <group rotation={[Math.PI, -Math.PI/2, 0]}>
- *   = Ry(-90°) * Rx(180°) → GLB[x,y,z] → world[z,-y,x]
+ *   = 正しい変換式は world[-z,-y,-x]（Phase3.1で訂正。下記ENDO_ZONESのfacial-tympanic/
+ *   facial-genuはPhase3.1でEar Atlas経由の正しい値に修正済み。他3件は残課題）
  *
- * ▼ 主要ランドマーク (world v2)
+ * ▼ 主要ランドマーク (world v2、未検証・残課題。Phase3.1では下記ENDO_ZONESのみ修正した)
  *   アブミ骨底板 : [0, 0, 0]
  *   アブミ骨頭   : [4.86, 2.65, 0.84]
  *   鼓膜中心     : [5.5, 0, 0]
@@ -30,13 +34,34 @@ import * as THREE from 'three';
 import { OssicleChain } from './models/OssicleModels'; // CasePreviewSceneで使用
 import { RealAnatomy, type VisibilityMap, type AuricleTransform, type StructureKey } from './models/RealAnatomyModels';
 import { Z_INDEX } from '../components/ui';
+import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
+import { isCoordDebugMode } from '../utils/debugMode';
+import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } from './debug/CoordinateDebugOverlay';
+import { getEndoZoneCenterWorld } from '../data/earAtlas';
 
 // ── 硬性内視鏡アラートゾーン定義 ────────────────────────────────────
-// 座標系 v2: world[z,-y,x] (X+=Lateral, Y+=Superior, Z+=Anterior)
+// 座標系 v2: world[-z,-y,-x] (X+=Lateral, Y+=Superior, Z+=Anterior)。Phase3.1訂正:
+// 以前は world[z,-y,x] という誤った式で center を手計算していた（Phase3で発覚）。
+// facial-tympanic/facial-genuはEar Atlas経由の正しい値に修正済み（下記参照）。
+// ossicles/tympanic/chordaの3件は参照元があいまいなため本Phaseでは未修正（残課題）。
 export interface EndoscopeAlert {
   id:       string;
   nameJa:   string;
   severity: 'warning' | 'danger';
+}
+
+/**
+ * dangerZones.ts の DangerZone.id から、Ear Atlas経由の正しいWORLD座標を取得する（Phase3.1）。
+ * Atlasにエントリが無い/positionWorld未設定の場合は例外を投げる（Phase2のentries.ts側
+ * セルフチェックで参照整合性を検証済みのため、通常は発生しない。発生した場合はAtlas側の
+ * データ不備という別の実装ミスを示すため、誤った旧ハードコード値へフォールバックはしない）。
+ */
+function requireEndoZoneCenter(dangerZoneId: string): [number, number, number] {
+  const center = getEndoZoneCenterWorld(dangerZoneId);
+  if (!center) {
+    throw new Error(`[ENDO_ZONES] Ear Atlas lookup failed for dangerZoneId="${dangerZoneId}"`);
+  }
+  return [center[0], center[1], center[2]];
 }
 
 const ENDO_ZONES: Array<{
@@ -47,10 +72,16 @@ const ENDO_ZONES: Array<{
   center:    [number,number,number]; // world v2 space
   radius:    number;
 }> = [
+  // 【Phase3.1残課題】ossicles/tympanic/chordaの3件は参照元があいまいなため未修正のまま
+  // （手計算の旧値をそのまま残している。ossiclesはアブミ骨頭座標を使うがvisKeyは'malleus'、
+  // Atlasのツチ骨・キヌタ骨・アブミ骨はいずれも別座標のため、対応関係を先に確定する必要がある）。
   { id: 'ossicles',        nameJa: '耳小骨',           severity: 'warning', visKey: 'malleus',      center: [4.86,  2.65,  0.84], radius: 5.5 },
   { id: 'tympanic',        nameJa: '鼓膜',              severity: 'warning', visKey: 'tympanic',     center: [5.5,   0.0,   0.0 ], radius: 4.5 },
-  { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）',  severity: 'danger', visKey: 'facialNerve',  center: [-1.5, -2.8,   0.0 ], radius: 5.5 },
-  { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: [-3.0, -1.5,  -4.0 ], radius: 5.0 },
+  // 【Phase3.1修正】以下2件はEar Atlas（Single Source of Truth）から自動生成する。
+  // 旧ハードコード値は誤った手計算式(world[z,-y,x])で書かれていたため置き換えた
+  // （Phase3_AnatomicalValidationFoundation_実装レビュー_2026-07-17.md 参照）。
+  { id: 'facial-tympanic', nameJa: '顔面神経（鼓室部）',  severity: 'danger', visKey: 'facialNerve',  center: requireEndoZoneCenter('facial-tympanic'), radius: 5.5 },
+  { id: 'facial-genu',     nameJa: '顔面神経（第2膝部）', severity: 'danger', visKey: 'facialNerve', center: requireEndoZoneCenter('facial-genu'), radius: 5.0 },
   { id: 'chorda',          nameJa: '鼓索神経',           severity: 'danger', visKey: 'chordaTympani', center: [4.0,   2.0,   0.5 ], radius: 4.5 },
 ];
 
@@ -265,6 +296,9 @@ export function AnatomyScene({
   const [initCam] = useState(() => _loadAnatCam());
   const mergedVis: VisibilityMap = { ...vis, auricle: 'hidden' };
   const debugDivRef = useRef<HTMLDivElement | null>(null);
+  const [coordDebug] = useState(() => isCoordDebugMode());
+  const coordGroupRef = useRef<THREE.Group>(null);
+  const coordPanelRef = useRef<HTMLDivElement | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const _pointerMoved = useRef(false);
@@ -298,6 +332,9 @@ export function AnatomyScene({
         <div ref={debugDivRef as any} />
       </div>
     )}
+    {coordDebug && (
+      <CoordinateDebugPanel sceneLabel="AnatomyScene" panelRef={coordPanelRef} zIndex={Z_INDEX.modal} />
+    )}
     <Canvas
       camera={{ position: initCam.pos, fov: 40 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
@@ -316,6 +353,15 @@ export function AnatomyScene({
         <EndoscopeMonitor enabled={true} vis={vis} onAlert={onEndoscopeAlert} />
       )}
       {showCameraDebug && <CameraDebugTracker divRef={debugDivRef} />}
+      {coordDebug && (
+        <CoordinateDebugTracker
+          panelRef={coordPanelRef}
+          anatomyRootRef={coordGroupRef}
+          getCameraView={getAnatomyCam}
+          viewPresets={[...ANATOMICAL_VIEWS, ...SURGICAL_VIEWS]}
+        />
+      )}
+      {coordDebug && <CoordinateDebugScene3D anatomyRootRef={coordGroupRef} />}
 
       {/* ── ライティング ── */}
       <directionalLight position={[10, 15, 5]}  intensity={1.8}  color="#fff8f0" castShadow shadow-mapSize={[1024, 1024]} />
@@ -330,7 +376,7 @@ export function AnatomyScene({
           座標系 v2: rotation=[π, -π/2, 0]
           GLB[x,y,z] → world[z,-y,x]: X+=Lateral, Y+=Superior, Z+=Anterior
         */}
-        <group rotation={[Math.PI, -Math.PI / 2, 0]}>
+        <group ref={coordGroupRef} rotation={[Math.PI, -Math.PI / 2, 0]}>
           <RealAnatomy vis={mergedVis} highlightedKey={highlightedKey} boneGhostOpacity={boneGhostOpacity} onStructureClick={handleStructureClick} />
           {showTympanoCavity && <TympanoCavityEdu />}
         </group>

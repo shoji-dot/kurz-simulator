@@ -31,6 +31,10 @@ import {
   UMBO_POS,
 } from './models/OssicleModels';
 import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
+import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
+import { Z_INDEX } from '../components/ui';
+import { isCoordDebugMode } from '../utils/debugMode';
+import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } from './debug/CoordinateDebugOverlay';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
@@ -323,6 +327,9 @@ function DraggableProsthesis({
         dragOffsetY: clamp3(placement.dragOffsetY + g.position.y),
         dragOffsetZ: clamp3(placement.dragOffsetZ + g.position.z),
       });
+      // Phase17.3: ドラッグ終了時点（dragging-changed: false）で操作済みとして記録する
+      // （shojiさん指定「途中状態はまだ確定操作ではない」、ドラッグ終了時マークを採用）。
+      useSimStore.getState().markPositionTouched();
       g.position.set(0, 0, 0);
     };
 
@@ -425,8 +432,15 @@ export function SimScene({
 
   const orbitRef = useRef<any>(null);
   const [initCam] = useState(() => _loadSimCam());
+  const [coordDebug] = useState(() => isCoordDebugMode());
+  const coordGroupRef = useRef<THREE.Group>(null);
+  const coordPanelRef = useRef<HTMLDivElement | null>(null);
 
   return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+    {coordDebug && (
+      <CoordinateDebugPanel sceneLabel="SimScene" panelRef={coordPanelRef} zIndex={Z_INDEX.modal} />
+    )}
     <Canvas
       camera={{ position: initCam.pos, fov: 38 }}
       gl={{
@@ -466,7 +480,7 @@ export function SimScene({
           ここに含まれる全てのモデル（GLBリアル解剖・プロステーシス・マーカー）は
           この変換の内側にあり、すべて同じローカル座標系を共有する。
         */}
-        <group rotation={[Math.PI, -Math.PI / 2, 0]}>
+        <group ref={coordGroupRef} rotation={[Math.PI, -Math.PI / 2, 0]}>
           {/* ── GLBリアルモデル ── */}
           <group position={GLB_OFFSET}>
             <RealAnatomy vis={mergedVis} onStructureClick={onStructureClick} />
@@ -554,6 +568,15 @@ export function SimScene({
           labels={['右', '上', '前']}
         />
       </GizmoHelper>
+      {coordDebug && (
+        <CoordinateDebugTracker
+          panelRef={coordPanelRef}
+          anatomyRootRef={coordGroupRef}
+          getCameraView={getSimCam}
+          viewPresets={[...ANATOMICAL_VIEWS, ...SURGICAL_VIEWS]}
+        />
+      )}
+      {coordDebug && <CoordinateDebugScene3D anatomyRootRef={coordGroupRef} />}
 
       <OrbitControls
         makeDefault
@@ -580,5 +603,6 @@ export function SimScene({
         }}
       />
     </Canvas>
+    </div>
   );
 }

@@ -4,10 +4,12 @@ import { HomeScreen } from './components/HomeScreen';
 import { LearningMode } from './components/LearningMode';
 import { SimulationMode } from './components/SimulationMode';
 import { StepFlowMode } from './components/StepFlowMode';
+import { LearningDashboard } from './components/LearningDashboard';
 import { Splash } from './components/Splash';
 import { AdminGate } from './components/AdminGate';
 import { InteractiveDrillScene } from './scenes/InteractiveDrillScene';
 import { processAdminModeUrlParam, isAdminMode } from './utils/adminMode';
+import { processDebugModeUrlParam } from './utils/debugMode';
 
 // ── Feature Flag ──────────────────────────────────────────────────────────────
 // Drilling Simulator は VR/WebXR 対応まで無効化。
@@ -16,6 +18,9 @@ const FEATURE_DRILL_ENABLED = false;
 // 管理者プレビュー: ?admin=1 でアクセスした端末はパスコード入力後に削開練習を利用可能
 // （一般利用者には非表示のまま）。真のセキュリティ境界ではない（詳細: src/utils/adminMode.ts）。
 const wantsAdminGate = processAdminModeUrlParam();
+// 座標Debug Overlay: ?debug=coords でアクセスした端末はセッション中Debug Overlayを表示する
+// （詳細: src/utils/debugMode.ts、座標系統合Phase1の一部）。
+processDebugModeUrlParam();
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCREEN_LABELS: Record<string, string> = {
@@ -23,6 +28,7 @@ const SCREEN_LABELS: Record<string, string> = {
   simulation: 'プロステーシス選択',
   stepflow:   '手術フロー',
   drill:      '削開練習',
+  dashboard:  '学習ダッシュボード',
 };
 
 function AppHeader() {
@@ -167,6 +173,7 @@ function App() {
       {screen === 'learning'   && <LearningMode />}
       {screen === 'simulation' && <SimulationMode />}
       {screen === 'stepflow'   && <StepFlowMode />}
+      {screen === 'dashboard'  && <LearningDashboard />}
       {/* FEATURE_DRILL_ENABLED が true、または管理者モードの場合のみレンダリング */}
       {screen === 'drill' && (FEATURE_DRILL_ENABLED || isAdminMode()) && <DrillPracticeScreen />}
     </>

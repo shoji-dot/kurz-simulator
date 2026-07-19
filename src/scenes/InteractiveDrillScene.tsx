@@ -15,7 +15,7 @@
 import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, TransformControls } from '@react-three/drei';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { DANGER_ZONES } from '../data/dangerZones';
@@ -38,6 +38,12 @@ import { createMeshInsideTest, createBoneVolumeSource } from '../engine/volumeSo
 import { VoxelVolume, baseChunkGridDims, indexToMaterialId } from '../engine/voxelVolume';
 import { RemeshQueue } from '../engine/remeshQueue';
 import type { RemeshResponsePayload } from '../workers/voxelRemeshWorker';
+// Stage1 RC Phase2（Disease Layer、2026-07-15新設）: Voxelとは独立した病変レイヤー。
+// 除去ロジックは既存Voxel carveをそのまま流用する設計（[[stage1-rc-design]]参照、推測を避けるため
+// 3Dシーンへの配線・描画のみを先行実装し、症例ごとの実配置データは次PRでshojiさん確認後に追加する）。
+import { applyDiseaseRemoval, isDiseaseCleared } from '../engine/disease/diseaseRemoval';
+import type { DiseaseInstance } from '../engine/disease/types';
+import { DISEASE_PRESETS } from '../engine/disease/diseaseCatalog';
 
 
 // ── FovController: 顕微鏡モード FOV 切替 ─────────────────────────────
@@ -80,6 +86,47 @@ const BASE_BONE_COLOR = '#c8b090'; // T7: 色透見ブレンドの基準色（Dr
 // Tegmen（上壁）まで2.7mm → 解剖学的に妥当
 const ANTRUM_POS          = new THREE.Vector3(-3.5, 7.0, 10.0);
 const ANTRUM_RADIUS       = 3.5;   // 乳突洞半径 mm（成人平均）
+
+// 【文献ベース配置・2026-07-15設計→shojiさん指摘3回を経て確定、要shojiさん再確認】
+// 経緯: (1)ANTRUM_POS付近への誤配置を撤去し文献調査に基づき再設計→(2)PTAM system用語へ改訂→
+// (3)「耳小骨から離れ外耳道側に飛び出て見える」座標誤りをpygltflib実測で訂正→
+// (4)「3球連結は聞いたことがない、文献根拠もない」との指摘を受け単一球へ差し戻し。
+//
+// 【文献】東野哲也, 本間明宏, 他: 真珠腫進展度分類2015改訂案. Otol Jpn 2015;25:845-850. /
+//         Yung M, Tono T, Olszewska E, et al: EAONO/JOS Joint Consensus Statement on the
+//         Definitions, Classification and Staging of Middle Ear Cholesteatoma. J Int Adv Otol
+//         2017;13:1-8.（shojiさん提供PDF「中耳真珠腫の進展度分類と手術基本手技」より）
+//
+// 文献の要点（弛緩部型真珠腫、本ケースが該当）: Stage Iは初発区分＝上鼓室（P区画:Prussak腔）に限局。
+// 本placeholderは進展前のStage I相当（P区画に限局する単一病変）として単純化した
+// （3球連結という複合形状は文献裏付けがないため撤回、[[feedback]]参照）。
+//
+// 座標の根拠（アブミ骨底板原点系、X+=前方/Y+=上方/Z+=外耳道方向(外側)、pygltflib実測ベース）:
+//   P区画起始点=Prussak腔。マレウス実測中心[0.25,4.46,1.06]・頭部Y上限≈6.27に隣接させた
+//   （マレウス頸部の外側、Zをマレウス実測Z上限2.75よりわずかに外側へ）。この位置自体は
+//   前回shojiさんに「良くなってきました」と確認済みのため変更していない。
+//   サイズはshojiさん指摘（実際は5-40mm、10mm程度が妥当）を踏まえ半径4mm（直径8mm）とした。
+//
+// 【要確認】マレウス/インカス実測に隣接させたことで確からしいが、鼓膜・盾板(scutum)自体の
+// 実測座標までは持っておらず、位置関係の細部（Y方向の高さ等）はなお推定。shojiさんがローカルで
+// 3D画面を目視し、位置・サイズを耳鼻科医の目で確認・調整することを前提とする
+// （BONE_MATERIALS.hardnessと同じ「暫定値→較正待ち」運用、[[stage1-rc-design]]参照）。
+function createPlaceholderDiseaseInstances(): DiseaseInstance[] {
+  return [
+    {
+      id: 'cholesteatoma-attic-1',
+      type: 'cholesteatoma',
+      // P区画: Prussak腔（マレウス頸部の外側に隣接、上記コメント参照）
+      // 2026-07-15: 4.0mm→shojiさん指摘で1/3(1.33mm)へ縮小→「今度は小さすぎる」との指摘で半径5.0mmへ確定
+      position: [0.3, 6.0, 3.8],
+      radiusMm: 5.0,
+      severity: 1,
+      adherence: DISEASE_PRESETS.cholesteatoma.defaultAdherence,
+      educationTagJa: DISEASE_PRESETS.cholesteatoma.educationTagJa,
+      clinicalNoteJa: DISEASE_PRESETS.cholesteatoma.clinicalNoteJa,
+    },
+  ];
+}
 const ANTRUM_REACHED_DIST = 2.5;   // 到達判定距離 mm
 
 // ── 骨表面の質感シェーダー（2026-07-13・低ポリ感/「マインクラフト感」対応） ──────────
@@ -697,6 +744,20 @@ function computeDrillDirection(point: THREE.Vector3): string | null {
 // ══════════════════════════════════════════════════════════════════
 type V3 = [number, number, number];
 
+// 【2026-07-15新設→同日ドラッグ式ギズモへ改訂】ガイド（MacEwen三角・すり鉢状削開ガイド）位置調整機能。
+// shojiさん要望: 「ガイドの位置や方向を自分で決めたい」。当初は数値入力パネル方式を選んだが、
+// (1)三角形・リング等がガイド調整に連動しない実装バグ、(2)Y軸回転のみで縦回転ができない、
+// (3)拡大縮小もしたい、という3点の指摘を受け、three-stdlib TransformControls
+// （@react-three/drei）によるドラッグ式3Dギズモへ全面的に作り直した。
+// 対象は「削開開始点の推奨ガイド」のみ（Start Zone/MacEwen三角/中心ドット/青バー/すり鉢錐台/
+// 深度リング/削開方向矢印）。乳突洞ターゲット球（ANTRUM_POS）と専門医モードの解剖ランドマーク
+// （LANDMARKS）は実測固定値のため調整対象に含めない。
+interface GuideTransform {
+  x: number; y: number; z: number;
+  rx: number; ry: number; rz: number; // 度
+  sx: number; sy: number; sz: number;
+}
+
 const GUIDE = {
   // MacEwen Triangle (Suprameatal Triangle) ── 外側皮質面上の三角
   // ⚠ Z値は Bone.glb 実測値（2026-06-24 pygltflib計測）
@@ -724,6 +785,35 @@ const GUIDE = {
   ],
   ANTRUM_DEPTH: 13,
 } as const;
+
+// GUIDE内の各点を「GUIDE.CENTERからの相対座標（ローカル座標）」へ変換。
+// TransformControlsで動かす<group>の子はこのローカル座標で配置し、group自体の
+// position/rotation/scaleだけをドラッグ操作で変更する設計にする（子の座標は不変のため
+// useMemo([])のジオメトリキャッシュも安全に機能する）。
+function sub3(a: V3, b: V3): V3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+const GUIDE_LOCAL = {
+  SUPERIOR:     sub3(GUIDE.SUPERIOR,  GUIDE.CENTER),
+  ANTERIOR:     sub3(GUIDE.ANTERIOR,  GUIDE.CENTER),
+  POSTERIOR:    sub3(GUIDE.POSTERIOR, GUIDE.CENTER),
+  START_ZONE:   GUIDE.START_ZONE.map((p) => sub3(p, GUIDE.CENTER)) as V3[],
+  TEMPORAL_BAR: sub3([(-12 + 4) / 2, GUIDE.SUPERIOR[1], GUIDE.SUPERIOR[2] - 0.5], GUIDE.CENTER),
+  ARROW:        sub3([GUIDE.CENTER[0] + 4, GUIDE.CENTER[1] + 2.5, GUIDE.CENTER[2] + 1.5], GUIDE.CENTER),
+  // 【2026-07-15】乳突洞ターゲット球もガイド編集グループへ含める（shojiさん指摘: 三角形・錐台と
+  // 連動して動くべき）。ANTRUM_POS自体（ドリル中の距離判定等、実際のゲーム内判定に使う定数）は
+  // 変更しない。ここではガイド編集時の「見た目上の初期位置」をANTRUM_POSと一致させるための
+  // ローカル座標変換のみ行う。
+  ANTRUM:       sub3([ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z], GUIDE.CENTER),
+};
+
+// 【2026-07-15 shojiさん確定】ガイド編集（TransformControls）で調整して「良い」との確認を得た
+// 最終的な位置・向き・縮尺。これを新しい初期状態（editModeを開いた直後の表示・reset後の戻り先）とする。
+const GUIDE_TRANSFORM_DEFAULT = {
+  position:    [3.2, 8.5, 25.2] as V3,
+  rotationDeg: [-20, 2, -85] as V3,
+  scale:       [0.63, 0.63, 0.92] as V3,
+};
 
 // 専門医モード用ランドマーク（Bone.glb 実測値 2026-06-24）
 const LANDMARKS = {
@@ -782,71 +872,158 @@ function FanMesh({ verts, color, opacity }: { verts: V3[]; color: string; opacit
   );
 }
 
-function MastoidGuide({ expertMode }: { expertMode: boolean }) {
-  const [cx, cy, sz] = GUIDE.CENTER;
+function MastoidGuide({
+  expertMode,
+  editMode = false,
+  gizmoMode = 'translate',
+  onTransformChange,
+  resetSignal = 0,
+  orbitControlsRef,
+}: {
+  expertMode: boolean;
+  editMode?: boolean;
+  gizmoMode?: 'translate' | 'rotate' | 'scale';
+  onTransformChange?: (t: GuideTransform) => void;
+  resetSignal?: number;
+  orbitControlsRef?: React.RefObject<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+}) {
+  // 【2026-07-15】ガイド本体（Start Zone/MacEwen三角/中心ドット/青バー/すり鉢錐台/深度リング/
+  // 削開方向矢印）を1つの<group>にまとめ、TransformControls（three-stdlib）でgroup自体の
+  // position/rotation/scaleをドラッグ操作する。子要素は全てGUIDE.CENTERからのローカル座標
+  // （GUIDE_LOCAL）で固定配置し、groupの変形だけで全体が連動して動く（旧実装は各要素へ個別に
+  // 座標を計算し直しており、TriMesh/FanMeshがuseMemo([])でジオメトリをキャッシュしていたため
+  // 三角形・扇形が連動しないバグがあった。ローカル座標を不変にすることでこの問題ごと解消）。
+  const groupRef = useRef<THREE.Group>(null!);
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (initializedRef.current || !groupRef.current) return;
+    groupRef.current.position.set(...GUIDE_TRANSFORM_DEFAULT.position);
+    groupRef.current.rotation.set(
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[0]),
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[1]),
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[2]),
+    );
+    groupRef.current.scale.set(...GUIDE_TRANSFORM_DEFAULT.scale);
+    initializedRef.current = true;
+    onTransformChange?.(DEFAULT_GUIDE_TRANSFORM_ABS());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (resetSignal === 0 || !groupRef.current) return;
+    groupRef.current.position.set(...GUIDE_TRANSFORM_DEFAULT.position);
+    groupRef.current.rotation.set(
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[0]),
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[1]),
+      THREE.MathUtils.degToRad(GUIDE_TRANSFORM_DEFAULT.rotationDeg[2]),
+    );
+    groupRef.current.scale.set(...GUIDE_TRANSFORM_DEFAULT.scale);
+    onTransformChange?.(DEFAULT_GUIDE_TRANSFORM_ABS());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
+
+  const handleObjectChange = useCallback(() => {
+    const g = groupRef.current;
+    if (!g || !onTransformChange) return;
+    onTransformChange({
+      x: g.position.x, y: g.position.y, z: g.position.z,
+      rx: THREE.MathUtils.radToDeg(g.rotation.x),
+      ry: THREE.MathUtils.radToDeg(g.rotation.y),
+      rz: THREE.MathUtils.radToDeg(g.rotation.z),
+      sx: g.scale.x, sy: g.scale.y, sz: g.scale.z,
+    });
+  }, [onTransformChange]);
+
   return (
-    <group>
-      {/* Start Zone: 薄いグリーン */}
-      <FanMesh verts={GUIDE.START_ZONE} color="#4ade80" opacity={0.09} />
+    <>
+      <group ref={groupRef}>
+        {/* Start Zone: 薄いグリーン */}
+        <FanMesh verts={GUIDE_LOCAL.START_ZONE} color="#4ade80" opacity={0.09} />
 
-      {/* MacEwen Triangle: 塗り */}
-      <TriMesh v0={GUIDE.SUPERIOR} v1={GUIDE.ANTERIOR} v2={GUIDE.POSTERIOR}
-               color="#22c55e" opacity={0.35} />
-      {/* MacEwen Triangle: アウトライン */}
-      <TriMesh v0={GUIDE.SUPERIOR} v1={GUIDE.ANTERIOR} v2={GUIDE.POSTERIOR}
-               color="#86efac" opacity={0.85} wire />
+        {/* MacEwen Triangle: 塗り */}
+        <TriMesh v0={GUIDE_LOCAL.SUPERIOR} v1={GUIDE_LOCAL.ANTERIOR} v2={GUIDE_LOCAL.POSTERIOR}
+                 color="#22c55e" opacity={0.35} />
+        {/* MacEwen Triangle: アウトライン */}
+        <TriMesh v0={GUIDE_LOCAL.SUPERIOR} v1={GUIDE_LOCAL.ANTERIOR} v2={GUIDE_LOCAL.POSTERIOR}
+                 color="#86efac" opacity={0.85} wire />
 
-      {/* Center マーカー（Safe Entry ドット）*/}
-      <mesh position={GUIDE.CENTER}>
-        <sphereGeometry args={[0.55, 12, 8]} />
-        <meshBasicMaterial color="#22c55e" />
-      </mesh>
+        {/* Center マーカー（Safe Entry ドット）*/}
+        <mesh position={[0, 0, 0]}>
+          <sphereGeometry args={[0.55, 12, 8]} />
+          <meshBasicMaterial color="#22c55e" />
+        </mesh>
 
-      {/* Temporal Line（青バー）*/}
-      <mesh position={[(-12 + 4) / 2, GUIDE.SUPERIOR[1], GUIDE.SUPERIOR[2] - 0.5]}>
-        <boxGeometry args={[16, 0.28, 0.28]} />
-        <meshBasicMaterial color="#60a5fa" />
-      </mesh>
+        {/* Temporal Line（青バー）*/}
+        <mesh position={GUIDE_LOCAL.TEMPORAL_BAR}>
+          <boxGeometry args={[16, 0.28, 0.28]} />
+          <meshBasicMaterial color="#60a5fa" />
+        </mesh>
 
-      {/* Saucerization Volume（黄色ワイヤーフレーム錐台）*/}
-      {/* CylinderGeometry axis = Y → rotate PI/2 around X to align with Z */}
-      <mesh
-        position={[cx, cy, sz - GUIDE.DEPTH / 2]}
-        rotation={[Math.PI / 2, 0, 0]}
-        renderOrder={2}
-      >
-        <cylinderGeometry args={[GUIDE.INNER_R, GUIDE.OUTER_R, GUIDE.DEPTH, 24, 1, true]} />
-        <meshBasicMaterial color="#fbbf24" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
-      </mesh>
+        {/* Saucerization Volume（黄色ワイヤーフレーム錐台）*/}
+        {/* CylinderGeometry axis = Y → rotate PI/2 around X to align with Z。
+            2026-07-15 shojiさん指摘で上下逆と判明: 骨表面(Z=0)は広く、antrum方向(Z=-DEPTH)へ
+            すり鉢状に狭くなるのが正しい向き。radiusTop/radiusBottomの順序を入れ替えて修正した
+            （骨面側=OUTER_R(広い)、深部側=INNER_R(狭い)）。 */}
+        <mesh position={[0, 0, -GUIDE.DEPTH / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={2}>
+          <cylinderGeometry args={[GUIDE.OUTER_R, GUIDE.INNER_R, GUIDE.DEPTH, 24, 1, true]} />
+          <meshBasicMaterial color="#fbbf24" wireframe transparent opacity={0.5} side={THREE.DoubleSide} />
+        </mesh>
 
-      {/* 深度リング（5 / 10 / 15 mm）*/}
-      {GUIDE.DEPTH_RINGS.map(({ depth, color }) => {
-        const ringZ = sz - depth;
-        const t     = depth / GUIDE.DEPTH;
-        const ringR = GUIDE.OUTER_R + (GUIDE.INNER_R - GUIDE.OUTER_R) * t;
-        return (
-          <mesh key={depth} position={[cx, cy, ringZ]}>
-            <torusGeometry args={[ringR, 0.2, 8, 36]} />
-            <meshBasicMaterial color={color} transparent opacity={0.75} />
+        {/* 深度リング（5 / 10 / 15 mm）*/}
+        {GUIDE.DEPTH_RINGS.map(({ depth, color }) => {
+          const t      = depth / GUIDE.DEPTH;
+          const ringR  = GUIDE.OUTER_R + (GUIDE.INNER_R - GUIDE.OUTER_R) * t;
+          return (
+            <mesh key={depth} position={[0, 0, -depth]}>
+              <torusGeometry args={[ringR, 0.2, 8, 36]} />
+              <meshBasicMaterial color={color} transparent opacity={0.75} />
+            </mesh>
+          );
+        })}
+
+        {/* 削開方向矢印（黄色、外側→内側）*/}
+        <group position={GUIDE_LOCAL.ARROW}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -3.5]}>
+            <cylinderGeometry args={[0.22, 0.22, 7, 8]} />
+            <meshBasicMaterial color="#fbbf24" />
           </mesh>
-        );
-      })}
+          <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -7.5]}>
+            <coneGeometry args={[0.65, 1.6, 8]} />
+            <meshBasicMaterial color="#fbbf24" />
+          </mesh>
+        </group>
 
-      {/* Mastoid Antrum: First Surgical Target（専門医モードでは非表示）*/}
-      {!expertMode && (
-        <>
-          <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
-            <sphereGeometry args={[ANTRUM_RADIUS, 20, 14]} />
-            <meshBasicMaterial color="#4ade80" transparent opacity={0.22} />
-          </mesh>
-          <mesh position={[ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z]}>
-            <sphereGeometry args={[ANTRUM_RADIUS + 0.1, 20, 14]} />
-            <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.70} />
-          </mesh>
-        </>
+        {/* Mastoid Antrum: First Surgical Target（専門医モードでは非表示）。
+            2026-07-15 shojiさん指摘で三角形・錐台と連動するようgroup内へ移動（見た目上の初期位置は
+            ANTRUM_POSと一致させたローカル座標、GUIDE_LOCAL.ANTRUM参照）。ドリル中の実際の距離判定
+            （onAntrumDist等）は引き続き固定のANTRUM_POSを使用するため、ガイド編集で見た目を動かしても
+            判定位置自体は変わらない（ズレる場合はANTRUM_POS自体の較正が必要、[[stage1-rc-design]]参照）。 */}
+        {!expertMode && (
+          <>
+            <mesh position={GUIDE_LOCAL.ANTRUM}>
+              <sphereGeometry args={[ANTRUM_RADIUS, 20, 14]} />
+              <meshBasicMaterial color="#4ade80" transparent opacity={0.22} />
+            </mesh>
+            <mesh position={GUIDE_LOCAL.ANTRUM}>
+              <sphereGeometry args={[ANTRUM_RADIUS + 0.1, 20, 14]} />
+              <meshBasicMaterial color="#86efac" wireframe transparent opacity={0.70} />
+            </mesh>
+          </>
+        )}
+      </group>
+
+      {editMode && (
+        <TransformControls
+          object={groupRef}
+          mode={gizmoMode}
+          onObjectChange={handleObjectChange}
+          onMouseDown={() => { if (orbitControlsRef?.current) orbitControlsRef.current.enabled = false; }}
+          onMouseUp={() => { if (orbitControlsRef?.current) orbitControlsRef.current.enabled = true; }}
+        />
       )}
 
-      {/* 専門医モード: 解剖学的ランドマークのみ表示 */}
+      {/* 専門医モード: 解剖学的ランドマークのみ表示（実測固定値のため調整対象外） */}
       {expertMode && (
         <>
           {/* EAC後壁（水色プレーン）*/}
@@ -888,20 +1065,15 @@ function MastoidGuide({ expertMode }: { expertMode: boolean }) {
           </mesh>
         </>
       )}
-
-      {/* 削開方向矢印（黄色、外側→内側）*/}
-      <group position={[cx + 4, cy + 2.5, sz + 1.5]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -3.5]}>
-          <cylinderGeometry args={[0.22, 0.22, 7, 8]} />
-          <meshBasicMaterial color="#fbbf24" />
-        </mesh>
-        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, -7.5]}>
-          <coneGeometry args={[0.65, 1.6, 8]} />
-          <meshBasicMaterial color="#fbbf24" />
-        </mesh>
-      </group>
-    </group>
+    </>
   );
+}
+
+function DEFAULT_GUIDE_TRANSFORM_ABS(): GuideTransform {
+  const [x, y, z]    = GUIDE_TRANSFORM_DEFAULT.position;
+  const [rx, ry, rz] = GUIDE_TRANSFORM_DEFAULT.rotationDeg;
+  const [sx, sy, sz] = GUIDE_TRANSFORM_DEFAULT.scale;
+  return { x, y, z, rx, ry, rz, sx, sy, sz };
 }
 
 // ── DangerSpheres: 危険部位マーカー ───────────────────────────────────
@@ -920,6 +1092,36 @@ function DangerSpheres() {
           />
         </mesh>
       ))}
+    </>
+  );
+}
+
+// ── DrillDisease: 病変マーカー（Stage1 RC Phase2、Disease Layer） ─────────────────
+// stateを描画するだけの表示専用コンポーネント（Three.jsへ業務ロジックを書かない方針、除去判定は
+// engine/disease/diseaseRemoval.tsの純粋関数側で行う）。severityが0になったインスタンスは非表示。
+// 半径はseverityに比例して縮小し、除去の進捗を視覚的に示す（下限を設け消える寸前まで視認できるようにする）。
+function DrillDisease({ instances }: { instances: DiseaseInstance[] }) {
+  return (
+    <>
+      {instances.map((inst) => {
+        if (isDiseaseCleared(inst)) return null;
+        const preset = DISEASE_PRESETS[inst.type];
+        const radius = inst.radiusMm * Math.max(0.15, inst.severity);
+        const opacity = 0.55 + 0.35 * inst.severity;
+        return (
+          <mesh key={inst.id} position={inst.position}>
+            <sphereGeometry args={[radius, 16, 12]} />
+            <meshStandardMaterial
+              color={preset.color}
+              emissive={preset.color}
+              emissiveIntensity={0.25}
+              transparent
+              opacity={opacity}
+              roughness={0.85}
+            />
+          </mesh>
+        );
+      })}
     </>
   );
 }
@@ -980,10 +1182,15 @@ interface DrillCanvas3DProps {
   pressure:         number;
   rpmPreset:        RpmPreset;
   showGuide:        boolean;
+  guideEditMode:    boolean;
+  guideGizmoMode:   'translate' | 'rotate' | 'scale';
+  guideResetSignal: number;
+  onGuideTransformChange: (t: GuideTransform) => void;
   expertMode:       boolean;
   boneVis:          VisMode;
   ossicleVis:       VisMode;
   nerveVis:         VisMode;
+  diseaseVis:       boolean; // 【2026-07-15新設】病変表示。半透明モードは不要のためVisModeでなくboolean
   viewMode?:        'normal' | 'microscope' | 'endoscope';
   positionMode?:    boolean;
   cutterSizeMm?:    1 | 2 | 3;
@@ -1001,10 +1208,14 @@ interface DrillCanvas3DProps {
   onReviewSelect:       (index: number | null) => void;
 }
 
-function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, onDangerTint, onDangerProximity, onEducationCard, onScoreReady, onHeatLevel, burrId, onBurrIdChange, pressure, rpmPreset, showGuide, expertMode, boneVis, ossicleVis, nerveVis, viewMode = 'normal', positionMode = false, onPositionModeChange, reviewEvents, reviewSelectedIndex, onReviewSelect }: DrillCanvas3DProps) {
+function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist, onDrillDirection, onDangerTint, onDangerProximity, onEducationCard, onScoreReady, onHeatLevel, burrId, onBurrIdChange, pressure, rpmPreset, showGuide, guideEditMode, guideGizmoMode, guideResetSignal, onGuideTransformChange, expertMode, boneVis, ossicleVis, nerveVis, diseaseVis, viewMode = 'normal', positionMode = false, onPositionModeChange, reviewEvents, reviewSelectedIndex, onReviewSelect }: DrillCanvas3DProps) {
   const { camera }      = useThree();
   const carveRef        = useRef<((center: THREE.Vector3, radiusMm: number, amount: number) => void) | null>(null); // V5: DrillBoneへの実ボクセル除去呼び出し
   const pruneIslandsRef = useRef<(() => void) | null>(null); // 2026-07-13: 宙に浮いた骨片除去呼び出し（stopDrillingで使用）
+  // Stage1 RC Phase2（Disease Layer）: 病変インスタンスのstate。carveRef呼び出しと並行して
+  // applyDiseaseRemoval()（純粋関数）を呼びseverityを減少させる。何も変化しなければ同一参照を
+  // 返す設計のため、範囲外での毎フレームsetState呼び出しはReactのbailoutで再レンダリングされない。
+  const [diseaseInstances, setDiseaseInstances] = useState<DiseaseInstance[]>(createPlaceholderDiseaseInstances);
   // 連続したstart/stop連打でpruneDisconnectedIslandsが密に呼ばれ続けないための最小間隔ガード
   // （全Baseボクセル走査のBFSのため軽くはない処理。1回あたりの体感コストは要ローカル確認）。
   const lastPruneCheckMsRef = useRef(0);
@@ -1035,6 +1246,11 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
   // 即座にガード判定へ反映させるために必要。通常はpropと同期させる）
   const positionModeRef = useRef(positionMode);
   useEffect(() => { positionModeRef.current = positionMode; }, [positionMode]);
+  // 【2026-07-15新設】ガイド編集中（TransformControlsのギズモがbone上に重なりドリルのポインタ
+  // イベントを奪ってしまう）はドリル開始できないようガードする。shojiさん報告: 「ガイドに合わせて
+  // 骨をドリルで削ってみましたが全く削れませんでした」の原因調査で判明。
+  const guideEditModeRef = useRef(guideEditMode);
+  useEffect(() => { guideEditModeRef.current = guideEditMode; }, [guideEditMode]);
   // Sprint3: バーのフルート目詰まり度 0-1（removalModel.ts clogFactor）。バー交換でリセットされる。
   const clogLevelRef = useRef(0);
   // Sprint3: Tool Pose速度(mm/s)・dwell(留まり)継続時間ms（removalModel.ts advanceDwellMs）
@@ -1071,7 +1287,7 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
   // ドリル開始/停止（ポインタ押下・スペースキートグルの共通処理。下のキー監視useEffectより先に
   // 定義しておく必要がある＝TSの「使用後宣言」エラー回避のための配置）
   const startDrilling = useCallback(() => {
-    if (!drillMode || positionModeRef.current) return;
+    if (!drillMode || positionModeRef.current || guideEditModeRef.current) return;
     isDrillingRef.current = true;
     if (sessionStartMsRef.current === null) sessionStartMsRef.current = performance.now(); // Sprint5: DamageEvent.tの基準時刻
     if (cursorRef.current) cursorRef.current.visible = true;
@@ -1366,6 +1582,13 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
         const t = steps === 1 ? 1 : (i + 1) / steps;
         const stepPoint = prevPoint ? prevPoint.clone().lerp(point, t) : point;
         carveRef.current?.(stepPoint, burrRadius, stepAmount);
+        // Stage1 RC Phase2（Disease Layer）: 同じドリル操作で病変も並行して除去する
+        // （2026-07-15 shojiさん確認: Voxel carve流用方針）。
+        setDiseaseInstances((prev) => applyDiseaseRemoval(prev, {
+          point: [stepPoint.x, stepPoint.y, stepPoint.z],
+          brushRadiusMm: burrRadius,
+          amount: stepAmount,
+        }));
       }
     }
 
@@ -1465,8 +1688,19 @@ function DrillCanvas3D({ drillMode, rotation, onAlert, onHoleCount, onAntrumDist
 
       {/* 危険部位マーカー */}
       <DangerSpheres />
+      {/* Stage1 RC Phase2: 病変マーカー（暫定配置データ、次PRで実症例データへ差し替え予定） */}
+      {diseaseVis && <DrillDisease instances={diseaseInstances} />}
       {/* Mastoidectomy ガイドレイヤー */}
-      {showGuide && <MastoidGuide expertMode={expertMode} />}
+      {showGuide && (
+        <MastoidGuide
+          expertMode={expertMode}
+          editMode={guideEditMode}
+          gizmoMode={guideGizmoMode}
+          onTransformChange={onGuideTransformChange}
+          resetSignal={guideResetSignal}
+          orbitControlsRef={orbitRef}
+        />
+      )}
 
       {/* Sprint5: Post Session Review ピン（レビューモード中のみ表示） */}
       {reviewEvents && (
@@ -1546,6 +1780,16 @@ export function InteractiveDrillScene({
   // 実効ドリル: 移動中（positionMode=true）は中断
   const effectiveDrill = drillMode && !effectivePositionMode;
   const [showGuide,  setShowGuide]  = useState(true);
+  // 【2026-07-15新設→同日ドラッグ式ギズモへ改訂】ガイド位置調整（shojiさん要望）。
+  // 数値入力パネル方式は(1)三角形等が連動しない実装バグ、(2)Y軸回転しかできない、
+  // (3)拡大縮小がない、の3点で不十分と指摘を受け、TransformControlsのドラッグ式へ変更。
+  // guideTransformは表示専用（TransformControlsがgroupを直接操作し、onObjectChangeで
+  // ここへ反映するのみ。数値を直接編集する入力欄は持たない）。
+  const [guideEditMode, setGuideEditMode] = useState(false);
+  const [guideGizmoMode, setGuideGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
+  const [guideResetSignal, setGuideResetSignal] = useState(0);
+  const [showGuideLegend, setShowGuideLegend] = useState(false); // 【2026-07-15新設】ガイド各要素の説明トグル
+  const [guideTransform, setGuideTransform] = useState<GuideTransform>(DEFAULT_GUIDE_TRANSFORM_ABS());
   const [rotation,  setRotation]  = useState<'CW' | 'CCW'>('CW');
   const [alertMsg,  setAlertMsg]  = useState<string | null>(null);
   const [holeCount,  setHoleCount]  = useState(0);
@@ -1566,6 +1810,7 @@ export function InteractiveDrillScene({
   const [boneVis,        setBoneVis]        = useState<VisMode>('solid');
   const [ossicleVis,     setOssicleVis]     = useState<VisMode>('solid');
   const [nerveVis,       setNerveVis]       = useState<VisMode>('solid');
+  const [diseaseVis,     setDiseaseVis]     = useState(true); // 【2026-07-15新設】病変表示トグル（半透明モードなし）
   const [resetKey,       setResetKey]       = useState(0);
 
   const handleReset = () => {
@@ -1602,10 +1847,15 @@ export function InteractiveDrillScene({
           onScoreReady={setScoreResult}
           onHeatLevel={setHeatLevel}
           showGuide={showGuide}
+          guideEditMode={guideEditMode}
+          guideGizmoMode={guideGizmoMode}
+          guideResetSignal={guideResetSignal}
+          onGuideTransformChange={setGuideTransform}
           expertMode={expertMode}
           boneVis={boneVis}
           ossicleVis={ossicleVis}
           nerveVis={nerveVis}
+          diseaseVis={diseaseVis}
           viewMode={viewMode}
           positionMode={effectivePositionMode}
           burrId={burrId}
@@ -1960,6 +2210,113 @@ export function InteractiveDrillScene({
         {showGuide ? '🗺 ガイド ON' : '🗺 ガイド OFF'}
       </button>
 
+      {/* 【2026-07-15新設】ガイド各要素の説明トグル（shojiさん要望: チャットで説明した内容をアプリ内でも確認できるように） */}
+      {showGuide && (
+        <button
+          onClick={() => setShowGuideLegend(v => !v)}
+          style={{
+            position: 'absolute', bottom: 44, right: 226, zIndex: 10,
+            padding: '5px 10px', borderRadius: 7,
+            border: '1px solid rgba(255,255,255,0.18)',
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: showGuideLegend ? 'rgba(74,222,128,0.15)' : 'rgba(0,0,0,0.5)',
+            color: showGuideLegend ? '#4ade80' : 'rgba(255,255,255,0.4)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          ℹ️ ガイドの説明
+        </button>
+      )}
+      {showGuide && showGuideLegend && (
+        <div style={{
+          position: 'absolute', bottom: 78, right: 196, zIndex: 10,
+          display: 'flex', flexDirection: 'column', gap: 5,
+          padding: '8px 10px', borderRadius: 8, width: 230,
+          background: 'rgba(10,15,26,0.9)', border: '1px solid rgba(74,222,128,0.3)',
+          backdropFilter: 'blur(4px)', fontSize: 10, color: 'rgba(255,255,255,0.8)', lineHeight: 1.6,
+        }}>
+          {([
+            ['🟦', '水色の棒', 'Temporal Line（側頭線）。これより上は硬膜・脳への危険域'],
+            ['🟨', '黄色いワイヤーフレーム錐台', 'すり鉢状削開ガイド。骨表面は広く、乳突洞に向かって狭くなる'],
+            ['🟢', '緑の小さな点', 'Safe Entry（推奨削開開始点＝MacEwen三角の中心）'],
+            ['🟩', '緑の三角形', 'MacEwen三角（乳突削開の標準的な安全開始域）'],
+            ['🟢🟡🟠', '緑・黄・オレンジのリング', '削開深度の目安（5mm/10mm/14mm）'],
+            ['⚪🟢', '緑の半透明球＋ワイヤーフレーム球', '乳突洞（Antrum）ターゲット。最初に到達すべきランドマーク'],
+          ]).map(([icon, name, desc]) => (
+            <div key={name}>
+              <span style={{ fontWeight: 700 }}>{icon} {name}</span>：{desc}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 【2026-07-15新設→同日ドラッグ式ギズモへ改訂】ガイド編集トグル＋TransformControlsモード切替＋
+          現在値の読み取り専用表示（shojiさん指摘: 数値入力より3Dドラッグの方が調整しやすいとのこと） */}
+      {showGuide && (
+        <button
+          onClick={() => setGuideEditMode(v => !v)}
+          style={{
+            position: 'absolute', bottom: 44, right: 118, zIndex: 10,
+            padding: '5px 10px', borderRadius: 7,
+            border: '1px solid rgba(255,255,255,0.18)',
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: guideEditMode ? 'rgba(96,165,250,0.20)' : 'rgba(0,0,0,0.5)',
+            color: guideEditMode ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          📐 ガイド編集{guideEditMode ? ' ON' : ''}
+        </button>
+      )}
+      {showGuide && guideEditMode && (
+        <div style={{
+          position: 'absolute', bottom: 78, right: 10, zIndex: 10,
+          display: 'flex', flexDirection: 'column', gap: 6,
+          padding: '8px 10px', borderRadius: 8, width: 176,
+          background: 'rgba(10,15,26,0.85)', border: '1px solid rgba(96,165,250,0.3)',
+          backdropFilter: 'blur(4px)',
+        }}>
+          <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.5)' }}>
+            緑の球をドラッグして調整
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([
+              { mode: 'translate' as const, label: '↔ 移動' },
+              { mode: 'rotate'    as const, label: '⟲ 回転' },
+              { mode: 'scale'     as const, label: '⤢ 拡縮' },
+            ]).map(({ mode, label }) => (
+              <button
+                key={mode}
+                onClick={() => setGuideGizmoMode(mode)}
+                style={{
+                  flex: 1, padding: '4px 0', borderRadius: 5, fontSize: 9.5, fontWeight: 700,
+                  cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)',
+                  background: guideGizmoMode === mode ? 'rgba(96,165,250,0.30)' : 'rgba(255,255,255,0.06)',
+                  color: guideGizmoMode === mode ? '#60a5fa' : 'rgba(255,255,255,0.6)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, fontFamily: 'monospace' }}>
+            位置 X:{guideTransform.x.toFixed(1)} Y:{guideTransform.y.toFixed(1)} Z:{guideTransform.z.toFixed(1)}<br />
+            回転 X:{guideTransform.rx.toFixed(0)}° Y:{guideTransform.ry.toFixed(0)}° Z:{guideTransform.rz.toFixed(0)}°<br />
+            縮尺 X:{guideTransform.sx.toFixed(2)} Y:{guideTransform.sy.toFixed(2)} Z:{guideTransform.sz.toFixed(2)}
+          </div>
+          <button
+            onClick={() => setGuideResetSignal(s => s + 1)}
+            style={{
+              padding: '4px 8px', borderRadius: 6, fontSize: 9.5, fontWeight: 700,
+              cursor: 'pointer', border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)',
+            }}
+          >
+            初期位置に戻す
+          </button>
+        </div>
+      )}
+
       {/* T10: 荷重スライダー（左下、Pressure 0.2-1.0 既定0.6） */}
       <div style={{
         position: 'absolute', bottom: 78, left: 10, zIndex: 10,
@@ -2035,6 +2392,21 @@ export function InteractiveDrillScene({
           }}
         >
           ⚡ 神経: {nerveVis === 'solid' ? '表示' : nerveVis === 'ghost' ? '半透明' : '非表示'}
+        </button>
+        {/* 【2026-07-15新設】病変 表示トグル（shojiさん要望: 骨・耳小骨・神経と同様に非表示可能に。
+            半透明モードは「不要」とのことなので表示/非表示の2値のみ） */}
+        <button
+          onClick={() => setDiseaseVis(v => !v)}
+          style={{
+            padding: '5px 10px', borderRadius: 7,
+            cursor: 'pointer', fontSize: 10, fontWeight: 700,
+            background: diseaseVis ? 'rgba(232,224,200,0.18)' : 'rgba(0,0,0,0.5)',
+            color: diseaseVis ? '#e8e0c8' : 'rgba(255,255,255,0.3)',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          🦠 病変: {diseaseVis ? '表示' : '非表示'}
         </button>
       </div>
 

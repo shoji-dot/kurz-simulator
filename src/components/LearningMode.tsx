@@ -17,6 +17,9 @@ import {
 } from '../scenes/models/RealAnatomyModels';
 import { PillToggleGroup, IconButton, Z_INDEX, Badge, TeachingPointList, Alert } from './ui';
 import type { BadgeTone } from './ui';
+import { resolveTeachingNoteIdsByStructureKey } from '../engine/interactionLogging';
+import { useLearningEvidenceStore } from '../store/useLearningEvidenceStore';
+import { LearningEvidenceDebugBadge, LearningPipelineDebugPanel, LearningPipelineTimeline, isDevToolEnabled } from '../developerTools';
 
 // ── 解剖構造リスト ────────────────────────────────────────────────
 const anatomyStructures = [
@@ -169,6 +172,20 @@ export function LearningMode() {
     const next = CYCLE[(CYCLE.indexOf(curr) + 1) % CYCLE.length];
     setVis(v => ({ ...v, [key]: next }));
   };
+  // AnatomyScene 3Dクリック専用ハンドラ（Phase15.4）: 既存の表示モード循環(cycleMode)に加え、
+  // Interaction Logging（Phase15.1 resolveTeachingNoteIdsByStructureKey + Phase15.2
+  // useLearningEvidenceStore）へクリック観測を並列で記録する。cycleMode()の置換ではなく追加
+  // （shojiさんPhase15指定「置換は禁止」を遵守）。VIS_ITEMSリストのcycleMode呼び出し（別UI）は
+  // 対象外、AnatomyScene本体の3Dクリックのみを対象とする。
+  const handleAnatomyStructureClick = (key: StructureKey) => {
+    cycleMode(key);
+    useLearningEvidenceStore.getState().addTeachingNoteIds(resolveTeachingNoteIdsByStructureKey(key));
+  };
+
+  // Phase15.4 GUI Acceptance Test（shojiさんTest2）補助: 開発時のみ`clickedTeachingNoteIds`を
+  // 画面上に表示する（`import.meta.env.DEV`限定、本番ビルドには含まれない）。zustand storeは
+  // デフォルトでconsoleから直接見えないため、ログではなくGUI上で確認できるようにする
+  // （project既存方針「座標系の確認はGUIで確認できること。ログだけでは不可」と同じ考え方）。
 
   // ── 解剖学習コース状態 ──────────────────────────────────────────
   const [courseLevel, setCourseLevel] = useState<CourseLevel>(0);
@@ -398,10 +415,13 @@ export function LearningMode() {
                 boneGhostOpacity={boneGhostOpacity}
                 minDistance={endoscopeMinDist}
                 onEndoscopeAlert={handleEndoscopeAlert}
-                onStructureClick={cycleMode}
+                onStructureClick={handleAnatomyStructureClick}
                 positionMode={positionMode}
               />
             )}
+
+            {/* Phase15.4 GUI Acceptance Test Test2用デバッグバッジ（DEV限定） */}
+            {isDevToolEnabled() && learningTab !== 'drilling' && <LearningEvidenceDebugBadge />}
 
             {/* CSS ビネット/内視鏡オーバーレイ */}
             {vignetteStyle && <div style={vignetteStyle} />}
@@ -1622,6 +1642,16 @@ export function LearningMode() {
         </div>
       </div>
       )}
+
+      {/* Phase19.2 Learning Pipeline Debug Panel（DEV限定、完全Read Only）:
+          collectLearningPipelineDebugData()経由のみでEvidence/Assessment/Skill/
+          Recommendationを縦表示する。position: fixedのため全タブ共通で表示される。 */}
+      {isDevToolEnabled() && <LearningPipelineDebugPanel />}
+
+      {/* Phase19.3 Read Only Timeline（DEV限定）: Panel(Snapshot)とは別コンポーネントとして
+          並置し、observations（scoreHistory実測/assessment取得時刻）のみを表示する。
+          Panel本体の内容・挙動は無変更（shojiさんPhase19.2レビュー指定）。 */}
+      {isDevToolEnabled() && <LearningPipelineTimeline />}
     </div>
   );
 }

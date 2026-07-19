@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
 
-export type Screen = 'home' | 'learning' | 'simulation' | 'stepflow' | 'drill';
+export type Screen = 'home' | 'learning' | 'simulation' | 'stepflow' | 'drill' | 'dashboard';
 export type SimStep = 'case-select' | 'judgment' | 'product-select' | 'shaft-estimate' | 'placement' | 'score';
 export type LearningTab = 'anatomy' | 'products' | 'procedure' | 'drilling' | 'real-ear';
 
@@ -48,6 +48,35 @@ export interface ScoreResult {
   abgPrediction: ABGPrediction;
 }
 
+/**
+ * Phase17.1（Issue-023 Assessment State Model Design Review v1.0）で確定した「操作済みフラグ」。
+ * 値がデフォルトと一致するかどうかではなく、対応する操作イベントが発火したかどうかで判定する
+ * （一度trueになったら症例セッション中はリセットしない。resetSimulation()/setSelectedCase()時のみ
+ * falseへ戻す）。stabilityは独立した操作ではなくposition/angleからの導出値のためフラグを持たない。
+ */
+export interface InteractionFlags {
+  sizeTouched: boolean;
+  positionTouched: boolean;
+  angleTouched: boolean;
+}
+
+const initialInteractionFlags: InteractionFlags = {
+  sizeTouched: false,
+  positionTouched: false,
+  angleTouched: false,
+};
+
+/** InteractionFlagsからの導出値（保持しない、都度計算）。Phase17.1設計書§1参照。 */
+export interface AssessmentStatus {
+  hasUserInteracted: boolean;
+  canCalculateScore: boolean;
+}
+
+export function computeAssessmentStatus(flags: InteractionFlags): AssessmentStatus {
+  const hasUserInteracted = flags.sizeTouched || flags.positionTouched || flags.angleTouched;
+  return { hasUserInteracted, canCalculateScore: hasUserInteracted };
+}
+
 interface SimStore {
   screen: Screen;
   learningTab: LearningTab;
@@ -55,6 +84,8 @@ interface SimStore {
   selectedCase: SurgicalCase | null;
   selectedProduct: KurzProduct | null;
   placement: PlacementState;
+  /** Phase17.1 Assessment State Model。placement本体には混ぜず並置する。 */
+  interactionFlags: InteractionFlags;
   scoreResult: ScoreResult | null;
   judgmentResult: JudgmentResult | null;
   highlightedStructure: string | null;
@@ -66,6 +97,10 @@ interface SimStore {
   setSelectedCase: (c: SurgicalCase) => void;
   setSelectedProduct: (p: KurzProduct) => void;
   updatePlacement: (p: Partial<PlacementState>) => void;
+  /** Phase17.2: サイズ/位置/角度いずれかの操作イベント発火時に呼ぶ。値の一致では判定しない。 */
+  markSizeTouched: () => void;
+  markPositionTouched: () => void;
+  markAngleTouched: () => void;
   setJudgmentResult: (r: JudgmentResult) => void;
   computeScore: () => void;
   resetSimulation: () => void;
@@ -90,6 +125,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   selectedCase: null,
   selectedProduct: null,
   placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
+  interactionFlags: initialInteractionFlags,
   scoreResult: null,
   judgmentResult: null,
   highlightedStructure: null,
@@ -100,10 +136,20 @@ export const useSimStore = create<SimStore>((set, get) => ({
   setSelectedCase: (c) => set({
     selectedCase: c,
     placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
+    interactionFlags: initialInteractionFlags,
     scoreResult: null,
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
+  markSizeTouched: () => set((s) =>
+    s.interactionFlags.sizeTouched ? s : { interactionFlags: { ...s.interactionFlags, sizeTouched: true } }
+  ),
+  markPositionTouched: () => set((s) =>
+    s.interactionFlags.positionTouched ? s : { interactionFlags: { ...s.interactionFlags, positionTouched: true } }
+  ),
+  markAngleTouched: () => set((s) =>
+    s.interactionFlags.angleTouched ? s : { interactionFlags: { ...s.interactionFlags, angleTouched: true } }
+  ),
   setJudgmentResult: (r) => set({ judgmentResult: r }),
   setHighlightedStructure: (s) => set({ highlightedStructure: s }),
   setDrillStep: (n) => set({ drillStep: n }),
@@ -321,6 +367,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     selectedCase: null,
     selectedProduct: null,
     placement: { selectedLength: 2.5, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
+    interactionFlags: initialInteractionFlags,
     scoreResult: null,
     judgmentResult: null,
   }),

@@ -56,6 +56,19 @@ export function HomeScreen() {
       comingSoon: !adminMode,
       onClick: adminMode ? () => setScreen('drill') : () => {},
     },
+    {
+      // Phase14: Application Integration Layer。プロステーシス選択(症例完了)を起点に蓄積された
+      // 学習履歴(engine/applicationIntegration→useLearningHistoryStore)から、優先教材・反復練習
+      // 教材・推奨症例を表示する(Phase13 Learner Application Layerの表示のみ、新しい判断はしない)。
+      id: 'dashboard' as const,
+      step: 5,
+      icon: '📊',
+      title: '学習ダッシュボード',
+      desc: '完了した症例からの学習状況・推奨教材を確認',
+      isPro: false,
+      comingSoon: false,
+      onClick: () => setScreen('dashboard'),
+    },
   ];
 
   return (
