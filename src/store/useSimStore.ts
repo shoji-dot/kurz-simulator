@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
+import { checkProximityToDanger, computeSafetyScore, describeSafetyAlert } from '../engine/safety';
+import type { DangerAlert, SafetyQueryPoint, SafetyFeedback } from '../engine/safety';
 
 export type Screen = 'home' | 'learning' | 'simulation' | 'stepflow' | 'drill' | 'dashboard';
 export type SimStep = 'case-select' | 'judgment' | 'product-select' | 'shaft-estimate' | 'placement' | 'score';
@@ -90,6 +92,14 @@ interface SimStore {
   judgmentResult: JudgmentResult | null;
   highlightedStructure: string | null;
   drillStep: number;
+  /**
+   * Phase20.3: Safety Foundation。Placement Score（scoreResult）とは完全に独立した値として扱う
+   * （Phase20設計レビュー Compatibility Policy、shojiさんPhase20.1レビュー所見「Placement 95 /
+   * Safety 30も許容する設計」）。computeScore()は無変更、こちらは並行して呼ばれる別軸の評価。
+   */
+  safetyAlerts: DangerAlert[];
+  safetyScore: number | null;
+  safetyFeedback: SafetyFeedback[]; // Phase21.2: 型のみSafetyFeedback[]へ同期（describeSafetyAlert()のAPI変更に追従、ロジック変更なし）
 
   setScreen: (s: Screen) => void;
   setLearningTab: (t: LearningTab) => void;
@@ -103,6 +113,12 @@ interface SimStore {
   markAngleTouched: () => void;
   setJudgmentResult: (r: JudgmentResult) => void;
   computeScore: () => void;
+  /**
+   * Phase20.3: pointに対するDANGER_ZONES近接判定→Safety Score→フィードバック文言を算出しstateへ
+   * 反映する。point座標系の変換（配置状態→3D点）はcaller側（Phase20.4のScene層）の責務であり、
+   * ここでは座標変換を行わない。computeScore()とは呼び出しタイミング・戻り値とも独立している。
+   */
+  computeSafety: (point: SafetyQueryPoint) => void;
   resetSimulation: () => void;
   setHighlightedStructure: (s: string | null) => void;
   setDrillStep: (n: number) => void;
@@ -129,6 +145,9 @@ export const useSimStore = create<SimStore>((set, get) => ({
   scoreResult: null,
   judgmentResult: null,
   highlightedStructure: null,
+  safetyAlerts: [],
+  safetyScore: null,
+  safetyFeedback: [],
 
   setScreen: (s) => set({ screen: s }),
   setLearningTab: (t) => set({ learningTab: t }),
@@ -138,6 +157,9 @@ export const useSimStore = create<SimStore>((set, get) => ({
     placement: { selectedLength: c.recommendedLength, lateralOffset: 0, anteriorOffset: 0, verticalOffset: 0, angleTilt: 0, angleTiltZ: 0, dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0 },
     interactionFlags: initialInteractionFlags,
     scoreResult: null,
+    safetyAlerts: [],
+    safetyScore: null,
+    safetyFeedback: [],
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
@@ -362,6 +384,15 @@ export const useSimStore = create<SimStore>((set, get) => ({
     set({ scoreResult: { sizeScore, positionScore, angleScore, stabilityScore, total, rank, feedback, abgPrediction } });
   },
 
+  computeSafety: (point) => {
+    const alerts = checkProximityToDanger(point);
+    set({
+      safetyAlerts: alerts,
+      safetyScore: computeSafetyScore(alerts),
+      safetyFeedback: describeSafetyAlert(alerts),
+    });
+  },
+
   resetSimulation: () => set({
     simStep: 'case-select',
     selectedCase: null,
@@ -370,6 +401,9 @@ export const useSimStore = create<SimStore>((set, get) => ({
     interactionFlags: initialInteractionFlags,
     scoreResult: null,
     judgmentResult: null,
+    safetyAlerts: [],
+    safetyScore: null,
+    safetyFeedback: [],
   }),
 
 

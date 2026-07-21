@@ -32,6 +32,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
   }
 }
 import { useSimStore, computeAssessmentStatus, type JudgmentResult } from '../store/useSimStore';
+import type { DangerAlert, SafetyFeedback } from '../engine/safety';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
@@ -1494,9 +1495,85 @@ function PlacementStep() {
   );
 }
 
+// ── Safety Score カード（Phase20.5、Phase20.5.1でscoreResultの未評価ゲートから独立） ──
+// Placement Score（scoreResultの有無・interactionFlags）とは無関係に、safetyScoreが算出済み
+// （SimScene.tsxのuseEffect、Phase20.4c）であれば常に表示できるよう単独コンポーネント化する。
+interface SafetyScoreCardProps {
+  safetyScore:    number | null;
+  safetyAlerts:   DangerAlert[];
+  safetyFeedback: SafetyFeedback[]; // Phase21.2で型同期、Phase21.3でclinicalNote/complicationの表示に対応
+}
+function SafetyScoreCard({ safetyScore, safetyAlerts, safetyFeedback }: SafetyScoreCardProps) {
+  const worstLevel = safetyAlerts.some((a) => a.level === 'danger')
+    ? 'danger'
+    : safetyAlerts.length > 0 ? 'warning' : null;
+  const safetyColor = worstLevel === 'danger' ? 'var(--color-error)'
+    : worstLevel === 'warning' ? 'var(--color-warning)'
+    : 'var(--color-success)';
+  return (
+    <div className="card">
+      <div className="section-title">安全性評価（Safety Score）</div>
+      {safetyScore === null ? (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+          未評価（配置画面を一度も開いていないため未算出です）
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>危険部位への近接度に基づく評価（配置精度とは別軸）</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: safetyColor }}>
+              {safetyScore}<span style={{ fontSize: 12, color: 'var(--color-text-muted)', marginLeft: 3 }}>/ 100</span>
+            </span>
+          </div>
+          {safetyAlerts.length === 0 ? (
+            <Alert tone="success">
+              <div style={{ fontSize: 12 }}>危険部位への接近は検出されませんでした。</div>
+            </Alert>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {safetyAlerts.map((a, i) => {
+                const feedback = safetyFeedback[i];
+                return (
+                  <Alert key={a.dangerZoneId} tone={a.level === 'danger' ? 'error' : 'warning'}>
+                    <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                      <div>
+                        {`${feedback?.nameJa ?? a.nameJa}まで${(feedback?.distanceMm ?? a.distanceMm).toFixed(1)}mm`}
+                      </div>
+                      {feedback?.clinicalNote && (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 2 }}>
+                            なぜ危険か
+                          </div>
+                          <div>{feedback.clinicalNote}</div>
+                        </div>
+                      )}
+                      {feedback?.complication && (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 2 }}>
+                            想定される合併症
+                          </div>
+                          <div>{feedback.complication}</div>
+                        </div>
+                      )}
+                    </div>
+                  </Alert>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Step 4: Score ────────────────────────────────────────────────────────
 function ScoreStep() {
-  const { selectedCase, selectedProduct, placement, scoreResult, judgmentResult, resetSimulation, setSimStep, setScreen } = useSimStore();
+  const { selectedCase, selectedProduct, placement, scoreResult, judgmentResult, resetSimulation, setSimStep, setScreen,
+    // Phase20.5: Safety Score/Feedback。scoreResult（Placement Score）とは完全に独立した別軸の値
+    // （Phase20設計方針、[[phase20-safety-foundation]]参照）。SimScene.tsxのuseEffect（Phase20.4c）で
+    // 配置が変わるたびに継続更新されるため、ここでは読み取るだけで良い。
+    safetyScore, safetyAlerts, safetyFeedback } = useSimStore();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [scoreDetailOpen, setScoreDetailOpen] = useState(false);
   // Phase14.1: React StrictMode(開発時)はuseEffectを1マウントにつき2回実行するため、
@@ -1579,6 +1656,11 @@ function ScoreStep() {
           </div>
         </Alert>
         <Button style={{ marginTop: 16 }} onClick={() => setSimStep('placement')}>設置画面へ戻る</Button>
+        {/* Phase20.5.1: Safety ScoreはPlacement Scoreの未評価ゲートとは独立した別軸のため、
+            interactionFlagsに関係なく表示する（配置画面を開いていればsafetyScoreは算出済み）。 */}
+        <div style={{ marginTop: 16 }}>
+          <SafetyScoreCard safetyScore={safetyScore} safetyAlerts={safetyAlerts} safetyFeedback={safetyFeedback} />
+        </div>
       </div>
     );
   }
@@ -1665,6 +1747,9 @@ function ScoreStep() {
           </div>
         )}
       </div>
+
+      {/* ── Safety Score（Phase20.5、Placement Scoreとは独立した別軸の評価。Phase20.5.1でコンポーネント化） ── */}
+      <SafetyScoreCard safetyScore={safetyScore} safetyAlerts={safetyAlerts} safetyFeedback={safetyFeedback} />
 
       <div className="card">
         <div className="section-title">評価詳細</div>

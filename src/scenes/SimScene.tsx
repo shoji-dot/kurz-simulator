@@ -1,27 +1,31 @@
 /**
  * SimScene.tsx  ── シミュレーションモード 3D シーン（GLBリアルモデル版）
  *
- * ▼ 座標系 v2（world空間）
- *   GLB[x, y, z] → world[z, -y, x]
- *   X+ = 患者右側 / 外側 (Lateral)
- *   Y+ = 頭頂側   (Superior)
- *   Z+ = 顔面側   (Anterior)
- *
  * ▼ モデル変換
  *   <group rotation={[Math.PI, -Math.PI/2, 0]}>
- *   内包する全ての子（GLBモデル・プロステーシス）に適用
+ *   内包する全ての子（GLBモデル・プロステーシス）に適用。
+ *   【2026-07-21訂正】このコメントは以前「GLB[x, y, z] → world[z, -y, x]」という回転の変換式を
+ *   記載していたが、これは検証されていない誤った式だった（正しい式はengine/coordinates/
+ *   transforms.tsのPhase3.1コメント・glbLocalToWorld()参照、Three.js実行検証済み）。本ファイルの
+ *   座標計算（basePos・DANGER_ZONES比較等）はこの回転式に依存しないため実害はないが、誤解を
+ *   避けるため式そのものは削除した。回転の向き自体（X+=Lateral/Y+=Superior/Z+=Anterior、下部の
+ *   GizmoHelperラベル参照）は引き続き有効。
  *
  * ▼ GLBオフセット
  *   GLB座標系の原点 = アブミ骨底板 = ローカル[0.84, -2.65, 2.12]
- *   → GLBグループを STAPES_FOOTPLATE (ローカル値) 位置にオフセット
- *   → world v2 でのアブミ骨底板位置 = [2.12, 2.65, 0.84]
+ *   → GLBグループを STAPES_FOOTPLATE (ローカル値) 位置にオフセット。
+ *   この値（GLB_OFFSET）は data/dangerZones.ts（DANGER_ZONES、原点=アブミ骨底板(0,0,0)）が使う
+ *   座標系との平行移動オフセットと厳密に一致する（回転は共有の親グループが適用するため両者の
+ *   相対距離には影響しない、Phase20.4で数値検証済み）。DANGER_ZONESとの変換が必要な場合は
+ *   engine/coordinates/placementFrame.ts の placementPointToDangerZoneFrame() /
+ *   dangerZonePointToPlacementFrame() を使うこと（このファイル内で新たに変換式を書き起こさない）。
  *
  * ▼ TransformControls によるドラッグ配置
  *   プロステーシスを world 空間でドラッグ → mouseup 時に dragOffset を更新
  *   OrbitControls はドラッグ中に無効化
  */
 
-import { Suspense, useRef, useEffect, useState } from 'react';
+import { Suspense, useRef, useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
 import * as THREE from 'three';
@@ -35,6 +39,10 @@ import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
 import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } from './debug/CoordinateDebugOverlay';
+import { DANGER_ZONES } from '../data/dangerZones';
+import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
+import { findNearestDangerZone } from '../engine/safety';
+import type { Vec3Tuple } from '../engine/coordinates/types';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
@@ -285,6 +293,50 @@ function PlacementMarker({ pos }: { pos: THREE.Vector3 }) {
   );
 }
 
+// ── Danger Zone Overlay（Phase20.4b、coordDebug時のみ表示） ─────────────────────
+// DANGER_ZONES（Danger Zone Frame）を dangerZonePointToPlacementFrame() で Placement Frame へ
+// 変換し、basePos等と同じ回転済み親グループの子として配置する（このグループは既存のRealAnatomy/
+// プロステーシスと共通のため、追加の回転計算は不要。engine/coordinates/placementFrame.ts参照）。
+// 既存ユーザー体験には影響しない（coordDebug=trueのときのみ描画、既定は非表示）。
+function DangerZoneOverlay() {
+  return (
+    <>
+      {DANGER_ZONES.map((zone) => {
+        const pos = dangerZonePointToPlacementFrame(zone.position);
+        return (
+          <group key={zone.id} position={pos}>
+            {/* warningRadius: 半透明の外殻 */}
+            <mesh renderOrder={2}>
+              <sphereGeometry args={[zone.warningRadius, 20, 14]} />
+              <meshStandardMaterial
+                color={zone.color}
+                emissive={zone.glowColor}
+                emissiveIntensity={0.4}
+                transparent
+                opacity={0.10}
+                depthWrite={false}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+            {/* dangerRadius: 発光する核 */}
+            <mesh renderOrder={3}>
+              <sphereGeometry args={[zone.dangerRadius, 16, 12]} />
+              <meshStandardMaterial
+                color={zone.color}
+                emissive={zone.glowColor}
+                emissiveIntensity={0.9}
+                transparent
+                opacity={0.75}
+                depthWrite={false}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
 // ── ドラッグ可能プロステーシス（TransformControls） ──────────────────────
 interface DraggableProsthesisProps {
   product:        KurzProduct;
@@ -309,34 +361,31 @@ function DraggableProsthesis({
   dragOffsetX, dragOffsetY, dragOffsetZ,
   dragMode,
 }: DraggableProsthesisProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const tcRef    = useRef<any>(null);
+  const tcRef = useRef<any>(null);
 
-  // ドラッグ完了時に offset を store に積み込む
-  useEffect(() => {
-    const tc = tcRef.current;
-    if (!tc) return;
-
-    const handleDraggingChanged = (e: { value: boolean }) => {
-      if (e.value) return; // ドラッグ開始: 何もしない（Orbitは dragMode で制御）
-      const g = groupRef.current;
-      if (!g) return;
-      const { placement } = useSimStore.getState();
-      useSimStore.getState().updatePlacement({
-        dragOffsetX: clamp3(placement.dragOffsetX + g.position.x),
-        dragOffsetY: clamp3(placement.dragOffsetY + g.position.y),
-        dragOffsetZ: clamp3(placement.dragOffsetZ + g.position.z),
-      });
-      // Phase17.3: ドラッグ終了時点（dragging-changed: false）で操作済みとして記録する
-      // （shojiさん指定「途中状態はまだ確定操作ではない」、ドラッグ終了時マークを採用）。
-      useSimStore.getState().markPositionTouched();
-      g.position.set(0, 0, 0);
-    };
-
-    tc.addEventListener('dragging-changed', handleDraggingChanged);
-    return () => tc.removeEventListener('dragging-changed', handleDraggingChanged);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Issue-024（真因）: children方式＋tc.objectからの読み取り自体は正しく機能していた
+  // （診断ログでtc.object・onMouseDown・onObjectChangeが全て正常に動作し、位置も正しく
+  // 更新されることを確認済み）。真因は別にあった: node_modules/three-stdlib/controls/
+  // TransformControls.jsを確認したところ、このバージョンは'mouseDown'/'mouseUp'/
+  // 'objectChange'の3種類のみをdispatchEvent()しており、'dragging-changed'は一度も
+  // dispatchされない（three.jsのofficial examplesにある同名イベントとは実装が異なる）。
+  // 既存コードは存在しないイベントを永遠に待ち続けていたため、attachの配線方法に
+  // 関わらず何をしても更新されなかった。'mouseUp'（実測で確実に発火・正しい終了位置を
+  // 保持することを確認済み）でstoreへコミットする方式に変更する。
+  const handleMouseUp = () => {
+    const obj = tcRef.current?.object as THREE.Object3D | undefined;
+    if (!obj) return;
+    const { placement } = useSimStore.getState();
+    useSimStore.getState().updatePlacement({
+      dragOffsetX: clamp3(placement.dragOffsetX + obj.position.x),
+      dragOffsetY: clamp3(placement.dragOffsetY + obj.position.y),
+      dragOffsetZ: clamp3(placement.dragOffsetZ + obj.position.z),
+    });
+    // Phase17.3: ドラッグ終了時点（mouseUp）で操作済みとして記録する
+    // （shojiさん指定「途中状態はまだ確定操作ではない」、ドラッグ終了時マークを採用）。
+    useSimStore.getState().markPositionTouched();
+    obj.position.set(0, 0, 0);
+  };
 
   // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
   const isMove = dragMode === 'move';
@@ -350,20 +399,19 @@ function DraggableProsthesis({
       showZ={isMove}
       enabled={isMove}
       size={0.65}
+      onMouseUp={handleMouseUp}
     >
-      <group ref={groupRef}>
-        <ProsthesisModel
-          product={product}
-          shaftLength={selectedLength}
-          headType={product.headType}
-          basePos={basePos.clone()}
-          lateralOffset={lateralOffset   + dragOffsetX}
-          verticalOffset={verticalOffset + dragOffsetY}
-          anteriorOffset={anteriorOffset + dragOffsetZ}
-          angleTilt={angleTilt}
-          angleTiltZ={angleTiltZ}
-        />
-      </group>
+      <ProsthesisModel
+        product={product}
+        shaftLength={selectedLength}
+        headType={product.headType}
+        basePos={basePos.clone()}
+        lateralOffset={lateralOffset   + dragOffsetX}
+        verticalOffset={verticalOffset + dragOffsetY}
+        anteriorOffset={anteriorOffset + dragOffsetZ}
+        angleTilt={angleTilt}
+        angleTiltZ={angleTiltZ}
+      />
     </TransformControls>
   );
 }
@@ -385,6 +433,29 @@ export function SimScene({
 
   const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
   const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
+
+  // ── Phase20.4c: 実際の配置点でSafety Score算出（DANGER_ZONES近接判定）を都度更新 ──
+  // basePos + オフセット = プロステーシス基準点（Placement Frame）。DraggableProsthesis/
+  // CartilageSliceが使う実際の配置点と同じ計算式（ProsthesisModel.tsxの`base`＝シャフトの
+  // アブミ骨接触端。ヘッドプレート側ではない。Phase20.5.2でshojiさんへの回答として確認済み）。
+  // Placement Score（computeScore、明示操作で呼ばれる）とは独立した別軸の評価のため、配置が
+  // 変わるたびに無条件で呼ぶ（表示UIはPhase20.5、既存UXへの影響なし）。
+  const dangerZonePoint = useMemo<Vec3Tuple>(() => {
+    const point: [number, number, number] = [
+      basePos.x + lateralOffset  + dragOffsetX,
+      basePos.y + verticalOffset + dragOffsetY,
+      basePos.z + anteriorOffset + dragOffsetZ,
+    ];
+    return placementPointToDangerZoneFrame(point);
+  }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ]);
+
+  useEffect(() => {
+    useSimStore.getState().computeSafety(dangerZonePoint);
+  }, [dangerZonePoint]);
+
+  // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
+  // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
+  const nearestDangerZone = useMemo(() => findNearestDangerZone(dangerZonePoint), [dangerZonePoint]);
 
   // vis をマージ。耳小骨（ossicles/malleus/incus/stapes）と auricle は
   // RealAnatomy 側では描画しない（hidden）。耳小骨は下で症例別に直接レンダリングし、
@@ -436,10 +507,33 @@ export function SimScene({
   const coordGroupRef = useRef<THREE.Group>(null);
   const coordPanelRef = useRef<HTMLDivElement | null>(null);
 
+  // Phase20.4c: coordDebug時のみSafety Score/Alertsを表示（GUIでの動作確認用、既存UIには影響なし）。
+  const safetyScore  = useSimStore((s) => s.safetyScore);
+  const safetyAlerts = useSimStore((s) => s.safetyAlerts);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
     {coordDebug && (
       <CoordinateDebugPanel sceneLabel="SimScene" panelRef={coordPanelRef} zIndex={Z_INDEX.modal} />
+    )}
+    {coordDebug && (
+      <div
+        style={{
+          position: 'absolute', top: 8, left: 8, zIndex: Z_INDEX.modal,
+          background: 'rgba(0,0,0,0.78)', color: '#ffd27f',
+          fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
+          borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',
+          lineHeight: 1.6, userSelect: 'none', minWidth: 200,
+        }}
+      >
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 3 }}>Safety Debug (Phase20.5.2)</div>
+        {`Score: ${safetyScore ?? '-'}\nAlerts: ${safetyAlerts.length}`}
+        {safetyAlerts.map((a) => `\n${a.level === 'danger' ? '\u{1F534}' : '\u{1F7E1}'} ${a.nameJa} ${a.distanceMm.toFixed(2)}mm`).join('')}
+        {`\n\nPlacement Point (Danger Zone Frame):\n  x:${dangerZonePoint[0].toFixed(2)} y:${dangerZonePoint[1].toFixed(2)} z:${dangerZonePoint[2].toFixed(2)}`}
+        {nearestDangerZone && (
+          `\n\nNearest: ${nearestDangerZone.zone.nameJa}\n  distance: ${nearestDangerZone.distanceMm.toFixed(2)}mm\n  warning : ${nearestDangerZone.zone.warningRadius}mm\n  danger  : ${nearestDangerZone.zone.dangerRadius}mm\n  state   : ${nearestDangerZone.state.toUpperCase()}`
+        )}
+      </div>
     )}
     <Canvas
       camera={{ position: initCam.pos, fov: 38 }}
@@ -504,6 +598,9 @@ export function SimScene({
 
           {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
           <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
+
+          {/* ── Danger Zone Overlay（Phase20.4b、?debug=coords 時のみ） ── */}
+          {coordDebug && <DangerZoneOverlay />}
 
           {/* ── 軟骨スライス ── */}
           {showCartilage && (

@@ -1,5 +1,5 @@
 /**
- * engine/safety/selfCheck.ts ── 開発時セルフチェック (Phase20.2)
+ * engine/safety/selfCheck.ts ── 開発時セルフチェック (Phase20.2、Phase21.2で項目6を更新)
  *
  * engine/query/selfCheck.ts（Phase5.6）・engine/spatial/selfCheck.ts（Phase4.6）と同じ
  * `if (import.meta.env.DEV)` パターンを踏襲する。
@@ -15,7 +15,9 @@
  *      （将来、医師レビューで半径の数値だけが変わっても判定仕様自体はぶれないことの保証）
  *   4. warningRadiusの外側にある点はアラート対象外（空配列）になる
  *   5. computeSafetyScore()の加算性・下限クランプ（0未満にならない）
- *   6. describeSafetyAlert()の文言（危険域/警告域）・空配列時の空配列返却
+ *   6. describeSafetyAlert()が返すSafetyFeedback構造（level/nameJa/distanceMm/clinicalNote/
+ *      complication）・空配列時の空配列返却・未知dangerZoneIdでのclinicalNote/complication
+ *      省略（Phase21.2で構造化に合わせて更新）
  *
  * Negative Control（判定ロジックを意図的に反転させた場合にテストが検出できるか）は、
  * Phase20.1実装時にsandbox上で一時的な別実装との比較により確認済み（本ファイルには含めない、
@@ -124,19 +126,30 @@ function checkScoreAdditivityAndClamp(): CheckResult {
   return { name: 'Safety Scoreの加算性・下限0クランプ', ok, detail: `additive=${additiveOk} clamp=${clampOk}` };
 }
 
-function checkFeedbackMessages(): CheckResult {
+function checkFeedbackStructure(): CheckResult {
   const zone = getZone(FACIAL_TYMPANIC_ID);
-  const dangerMsg = describeSafetyAlert([{ dangerZoneId: zone.id, nameJa: zone.nameJa, distanceMm: 0, level: 'danger' }]);
-  const warningMsg = describeSafetyAlert([{ dangerZoneId: zone.id, nameJa: zone.nameJa, distanceMm: 3.5, level: 'warning' }]);
-  const emptyMsg = describeSafetyAlert([]);
+  const dangerFeedback = describeSafetyAlert([{ dangerZoneId: zone.id, nameJa: zone.nameJa, distanceMm: 0, level: 'danger' }]);
+  const warningFeedback = describeSafetyAlert([{ dangerZoneId: zone.id, nameJa: zone.nameJa, distanceMm: 3.5, level: 'warning' }]);
+  const emptyFeedback = describeSafetyAlert([]);
+  const unknownZoneFeedback = describeSafetyAlert([{ dangerZoneId: 'no-such-zone', nameJa: '架空の構造', distanceMm: 1, level: 'danger' }]);
 
   const ok =
-    dangerMsg.length === 1 &&
-    dangerMsg[0].includes('危険域') &&
-    warningMsg.length === 1 &&
-    warningMsg[0].includes('警告域') &&
-    emptyMsg.length === 0;
-  return { name: 'describeSafetyAlert()の文言・空配列時の挙動', ok };
+    dangerFeedback.length === 1 &&
+    dangerFeedback[0].level === 'danger' &&
+    dangerFeedback[0].nameJa === zone.nameJa &&
+    dangerFeedback[0].distanceMm === 0 &&
+    dangerFeedback[0].clinicalNote === zone.clinicalNoteJa &&
+    dangerFeedback[0].complication === zone.complicationJa &&
+    warningFeedback.length === 1 &&
+    warningFeedback[0].level === 'warning' &&
+    emptyFeedback.length === 0 &&
+    unknownZoneFeedback.length === 1 &&
+    unknownZoneFeedback[0].clinicalNote === undefined &&
+    unknownZoneFeedback[0].complication === undefined;
+  return {
+    name: 'describeSafetyAlert()のSafetyFeedback構造・未知ゾーンでのclinicalNote/complication省略',
+    ok,
+  };
 }
 
 if (import.meta.env.DEV) {
@@ -146,7 +159,7 @@ if (import.meta.env.DEV) {
     checkExactBoundaryValues(),
     checkOutsideAllZones(),
     checkScoreAdditivityAndClamp(),
-    checkFeedbackMessages(),
+    checkFeedbackStructure(),
   ];
 
   for (const r of results) {

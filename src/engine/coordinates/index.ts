@@ -4,3 +4,4 @@ export * from './transforms';
 export * from './boundingBox';
 export * from './orientation';
 export * from './vectorMath';
+export * from './placementFrame';
