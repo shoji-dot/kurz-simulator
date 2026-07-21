@@ -3,7 +3,7 @@ import { useSimStore } from '../store/useSimStore';
 import { isAdminMode } from '../utils/adminMode';
 import { Badge, Button, Alert, KurzLogoMark, Z_INDEX } from './ui';
 
-const VERSION = 'v0.3.0';
+const VERSION = 'v0.9.0';
 
 export function HomeScreen() {
   const { setScreen, resetSimulation } = useSimStore();
