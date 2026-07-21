@@ -1498,12 +1498,12 @@ function PlacementStep() {
 // ── Safety Score カード（Phase20.5、Phase20.5.1でscoreResultの未評価ゲートから独立） ──
 // Placement Score（scoreResultの有無・interactionFlags）とは無関係に、safetyScoreが算出済み
 // （SimScene.tsxのuseEffect、Phase20.4c）であれば常に表示できるよう単独コンポーネント化する。
-interface SafetyScoreCardProps {
+export interface SafetyScoreCardProps {
   safetyScore:    number | null;
   safetyAlerts:   DangerAlert[];
   safetyFeedback: SafetyFeedback[]; // Phase21.2で型同期、Phase21.3でclinicalNote/complicationの表示に対応
 }
-function SafetyScoreCard({ safetyScore, safetyAlerts, safetyFeedback }: SafetyScoreCardProps) {
+export function SafetyScoreCard({ safetyScore, safetyAlerts, safetyFeedback }: SafetyScoreCardProps) {
   const worstLevel = safetyAlerts.some((a) => a.level === 'danger')
     ? 'danger'
     : safetyAlerts.length > 0 ? 'warning' : null;

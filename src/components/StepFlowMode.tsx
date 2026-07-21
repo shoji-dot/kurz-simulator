@@ -6,16 +6,18 @@
  */
 
 import { useState, useMemo } from 'react';
-import { useSimStore } from '../store/useSimStore';
+import { useSimStore, computeAssessmentStatus } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
-import { SimScene } from '../scenes/SimScene';
+import { SimScene, type DragMode } from '../scenes/SimScene';
 import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
 import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX } from './ui';
 import type { BadgeTone } from './ui';
+import { SafetyScoreCard } from './SimulationMode';
+import { isCoordDebugMode } from '../utils/debugMode';
 
 // ── 症例別耳小骨visマップ生成 ────────────────────────────────────
 /**
@@ -140,9 +142,9 @@ const STEPS: StepDef[] = [
 function StepProgressBar({ currentStep, onStepClick }: { currentStep: number; totalSteps: number; onStepClick?: (i: number) => void }) {
   return (
     <div style={{
-      padding: '10px 16px', borderBottom: '1px solid var(--color-border)',
+      padding: '16px 16px', borderBottom: '1px solid var(--color-border)',
       background: 'var(--color-bg-secondary)',
-      overflowX: 'auto',
+      overflowX: 'auto', minHeight: 48, display: 'flex', alignItems: 'center',
     }}>
       <StepProgress
         items={STEPS.map((s, i) => ({
@@ -252,19 +254,32 @@ function StepGuidePanel({
   );
 }
 
+// Phase22.1追加: 総合スコアのRankバッジ色（SimulationMode ScoreStepのRANK_COLORと同じ意味付け）
+const RANK_TONE: Record<string, BadgeTone> = { S: 'success', A: 'success', B: 'primary', C: 'warning', D: 'error' };
+
 // ── スコア表示（Step 7） ─────────────────────────────────────────
 function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
-  const { scoreResult, computeScore, placement } = useSimStore();
+  const { scoreResult, placement, safetyScore, safetyAlerts, safetyFeedback } = useSimStore();
 
+  // Phase22.1 P0-1: STEP6で未操作（interactionFlagsすべてfalse）の場合はcomputeScore()を呼ばず
+  // （handleNext側でゲート済み）、「未評価」表示のみ行う。SimulationMode ScoreStepと同じ方針
+  // （Phase17.1設計書「未評価と0点を混同しない」）。
   if (!scoreResult) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: 24 }}>
-        <p style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
-          STEP 6 でプロステーシスを設置してからスコアを計算してください。
-        </p>
-        <Button variant="primary" onClick={computeScore}>
-          📊 スコアを計算
-        </Button>
+      <div className="sidebar" style={{ overflowY: 'auto' }}>
+        <Alert tone="info">
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>未評価</div>
+            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+              STEP 6でプロステーシスの設置操作が行われていないため、今回のスコアは算出されません。
+            </div>
+          </div>
+        </Alert>
+        {/* Phase22.1 P0-2: Safety ScoreはPlacement Scoreの未評価ゲートとは独立した別軸のため、
+            interactionFlagsに関係なく表示する（SimulationMode ScoreStepと同じ方針、Phase20.5.1） */}
+        <div style={{ marginTop: 16 }}>
+          <SafetyScoreCard safetyScore={safetyScore} safetyAlerts={safetyAlerts} safetyFeedback={safetyFeedback} />
+        </div>
       </div>
     );
   }
@@ -277,6 +292,15 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
       <div className="card" style={{ padding: '10px 14px' }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{surgicalCase.title}</div>
         <CaseTagBar surgicalCase={surgicalCase} />
+      </div>
+
+      {/* 総合スコア（Phase22.1追加: 従来ScorePanelに総合スコアの数値表示自体が存在しなかった） */}
+      <div className="card" style={{ textAlign: 'center', padding: '14px 10px' }}>
+        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>総合スコア（Placement Score）</div>
+        <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+          {scoreResult.total}<span style={{ fontSize: 14, color: 'var(--color-text-muted)', marginLeft: 4 }}>/ 100</span>
+        </div>
+        <Badge tone={RANK_TONE[scoreResult.rank] ?? 'neutral'} style={{ marginTop: 6 }}>Rank {scoreResult.rank}</Badge>
       </div>
 
       {/* あなたの設置 */}
@@ -296,6 +320,9 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
           </div>
         ))}
       </div>
+
+      {/* 安全性評価（Phase22.1 P0-2、Placement Scoreとは独立した別軸） */}
+      <SafetyScoreCard safetyScore={safetyScore} safetyAlerts={safetyAlerts} safetyFeedback={safetyFeedback} />
 
       {/* フィードバック */}
       <div className="card">
@@ -476,11 +503,19 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
 // ── メインコンポーネント ───────────────────────────────────────────
 export function StepFlowMode() {
-  const { setScreen, resetSimulation, updatePlacement, computeScore, placement } = useSimStore();
+  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, interactionFlags } = useSimStore();
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
   const [panMode, setPanMode] = useState(false);
+  // Phase22.1追加: SimScene（STEP6配置）はdragMode未指定だと既定値'view'のままTransformControlsが
+  // 表示されず、プロステーシスをドラッグする手段が存在しなかった（GUI確認で発覚）。
+  // SimulationMode PlacementStepと同じ操作モードtoggleをSimScene表示時のみ追加する。
+  const [dragMode, setDragMode] = useState<DragMode>('view');
+  // Phase22.1追加: ?debug=coords時、AnatomyScene/SimScene内蔵のCoordinateDebugPanel（top:8,right:8）・
+  // SimScene内蔵のSafety Debugパネル（top:8,left:8）と、StepFlowMode自前のトグル/タグバーが同じ
+  // 四隅に重なる不具合をGUI確認で発見。coordDebug時のみ自前オーバーレイの位置をずらす。
+  const [coordDebug] = useState(() => isCoordDebugMode());
 
   const [phase, setPhase] = useState<'setup' | 'flow'>('setup');
   const [flowCase, setFlowCase]       = useState<SurgicalCase | null>(null);
@@ -503,8 +538,9 @@ export function StepFlowMode() {
 
   const handleNext = () => {
     if (stepIndex < STEPS.length - 1) {
-      // Step 6 → 7 に進む際にスコアを計算
-      if (step.id === 6) computeScore();
+      // Step 6 → 7 に進む際にスコアを計算（Phase22.1 P0-1: 未操作の場合は計算しない。
+      // Issue-023・SimulationMode handleConfirmと同じcomputeAssessmentStatus()ゲート）
+      if (step.id === 6 && computeAssessmentStatus(interactionFlags).hasUserInteracted) computeScore();
       setStepIndex(i => i + 1);
     } else {
       // 最後のステップからは再開
@@ -571,6 +607,7 @@ export function StepFlowMode() {
               placement={placement}
               showIdeal={true}
               showCartilage={showCartilage}
+              dragMode={dragMode}
               vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', eac: 'ghost' }}
             />
           ) : step.useScoreView || step.useSummaryView ? (
@@ -590,10 +627,19 @@ export function StepFlowMode() {
             />
           )}
 
+          {/* 操作モードトグル（SimScene=STEP6表示時のみ、Phase22.1追加）: 視点/移動を切替。
+              'move'のときのみSimScene内のTransformControls（ドラッグハンドル）が表示・有効化される。 */}
+          {step.useSimScene && (
+            <div style={{ position: 'absolute', top: coordDebug ? 195 : 12, right: 12, display: 'flex', gap: 4, background: 'var(--glass-bg)', padding: '4px 6px', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar }}>
+              <button onClick={() => setDragMode('view')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: dragMode === 'view' ? 'var(--color-primary)' : 'var(--color-surface-hover)', color: dragMode === 'view' ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>👁 視点</button>
+              <button onClick={() => setDragMode('move')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: dragMode === 'move' ? 'var(--color-success)' : 'var(--color-surface-hover)', color: dragMode === 'move' ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>✥ 移動</button>
+            </div>
+          )}
+
           {/* 操作モードトグル + ズームボタン */}
           {!step.useSimScene && (
             <>
-              <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4, background: 'var(--glass-bg)', padding: '4px 6px', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar }}>
+              <div style={{ position: 'absolute', top: coordDebug ? 195 : 12, right: 12, display: 'flex', gap: 4, background: 'var(--glass-bg)', padding: '4px 6px', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar }}>
                 <button onClick={() => setPanMode(false)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: !panMode ? 'var(--color-primary)' : 'var(--color-surface-hover)', color: !panMode ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>🔄 回転</button>
                 <button onClick={() => setPanMode(true)}  style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: panMode ? 'var(--color-success)' : 'var(--color-surface-hover)', color: panMode ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>↔ 平行移動</button>
               </div>
@@ -620,7 +666,7 @@ export function StepFlowMode() {
           )}
 
           {/* キャンバスオーバーレイ: コンテキストタグ */}
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: Z_INDEX.hud, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          <div style={{ position: 'absolute', top: (step.useSimScene && coordDebug) ? 195 : 10, left: 10, zIndex: Z_INDEX.hud, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {flowCase.tags.procedure.map(t => (
               <Badge key={t} tone="primary" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}>{t}</Badge>
             ))}

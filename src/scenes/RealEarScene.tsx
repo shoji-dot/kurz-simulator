@@ -105,8 +105,9 @@ const MODEL_INFO: Record<RealEarModelKey, ModelInfo> = {
 // 設計変更書2026-07-03 L1: 削開シナリオ⇄実モデル間の相互導線。型番/QR実データは未確定のため
 // プレースホルダー表示とし、確定次第この定数を差し替える。
 const PHYSICAL_PRODUCT_INFO = {
-  modelNumber: '型番：KURZ確認後に反映（プレースホルダー）',
-  qrNote: 'QRコード\n（準備中）',
+  // Phase22.1 P0-3: 外部医師向け文言。開発者用語「プレースホルダー」を除去し非alarmingな表現に変更。
+  modelNumber: '型番情報は準備中です',
+  qrNote: 'QRコード\n近日公開',
 };
 
 const ANATOMY_IN_EAR_VIS: VisibilityMap = {
