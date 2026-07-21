@@ -809,12 +809,15 @@ const GUIDE_LOCAL = {
   ANTRUM:       sub3([ANTRUM_POS.x, ANTRUM_POS.y, ANTRUM_POS.z], GUIDE.CENTER),
 };
 
-// 【2026-07-15 shojiさん確定】ガイド編集（TransformControls）で調整して「良い」との確認を得た
-// 最終的な位置・向き・縮尺。これを新しい初期状態（editModeを開いた直後の表示・reset後の戻り先）とする。
+// 【2026-07-15 shojiさん確定 → 2026-07-21 shojiさん再調整（暫定）】ガイド編集（TransformControls）で
+// 調整した位置・向き・縮尺。これを新しい初期状態（editModeを開いた直後の表示・reset後の戻り先）とする。
+// 2026-07-21: shojiさん（医師ではない立場）の見た目判断による再調整。今後、医師からの指摘があれば
+// 再修正する可能性がある暫定値（Step2 MacEwen三角調整、優先順位: 解剖学的整合性→視認性→
+// TransformControls干渉→Danger Zone重ね表示との両立）。
 const GUIDE_TRANSFORM_DEFAULT = {
-  position:    [3.2, 8.5, 25.2] as V3,
-  rotationDeg: [-20, 2, -85] as V3,
-  scale:       [0.63, 0.63, 0.92] as V3,
+  position:    [3.2, 9.1, 26.3] as V3,
+  rotationDeg: [-8, 2, -85] as V3,
+  scale:       [0.63, 0.63, 1.08] as V3,
 };
 
 // 専門医モード用ランドマーク（Bone.glb 実測値 2026-06-24）
