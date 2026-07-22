@@ -43,6 +43,7 @@ import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
 import type { Vec3Tuple } from '../engine/coordinates/types';
+import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_SHIFT_MM, KEYBOARD_STEP_CTRL_MM } from './transformControlsConfig';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
@@ -389,6 +390,30 @@ function DraggableProsthesis({
 
   // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
   const isMove = dragMode === 'move';
+
+  // Phase22.2 P3: 矢印キーによる微調整（←→=X/lateral, ↑↓=Y/vertical。Z/anteriorは
+  // 今回対象外、将来のボタンUIで対応予定）。isMove時のみ有効。共通関数
+  // useSimStore.getState().translateSelectedObject() を呼ぶのみで、座標計算はstore側に閉じる
+  // （将来のボタンUIからも同じ関数を呼べる設計、shojiさん確認済み）。
+  useEffect(() => {
+    if (!isMove) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const step = e.shiftKey ? KEYBOARD_STEP_SHIFT_MM : e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
+      let axis: 'x' | 'y' | null = null;
+      let sign = 0;
+      if (e.key === 'ArrowRight') { axis = 'x'; sign = 1; }
+      else if (e.key === 'ArrowLeft') { axis = 'x'; sign = -1; }
+      else if (e.key === 'ArrowUp') { axis = 'y'; sign = 1; }
+      else if (e.key === 'ArrowDown') { axis = 'y'; sign = -1; }
+      if (!axis) return;
+      e.preventDefault();
+      useSimStore.getState().translateSelectedObject(axis, sign * step);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMove]);
   return (
     <TransformControls
       ref={tcRef}
@@ -399,6 +424,7 @@ function DraggableProsthesis({
       showZ={isMove}
       enabled={isMove}
       size={0.65}
+      translationSnap={TRANSLATION_SNAP_MM}
       onMouseUp={handleMouseUp}
     >
       <ProsthesisModel

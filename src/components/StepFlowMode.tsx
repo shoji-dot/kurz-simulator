@@ -17,6 +17,7 @@ import type { KurzProduct } from '../data/products';
 import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX } from './ui';
 import type { BadgeTone } from './ui';
 import { SafetyScoreCard } from './SimulationMode';
+import { CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
 import { isCoordDebugMode } from '../utils/debugMode';
 
 // ── 症例別耳小骨visマップ生成 ────────────────────────────────────
@@ -507,6 +508,21 @@ export function StepFlowMode() {
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
+  // Phase22.2 P0-1: STEP6（SimScene）の側頭骨表示/非表示トグル。SimulationMode PlacementStepの
+  // simVis/cycleVis（実体→半透明→非表示の循環）と同じ仕組みを、STEP6のvisをハードコードしていた
+  // 箇所に配線する。CYCLE/MODE_LABEL/MODE_BG/MODE_FGは scenes/models/visToggleConfig.ts に集約した
+  // 共有定数を再利用し、ロジックの二重実装はしない（[[feedback]]「UI仕様を共有するものはexportして共通化」方針）。
+  // 初期値は従来STEP6にハードコードされていた表示（骨=半透明等）をそのまま維持する。
+  const [simVis, setSimVis] = useState<VisibilityMap>({
+    bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', eac: 'ghost',
+  });
+  const cycleBoneVis = () => {
+    setSimVis((prev) => {
+      const current: OpacityMode = prev.bone ?? 'ghost';
+      const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
+      return { ...prev, bone: next };
+    });
+  };
   const [panMode, setPanMode] = useState(false);
   // Phase22.1追加: SimScene（STEP6配置）はdragMode未指定だと既定値'view'のままTransformControlsが
   // 表示されず、プロステーシスをドラッグする手段が存在しなかった（GUI確認で発覚）。
@@ -608,7 +624,7 @@ export function StepFlowMode() {
               showIdeal={true}
               showCartilage={showCartilage}
               dragMode={dragMode}
-              vis={{ bone: 'ghost', tympanic: 'hidden', malleus: 'ghost', incus: 'ghost', stapes: 'solid', eac: 'ghost' }}
+              vis={simVis}
             />
           ) : step.useScoreView || step.useSummaryView ? (
             <AnatomyScene
@@ -636,6 +652,19 @@ export function StepFlowMode() {
             </div>
           )}
 
+          {/* 側頭骨 表示/非表示トグル（Phase22.2 P0-1、STEP6限定）: SimulationMode PlacementStepの
+              「3D 表示切替」と同じ CYCLE(実体→半透明→非表示) を側頭骨1項目に適用したもの。 */}
+          {step.useSimScene && (
+            <div style={{ position: 'absolute', top: coordDebug ? 235 : 52, right: 12, zIndex: Z_INDEX.toolbar }}>
+              <button
+                onClick={cycleBoneVis}
+                aria-label="側頭骨の表示切替"
+                title="クリックで 実体 → 半透明 → 非表示 を切替"
+                style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: MODE_BG[simVis.bone ?? 'ghost'], color: MODE_FG[simVis.bone ?? 'ghost'], backdropFilter: 'var(--glass-blur)', transition: 'all .15s' }}
+              >🦴 側頭骨: {MODE_LABEL[simVis.bone ?? 'ghost']}</button>
+            </div>
+          )}
+
           {/* 操作モードトグル + ズームボタン */}
           {!step.useSimScene && (
             <>
@@ -657,7 +686,7 @@ export function StepFlowMode() {
           {/* 側頭骨不透明度スライダー（骨が ghost の場合） */}
           {!step.useSimScene && visForScene.bone === 'ghost' && (
             <div style={{ position: 'absolute', bottom: 96, right: 8, zIndex: Z_INDEX.toolbar, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', writingMode: 'vertical-rl' }}>骨透明度</span>
+              <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', writingMode: 'vertical-rl' }}>半透明濃度</span>
               <input type="range" min={0} max={1} step={0.02} value={boneGhostOpacity}
                 onChange={e => setBoneGhostOpacity(Number(e.target.value))}
                 style={{ appearance: 'slider-vertical', writingMode: 'vertical-lr', height: 80, width: 20, cursor: 'pointer', accentColor: 'var(--color-primary)' } as unknown as React.CSSProperties} />

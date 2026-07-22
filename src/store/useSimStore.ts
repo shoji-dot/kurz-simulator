@@ -107,6 +107,10 @@ interface SimStore {
   setSelectedCase: (c: SurgicalCase) => void;
   setSelectedProduct: (p: KurzProduct) => void;
   updatePlacement: (p: Partial<PlacementState>) => void;
+  /** Phase22.2 P3: 矢印キー・将来のボタンUIから共通で呼ぶ、単一軸の微調整関数。
+   *  内部ではdragOffsetX/Y/Zへ±3mmクランプ付きで加算するのみ（TransformControlsの
+   *  onMouseUpコミット経路とは独立、既存ロジックには影響しない）。 */
+  translateSelectedObject: (axis: 'x' | 'y' | 'z', deltaMm: number) => void;
   /** Phase17.2: サイズ/位置/角度いずれかの操作イベント発火時に呼ぶ。値の一致では判定しない。 */
   markSizeTouched: () => void;
   markPositionTouched: () => void;
@@ -122,6 +126,12 @@ interface SimStore {
   resetSimulation: () => void;
   setHighlightedStructure: (s: string | null) => void;
   setDrillStep: (n: number) => void;
+}
+
+// Phase22.2 P3: dragOffsetX/Y/Z の許容範囲（SimScene.tsxのclamp3と同じ±3mm境界を
+// store側で独立定義。store層はscenes層に依存しない方針のため、意図的に重複させている）。
+function clampDragOffsetMm(v: number): number {
+  return Math.max(-3, Math.min(3, v));
 }
 
 // H1: 採点ランクの境界を厳格化（スコア履歴のS/A/B/C/D表示のみに影響。旧: 90/75/60/45）
@@ -163,6 +173,10 @@ export const useSimStore = create<SimStore>((set, get) => ({
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
+  translateSelectedObject: (axis, deltaMm) => set((s) => {
+    const key = axis === 'x' ? 'dragOffsetX' : axis === 'y' ? 'dragOffsetY' : 'dragOffsetZ';
+    return { placement: { ...s.placement, [key]: clampDragOffsetMm(s.placement[key] + deltaMm) } };
+  }),
   markSizeTouched: () => set((s) =>
     s.interactionFlags.sizeTouched ? s : { interactionFlags: { ...s.interactionFlags, sizeTouched: true } }
   ),

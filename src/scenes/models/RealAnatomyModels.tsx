@@ -324,10 +324,29 @@ export function StapesFootplateHighlight() {
   );
 }
 
-/** スケルトン側頭骨: ghost時に外枠エッジ + 極薄fillで骨格表示 */
-function SkeletonTemporalBone() {
+/**
+ * スケルトン側頭骨: ghost時に外枠エッジ + 極薄fillで骨格表示
+ *
+ * Phase22.2 P0-2修正: 従来はfill不透明度0.04・エッジ不透明度0.50を内部に固定しており、
+ * 呼び出し側から渡される opacityOverride（骨透明度スライダーの値）を一切参照していなかった。
+ * これがBaseline Spec第31章 既知の制約#14「StepFlowModeの骨透明度スライダー不具合」の根本原因
+ * だった（StepFlowMode固有ではなく、AnatomySceneを経由する全画面に共通の不具合）。
+ *
+ * Phase22.2 追加修正（スライダー頭打ち対応）: 上記修正はGHOST_OPACITY(0.18)基準の比例スケール
+ * （fill=0.04*scale, edge=0.50*scale）だったため、edgeがopacity≈0.36でMath.min(1,...)に
+ * 飽和し36%〜100%が見た目上変化せず、fillも最大0.22程度にしかならず100%でも実体表示になら
+ * なかった。opacityOverrideの値をそのままmaterial.opacityへ反映する方式に変更し、
+ * 0%→0.0（非表示）/50%→0.5/100%→1.0（不透明）の線形対応を保証する。
+ * マテリアル更新はGLBMeshと同じ「geometry生成はuseMemoで1回・opacity反映はuseEffectで都度」
+ * というパターンに揃えている。
+ */
+function SkeletonTemporalBone({ opacity = GHOST_OPACITY }: { opacity?: number }) {
   const { scene } = useGLTF('/models/Bone.glb');
 
+  // geometry/material の初期生成は scene が変わったときのみ（従来どおり）。
+  // opacity 反映は下の useEffect で skeletonScene を直接 traverse して行う
+  // （ref に material 配列をキャッシュする設計だと react-hooks/refs の
+  //  「render中にrefを書き込む/読み取る」違反になるため、あえてrefを使わない）。
   const skeletonScene = useMemo(() => {
     const c = scene.clone(true);
     const meshes: THREE.Mesh[] = [];
@@ -362,13 +381,28 @@ function SkeletonTemporalBone() {
     return c;
   }, [scene]);
 
+  useEffect(() => {
+    const clamped = Math.min(1, Math.max(0, opacity));
+    skeletonScene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        mat.opacity = clamped;
+        mat.needsUpdate = true;
+      } else if ((child as THREE.LineSegments).isLineSegments) {
+        const mat = (child as THREE.LineSegments).material as THREE.LineBasicMaterial;
+        mat.opacity = clamped;
+        mat.needsUpdate = true;
+      }
+    });
+  }, [opacity, skeletonScene]);
+
   return <primitive object={skeletonScene} />;
 }
 
 export function RealTemporalBone({ opacityOverride, highlighted }: StructureProps) {
-  // ghost（半透明）時 → スケルトン表示
+  // ghost（半透明）時 → スケルトン表示（Phase22.2でopacityOverrideを反映するよう修正）
   if (opacityOverride !== undefined) {
-    return <SkeletonTemporalBone />;
+    return <SkeletonTemporalBone opacity={opacityOverride} />;
   }
   return (
     <GLBMesh
