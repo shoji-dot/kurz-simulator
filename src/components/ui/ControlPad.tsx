@@ -13,7 +13,15 @@
  * - ↑↓←→アイコン単体だと「上が画面の上なのか頭側なのか」迷うとの指摘を受け、既存AdjRow/
  *   「あなたの設置」表示と同じ解剖学用語（内/外/上/下）をアイコンに併記。
  * - ボタンはApple HIG目安の44pt（HoldButton側で対応）に合わせ、パネル幅を168pxへ拡大。
+ *
+ * モバイル重なりバグ修正（2026-07-22、iPhone実機スクリーンショットで発見）:
+ * - `.canvas-wrapper`はモバイルで`48dvh`/`min-height:260px`しかなく、ControlPadの展開時高さ
+ *   （位置6ボタン+回転4ボタン、実測約320〜340px）がその枠を超えて上部ツールバー（移動/視点等）
+ *   と重なっていた。shojiさん指示で「デフォルト折りたたみ＋展開ボタン」方式を採用（ControlPad.tsx
+ *   単体の変更のみ、canvas-wrapperの共有CSSは他画面への影響を避けるため触らない）。
+ *   折りたたみ時は`詳細調整`パネル（SimulationMode.tsx）と同じ▾矢印回転パターンを踏襲。
  */
+import { useState } from 'react';
 import { HoldButton } from './HoldButton';
 import { useSimStore } from '../../store/useSimStore';
 import {
@@ -41,6 +49,8 @@ function DirLabel({ icon, text }: { icon: string; text: string }) {
 }
 
 export function ControlPad() {
+  const [expanded, setExpanded] = useState(false);
+
   const translate = (axis: 'x' | 'y' | 'z', sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
     useSimStore.getState().translateSelectedObject(axis, sign * moveStepMm(info.fast, info.fine));
   };
@@ -48,8 +58,43 @@ export function ControlPad() {
     useSimStore.getState().rotateSelectedObject(axis, sign * rotateStepDeg(info.fast, info.fine));
   };
 
+  // 折りたたみ時: 小さな展開チップのみ表示（3Dビューを塞がない）
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        aria-label="操作パネルを開く（位置・回転の微調整）"
+        onClick={() => setExpanded(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)',
+          border: 'none', padding: '8px 12px', minHeight: 44,
+          color: 'var(--color-text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        <span style={{ fontSize: 15 }}>🎮</span> 操作パネル
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>▸</span>
+      </button>
+    );
+  }
+
   return (
     <div style={{ background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', padding: 8, width: 168 }}>
+      {/* ── 折りたたみボタン（開いている時のみ表示） ── */}
+      <button
+        type="button"
+        aria-label="操作パネルを閉じる"
+        onClick={() => setExpanded(false)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+          background: 'transparent', border: 'none', padding: '2px 2px 6px', margin: 0, cursor: 'pointer',
+          color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
+        }}
+      >
+        <span>操作パネル</span>
+        <span style={{ fontSize: 11, display: 'inline-block', transform: 'rotate(180deg)' }}>▸</span>
+      </button>
+
       {/* ── 位置（左右=lateral、上下=vertical、前後=anterior） ── */}
       <div style={sectionLabelStyle}>位置</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: 6, marginBottom: 8 }}>
