@@ -10,7 +10,7 @@ import { useSimStore, computeAssessmentStatus } from '../store/useSimStore';
 import { surgicalCases } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
-import { SimScene, type DragMode } from '../scenes/SimScene';
+import { SimScene } from '../scenes/SimScene';
 import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
@@ -526,10 +526,12 @@ export function StepFlowMode() {
     });
   };
   const [panMode, setPanMode] = useState(false);
-  // Phase22.1追加: SimScene（STEP6配置）はdragMode未指定だと既定値'view'のままTransformControlsが
-  // 表示されず、プロステーシスをドラッグする手段が存在しなかった（GUI確認で発覚）。
-  // SimulationMode PlacementStepと同じ操作モードtoggleをSimScene表示時のみ追加する。
-  const [dragMode, setDragMode] = useState<DragMode>('view');
+  // Phase22.2 GUI Follow-up P2（TransformControls位置付け整理、shojiさん案A確定 2026-07-22）:
+  // STEP6はControlPadのみを操作手段とし、TransformControls（ドラッグギズモ）は非表示に統一する
+  // （「ドラッグ」「ControlPad」の2種UIが混在していたPhase22.1由来の状態を解消）。SimScene自体は
+  // dragModeで表示/有効を制御する既存設計のまま無変更、STEP6側は常に'view'を渡すだけでTC非表示・
+  // OrbitControls常時有効（従来の視点モードと同じ挙動）になる。SimulationMode側は元の移動/視点
+  // トグル＋TransformControlsを引き続き提供（案A対象外、無変更）。
   // Phase22.1追加: ?debug=coords時、AnatomyScene/SimScene内蔵のCoordinateDebugPanel（top:8,right:8）・
   // SimScene内蔵のSafety Debugパネル（top:8,left:8）と、StepFlowMode自前のトグル/タグバーが同じ
   // 四隅に重なる不具合をGUI確認で発見。coordDebug時のみ自前オーバーレイの位置をずらす。
@@ -633,7 +635,7 @@ export function StepFlowMode() {
               // 提供しており、STEP6もそれに合わせ既定非表示にする（トグルが必要になれば別途追加）。
               showIdeal={false}
               showCartilage={showCartilage}
-              dragMode={dragMode}
+              dragMode="view"
               vis={simVis}
               panMode={panMode}
             />
@@ -654,14 +656,8 @@ export function StepFlowMode() {
             />
           )}
 
-          {/* 操作モードトグル（SimScene=STEP6表示時のみ、Phase22.1追加）: 視点/移動を切替。
-              'move'のときのみSimScene内のTransformControls（ドラッグハンドル）が表示・有効化される。 */}
-          {step.useSimScene && (
-            <div style={{ position: 'absolute', top: coordDebug ? 195 : 12, right: 12, display: 'flex', gap: 4, background: 'var(--glass-bg)', padding: '4px 6px', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar }}>
-              <button onClick={() => setDragMode('view')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: dragMode === 'view' ? 'var(--color-primary)' : 'var(--color-surface-hover)', color: dragMode === 'view' ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>👁 視点</button>
-              <button onClick={() => setDragMode('move')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: dragMode === 'move' ? 'var(--color-success)' : 'var(--color-surface-hover)', color: dragMode === 'move' ? 'var(--color-bg-primary)' : 'var(--color-text-muted)', transition: 'all .15s' }}>✥ 移動</button>
-            </div>
-          )}
+          {/* Phase22.2 P2（案A確定）: 旧・視点/移動トグル（TransformControls切替用）はここに
+              あったが、STEP6ではTC自体を非表示化したため削除（SimulationMode側は現存・無変更）。 */}
 
           {/* 側頭骨 表示/非表示トグル（Phase22.2 P0-1、STEP6限定）: SimulationMode PlacementStepの
               「3D 表示切替」と同じ CYCLE(実体→半透明→非表示) を側頭骨1項目に適用したもの。 */}
@@ -761,7 +757,7 @@ export function StepFlowMode() {
           <div className={step.useSimScene ? 'canvas-overlay top-left' : 'canvas-overlay bottom-left'}>
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '5px 9px', borderRadius: 6, backdropFilter: 'var(--glass-blur)', fontSize: 11 }}>
               {step.useSimScene
-                ? '🖱 ドラッグ: 粗調整 ｜ 左パネル: 精密調整 ｜ 左右ドラッグ切替は🔄/↔ボタン'
+                ? '🖱 ドラッグ: 視点回転 ｜ 左下パネル: 位置・角度調整 ｜ 左右ドラッグ切替は🔄/↔ボタン'
                 : 'ドラッグ: 回転 ｜ ホイール: ズーム'}
             </div>
           </div>
