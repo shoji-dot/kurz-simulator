@@ -7,10 +7,14 @@
  *   Y+  : 上方
  *   X+  : 前方
  *
- * ▼ 重要ランドマーク（OpenEar ALPHA 実測値 2026-06-20、アブミ骨頭のみ2026-07-22実測補正）
- *   鼓膜中心   : [0, 2.0,  5.0]  → 臍部 [0, 0.0, 5.0]
- *   ツチ骨頭   : [0.0, 3.6, 4.2]  （臍部から 3.62mm 上方）
- *   キヌタ骨体 : [-0.8, 2.2, 3.8] （ツチ骨頭の後内方）
+ * ▼ 重要ランドマーク（OpenEar ALPHA 実測値 2026-06-20、アブミ骨頭・臍部は2026-07-22実測補正）
+ *   鼓膜中心   : [0, 2.0,  5.0]  （未検証のまま、参考値）
+ *   臍部(umbo) : [-3.236, 1.0663, 2.3439]  ← Malleus.glb manubrium先端の実測ベース
+ *     （2026-07-22: Interactive Landmark Tool実測、Reviewer: Shoji。旧値[0,0,5.0]は
+ *      STAPES_HEADと同じ旧OpenEar解析バッチ由来の未検証値だったため廃止。
+ *      詳細はLandmarkMeasurements.md参照）
+ *   ツチ骨頭   : [0.0, 3.6, 4.2]  （未検証のまま、参考値）
+ *   キヌタ骨体 : [-0.8, 2.2, 3.8] （未検証のまま、参考値）
  *   アブミ骨頭 : [-0.7249, -0.0273, 3.5259]  ← PORP シャフト下端
  *     （2026-07-22: Interactive Landmark Tool実測PORP_CONTACT_POINTベースに補正。
  *      旧値[0.84,-2.65,4.86]は「footplateがGLBローカル原点にある」という誤った前提に
@@ -18,9 +22,9 @@
  *   アブミ骨底板: [0.84, -2.65, 2.12] ← TORP シャフト下端（実測未反映、据え置き）
  *
  * ▼ プロステーシス長の意味（3D 実測値、寸法自体は製品カタログ値=selectedLengthで別管理）
- *   PORP シャフト長（旧アブミ骨頭基準の目安値） = |臍部 − 旧アブミ骨頭| → 2.78 mm（廃止、参考値）
- *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm（無変更）
- *   ※ 耳小骨連鎖は主に Y 方向（下方）に走行、Z 差は最小（旧アブミ骨頭基準の記述、要再検証）
+ *   PORP シャフト長（新アブミ骨頭・新臍部間の実測距離） = |臍部 − アブミ骨頭| → 2.98 mm（参考値）
+ *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm（無変更、UMBO_POS_TORPは合成点のため影響なし）
+ *   ※ 耳小骨連鎖の走行方向は臍部実測により変化。要目視確認。
  */
 
 import { useMemo } from 'react';
@@ -265,8 +269,12 @@ export const STAPES_FOOTPLATE = new THREE.Vector3(0.84, -2.65, 2.12);
  *  Reviewer: Shoji / Date: 2026-07-22（footplateワールド位置[0.84,-2.65,2.12]は据え置き、
  *  ローカル実測ベクトルのみ適用。詳細はLandmarkMeasurements.md参照） */
 export const STAPES_HEAD      = new THREE.Vector3(-0.7249, -0.0273, 3.5259);
-/** 臍部（umbo）の世界座標 ── プロステーシス上端の基準 */
-export const UMBO_POS         = new THREE.Vector3(0.0,   0.0,  5.0);
+/** 臍部（umbo）の世界座標 ── プロステーシス上端の基準。Malleus.glb manubrium先端の実測ベース。
+ *  Measured from Malleus.glb via Interactive Landmark Tool v2 / manubrium /
+ *  Reviewer: Shoji / Date: 2026-07-22（footplateワールド位置[0.84,-2.65,2.12]は据え置き、
+ *  ローカル実測ベクトルのみ適用。旧値(0,0,5.0)はSTAPES_HEADと同じ旧バッチ由来の未検証値のため
+ *  廃止。詳細はLandmarkMeasurements.md参照） */
+export const UMBO_POS         = new THREE.Vector3(-3.236, 1.0663, 2.3439);
 
 /** TORPおよびPISTONの自然方向用ターゲット：底板の真上（垂直方向）。
  *  底板 [0.84,-2.65,2.12] から真上 5mm → [0.84, 2.35, 2.12]
