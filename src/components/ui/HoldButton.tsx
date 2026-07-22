@@ -73,8 +73,10 @@ export function HoldButton({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        minWidth: 36,
-        minHeight: 36,
+        // Phase22.2 GUI Follow-up 実機レビュー: iPhoneでのタップ領域確保のためApple HIG目安の
+        // 44ptに拡大（shojiさん指摘、旧36pxは小さすぎ誤タップの懸念ありとの評価）。
+        minWidth: 44,
+        minHeight: 44,
         ...style,
       }}
     >
