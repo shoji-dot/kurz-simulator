@@ -44,7 +44,7 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 import { SIM_VIS_ITEMS, CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
-import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow } from './ui';
+import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow, ControlPad } from './ui';
 import { createSessionFromCaseCompletion, appendLearningEvidenceToSession, assessLearningSession, recommendFromAssessment } from '../engine/applicationIntegration';
 import { summarizeSession } from '../engine/learningSession';
 import { useLearningHistoryStore } from '../store/useLearningHistoryStore';
@@ -1241,6 +1241,17 @@ function PlacementStep() {
             </div>
           )}
         </ToolbarContainer>
+
+        {/* Phase22.2 GUI Follow-up P1: STEP6(StepFlowMode)で確立したControlPadをSimulationMode
+            にも展開（横展開、shojiさん指示「操作体系を統一する」）。既存の詳細調整(AdjRow)パネルは
+            シャフト長調整を含み、ControlPadはシャフト長を扱わないため、今回はAdjRowを置き換えず
+            並存させる（P1は「UI追加のみ・API/Store変更なし」の方針どおり、Small Change）。
+            表示位置・zIndexはSTEP6と同一（bottom:16, left:12, Z_INDEX.toolbar）でアプリ全体の
+            操作パネル位置を統一。dragModeに関わらず常時表示（translateSelectedObject/
+            rotateSelectedObjectはTransformControlsの選択状態と独立した純粋なstore操作のため）。 */}
+        <div style={{ position: 'absolute', bottom: 16, left: 12, zIndex: Z_INDEX.toolbar }}>
+          <ControlPad />
+        </div>
       </div>
 
       {/* Controls */}
