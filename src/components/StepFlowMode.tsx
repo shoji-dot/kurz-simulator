@@ -623,7 +623,15 @@ export function StepFlowMode() {
               surgicalCase={flowCase}
               product={flowProduct}
               placement={placement}
-              showIdeal={true}
+              // 不具合修正（2026-07-22、shojiさんGUI確認で発見）: showIdeal={true}が
+              // ハードコードされており、症例のidealLateralOffset/idealAngleに基づく半透明の
+              // 「理想配置ゴースト」(IdealGhostProsthesis、ghost=true・opacity 0.28)が常時
+              // 表示され続けていた。理想位置が現在位置に近い症例では金属質感のため半透明でも
+              // ほぼ判別できず、「プロステーシスが2つある（動かすと1つだけ残る）」ように見えて
+              // いた。この機能自体はPhase22.2より前から存在（Session12由来、今回のControlPad
+              // 実装とは無関係）。SimulationMode側は同じ機能を既定OFF+「📍理想位置」トグルで
+              // 提供しており、STEP6もそれに合わせ既定非表示にする（トグルが必要になれば別途追加）。
+              showIdeal={false}
               showCartilage={showCartilage}
               dragMode={dragMode}
               vis={simVis}
