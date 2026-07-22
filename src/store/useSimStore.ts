@@ -111,6 +111,9 @@ interface SimStore {
    *  内部ではdragOffsetX/Y/Zへ±3mmクランプ付きで加算するのみ（TransformControlsの
    *  onMouseUpコミット経路とは独立、既存ロジックには影響しない）。 */
   translateSelectedObject: (axis: 'x' | 'y' | 'z', deltaMm: number) => void;
+  /** Phase22.2 GUI Follow-up P1: Shift+矢印キー・将来のボタンUIから共通で呼ぶ、単一軸の
+   *  回転微調整関数。angleTilt(前後傾斜)/angleTiltZ(左右傾斜)へ±180クランプ付きで加算するのみ。 */
+  rotateSelectedObject: (axis: 'tilt' | 'tiltZ', deltaDeg: number) => void;
   /** Phase17.2: サイズ/位置/角度いずれかの操作イベント発火時に呼ぶ。値の一致では判定しない。 */
   markSizeTouched: () => void;
   markPositionTouched: () => void;
@@ -132,6 +135,12 @@ interface SimStore {
 // store側で独立定義。store層はscenes層に依存しない方針のため、意図的に重複させている）。
 function clampDragOffsetMm(v: number): number {
   return Math.max(-3, Math.min(3, v));
+}
+
+// Phase22.2 GUI Follow-up P1: angleTilt/angleTiltZ の許容範囲（既存のAdjRow手動スライダー・
+// PlacementStateのコメント"degrees, -180 to +180"と同じ境界）。
+function clampAngleDeg(v: number): number {
+  return Math.max(-180, Math.min(180, v));
 }
 
 // H1: 採点ランクの境界を厳格化（スコア履歴のS/A/B/C/D表示のみに影響。旧: 90/75/60/45）
@@ -176,6 +185,10 @@ export const useSimStore = create<SimStore>((set, get) => ({
   translateSelectedObject: (axis, deltaMm) => set((s) => {
     const key = axis === 'x' ? 'dragOffsetX' : axis === 'y' ? 'dragOffsetY' : 'dragOffsetZ';
     return { placement: { ...s.placement, [key]: clampDragOffsetMm(s.placement[key] + deltaMm) } };
+  }),
+  rotateSelectedObject: (axis, deltaDeg) => set((s) => {
+    const key = axis === 'tilt' ? 'angleTilt' : 'angleTiltZ';
+    return { placement: { ...s.placement, [key]: clampAngleDeg(s.placement[key] + deltaDeg) } };
   }),
   markSizeTouched: () => set((s) =>
     s.interactionFlags.sizeTouched ? s : { interactionFlags: { ...s.interactionFlags, sizeTouched: true } }

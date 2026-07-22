@@ -43,7 +43,7 @@ import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
 import type { Vec3Tuple } from '../engine/coordinates/types';
-import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_SHIFT_MM, KEYBOARD_STEP_CTRL_MM } from './transformControlsConfig';
+import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
@@ -391,16 +391,19 @@ function DraggableProsthesis({
   // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
   const isMove = dragMode === 'move';
 
-  // Phase22.2 P3: 矢印キーによる微調整（←→=X/lateral, ↑↓=Y/vertical。Z/anteriorは
-  // 今回対象外、将来のボタンUIで対応予定）。isMove時のみ有効。共通関数
-  // useSimStore.getState().translateSelectedObject() を呼ぶのみで、座標計算はstore側に閉じる
-  // （将来のボタンUIからも同じ関数を呼べる設計、shojiさん確認済み）。
+  // Phase22.2 GUI Follow-up P1: 矢印キー操作をSTEP6 GUI確認結果を受けて再設計。
+  // 通常=translate(移動)、Shift=rotate(回転)、Ctrl=微細移動、Ctrl+Shift=微細回転
+  // （shojiさん確認済み。旧「Shift=高速移動0.5mm」は廃止）。
+  // ←→=X/lateral・tiltZ(左右傾斜)、↑↓=Y/vertical・tilt(前後傾斜)。Z/anteriorの移動、および
+  // 3軸目の回転は今回対象外（将来のボタンUIで対応予定、Root Cause調査でangleTilt/angleTiltZは
+  // 既存のPlacementStateフィールドと判明、新規状態ではない）。isMove時のみ有効。
+  // 実際の座標計算はuseSimStore.getState().translateSelectedObject()/rotateSelectedObject()に
+  // 閉じており、ここではキー判定と定数の選択のみを行う（将来のボタンUIからも同じ関数を呼べる設計）。
   useEffect(() => {
     if (!isMove) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      const step = e.shiftKey ? KEYBOARD_STEP_SHIFT_MM : e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
       let axis: 'x' | 'y' | null = null;
       let sign = 0;
       if (e.key === 'ArrowRight') { axis = 'x'; sign = 1; }
@@ -409,7 +412,15 @@ function DraggableProsthesis({
       else if (e.key === 'ArrowDown') { axis = 'y'; sign = -1; }
       if (!axis) return;
       e.preventDefault();
-      useSimStore.getState().translateSelectedObject(axis, sign * step);
+      if (e.shiftKey) {
+        // 回転モード: ←→=左右傾斜(tiltZ)、↑↓=前後傾斜(tilt)
+        const rotAxis: 'tilt' | 'tiltZ' = axis === 'x' ? 'tiltZ' : 'tilt';
+        const rotStep = e.ctrlKey ? ROTATION_STEP_FINE_DEG : ROTATION_STEP_DEG;
+        useSimStore.getState().rotateSelectedObject(rotAxis, sign * rotStep);
+      } else {
+        const moveStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
+        useSimStore.getState().translateSelectedObject(axis, sign * moveStep);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -713,9 +724,13 @@ export function SimScene({
         autoRotate={false}
         enabled={dragMode === 'view'}
         mouseButtons={{
-          LEFT:   (viewMode === 'microscope' && scopePositionMode && panMode) ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+          // Phase22.2 GUI Follow-up P1: 通常/内視鏡モードでもpanMode(既存prop)を尊重するよう拡張。
+          // 元の条件（viewMode==='microscope' && scopePositionMode && panMode）はmicroscope固定/移動中
+          // トグルの既存挙動を完全に保持したまま、viewMode!=='microscope'の場合のみpanMode単独で
+          // 判定する分岐を追加（両条件はviewModeで排他のため、既存の顕微鏡挙動は無変更）。
+          LEFT:   (panMode && (viewMode !== 'microscope' || scopePositionMode)) ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
           MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT:  (viewMode === 'microscope' && scopePositionMode && panMode) ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
+          RIGHT:  (panMode && (viewMode !== 'microscope' || scopePositionMode)) ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN,
         }}
         onChange={() => {
           if (!_simOrbit) return;

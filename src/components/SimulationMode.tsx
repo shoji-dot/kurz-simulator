@@ -44,7 +44,7 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 import { SIM_VIS_ITEMS, CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
-import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX } from './ui';
+import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow } from './ui';
 import { createSessionFromCaseCompletion, appendLearningEvidenceToSession, assessLearningSession, recommendFromAssessment } from '../engine/applicationIntegration';
 import { summarizeSession } from '../engine/learningSession';
 import { useLearningHistoryStore } from '../store/useLearningHistoryStore';
@@ -149,41 +149,7 @@ const ossicleLabel: Record<string, string> = {
 };
 
 // ─── 微調整行コンポーネント ───────────────────────────────────────────────
-function AdjRow({
-  label, value, onStep, steps,
-}: {
-  label: string;
-  value: string;
-  onStep: (d: number) => void;
-  steps: { label: string; d: number }[];
-}) {
-  const btnStyle = (i: number): CSSProperties => ({
-    flex: 1,
-    padding: '8px 4px',
-    borderRadius: 6,
-    border: '1px solid rgba(255,255,255,.12)',
-    background: i < steps.length / 2 ? 'rgba(255,120,80,.1)' : 'rgba(80,200,120,.1)',
-    color: i < steps.length / 2 ? 'var(--color-error)' : 'var(--color-success)',
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
-    transition: 'background .1s',
-  });
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'monospace', minWidth: 60, textAlign: 'right' }}>{value}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 3 }}>
-        {steps.map(({ label: l, d }, i) => (
-          <button key={l} style={btnStyle(i)} onClick={() => onStep(d)}>{l}</button>
-        ))}
-      </div>
-    </div>
-  );
-}
+// AdjRow は components/ui/AdjRow.tsx へ切り出し済み（Phase22.2 GUI Follow-up P1、STEP6と共有）。
 
 // ─── Step 1: Case selection ───────────────────────────────────────────────
 function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSkip: () => void }) {
@@ -1254,6 +1220,24 @@ function PlacementStep() {
                   {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
                 </IconButton>
               )}
+            </div>
+          )}
+
+          {/* Phase22.2 GUI Follow-up P1: 通常/内視鏡モードでもPan(平行移動)の存在を明示するトグル。
+              右ドラッグ=Panは以前からコード上動作していたが、UIに手がかりがなく「回転しかできない」
+              という誤解を招いていた（shojiさんGUI確認で指摘）。顕微鏡モードの🔒固定/🔓移動中トグルとは
+              独立に、simPanMode（既存state）をそのまま再利用する。 */}
+          {viewMode !== 'microscope' && (
+            <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
+              <IconButton
+                aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+                title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+                active={simPanMode}
+                onClick={() => setSimPanMode(v => !v)}
+                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
+              >
+                {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+              </IconButton>
             </div>
           )}
         </ToolbarContainer>
