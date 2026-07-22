@@ -14,7 +14,7 @@ import { SimScene, type DragMode } from '../scenes/SimScene';
 import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
-import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX, AdjRow } from './ui';
+import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX, ControlPad } from './ui';
 import type { BadgeTone } from './ui';
 import { SafetyScoreCard } from './SimulationMode';
 import { CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
@@ -504,7 +504,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
 // ── メインコンポーネント ───────────────────────────────────────────
 export function StepFlowMode() {
-  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, interactionFlags, markPositionTouched, markAngleTouched } = useSimStore();
+  const { setScreen, resetSimulation, updatePlacement, computeScore, placement, interactionFlags } = useSimStore();
   const [zoomLevel, setZoomLevel] = useState(0);
   const [boneGhostOpacity, setBoneGhostOpacity] = useState(0.25);
   const [showCartilage, setShowCartilage] = useState(false);
@@ -526,9 +526,6 @@ export function StepFlowMode() {
     });
   };
   const [panMode, setPanMode] = useState(false);
-  // Phase22.2 GUI Follow-up P1/P2: STEP6「詳細調整」パネルの開閉状態（既定は閉、SimulationMode
-  // 「詳細調整」と同じ既定値。3Dドラッグ/矢印キーを一次操作、数値パネルを二次操作として序列化）。
-  const [adjPanelOpen, setAdjPanelOpen] = useState(false);
   // Phase22.1追加: SimScene（STEP6配置）はdragMode未指定だと既定値'view'のままTransformControlsが
   // 表示されず、プロステーシスをドラッグする手段が存在しなかった（GUI確認で発覚）。
   // SimulationMode PlacementStepと同じ操作モードtoggleをSimScene表示時のみ追加する。
@@ -686,57 +683,15 @@ export function StepFlowMode() {
             </div>
           )}
 
-          {/* Phase22.2 GUI Follow-up P1/P2: STEP6用「詳細調整」パネル（既存AdjRowをexport+import
-              で再利用、SimulationMode「詳細調整」と同じ設計・同じ操作対象フィールド）。
-              TransformControlsのハンドルが対象物の位置に表示されるため毎回探す必要があるという
-              指摘を受け、常に同じ画面位置から位置(±0.1mm)・傾斜(±5°)を操作できる手段を追加する。
-              lateralOffset/anteriorOffset/verticalOffset/angleTilt/angleTiltZを直接操作する
-              （dragOffsetX/Y/Zとは別フィールド、SimulationMode「詳細調整」と同じ加算方式）。 */}
+          {/* Phase22.2 GUI Follow-up（操作パネル方針転換）: PC/iPhone/iPad共通の「プロステーシス
+              操作パネル」。TransformControls（ドラッグ）は粗調整専用、本パネルが精密調整の主役
+              という役割分担（shojiさん確定方針）。前回実装したAdjRow単一クリック式の「詳細調整」
+              パネルは本パネルに置き換え、削除した（3種類の操作UIが混在する状態を避けるため）。
+              内部はuseSimStore.getState().translateSelectedObject()/rotateSelectedObject()を
+              呼ぶのみ（矢印キーと完全に同じAPI）。常時表示（開閉トグルなし、shojiさん指定）。 */}
           {step.useSimScene && (
-            <div style={{ position: 'absolute', top: coordDebug ? 195 : 12, left: 12, width: 168, background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', zIndex: Z_INDEX.toolbar, overflow: 'hidden' }}>
-              <button
-                onClick={() => setAdjPanelOpen(v => !v)}
-                aria-expanded={adjPanelOpen}
-                style={{ width: '100%', padding: '6px 10px', border: 'none', background: 'transparent', color: 'var(--color-text-primary)', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-              >
-                <span>⚙ 詳細調整</span>
-                <span style={{ transform: adjPanelOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▾</span>
-              </button>
-              {adjPanelOpen && (
-                <div style={{ padding: '0 10px 10px' }}>
-                  {([
-                    { key: 'lateralOffset'  as const, label: '内外側', neg: '内', pos: '外' },
-                    { key: 'anteriorOffset' as const, label: '前後',   neg: '後', pos: '前' },
-                    { key: 'verticalOffset' as const, label: '上下',   neg: '下', pos: '上' },
-                  ]).map(({ key, label, neg, pos }) => {
-                    const val = placement[key];
-                    return (
-                      <AdjRow
-                        key={key}
-                        label={label}
-                        value={val > 0.005 ? `${pos} ${val.toFixed(2)}` : val < -0.005 ? `${neg} ${(-val).toFixed(2)}` : '0.00'}
-                        onStep={(d) => { updatePlacement({ [key]: Math.max(-3, Math.min(3, val + d)) }); markPositionTouched(); }}
-                        steps={[{ label: '−0.1', d: -0.1 }, { label: '+0.1', d: 0.1 }]}
-                      />
-                    );
-                  })}
-                  {([
-                    { key: 'angleTilt'  as const, label: '前後傾斜', neg: '後', pos: '前' },
-                    { key: 'angleTiltZ' as const, label: '左右傾斜', neg: '左', pos: '右' },
-                  ]).map(({ key, label, neg, pos }) => {
-                    const val = placement[key];
-                    return (
-                      <AdjRow
-                        key={key}
-                        label={label}
-                        value={val === 0 ? '0°' : val > 0 ? `${pos} ${val}°` : `${neg} ${-val}°`}
-                        onStep={(d) => { updatePlacement({ [key]: Math.max(-180, Math.min(180, val + d)) }); markAngleTouched(); }}
-                        steps={[{ label: '−5°', d: -5 }, { label: '+5°', d: 5 }]}
-                      />
-                    );
-                  })}
-                </div>
-              )}
+            <div style={{ position: 'absolute', bottom: 16, left: 12, zIndex: Z_INDEX.toolbar }}>
+              <ControlPad />
             </div>
           )}
 
@@ -793,11 +748,12 @@ export function StepFlowMode() {
             </div>
           )}
 
-          {/* 操作ヒント */}
-          <div className="canvas-overlay bottom-left">
+          {/* 操作ヒント。STEP6は左下にControlPadを常時表示するため、ヒントは衝突を避け左上へ
+              （ControlPad自体が位置/回転の操作方法を視覚的に示すため文言も簡略化）。 */}
+          <div className={step.useSimScene ? 'canvas-overlay top-left' : 'canvas-overlay bottom-left'}>
             <div style={{ background: 'rgba(0,0,0,.6)', padding: '5px 9px', borderRadius: 6, backdropFilter: 'var(--glass-blur)', fontSize: 11 }}>
               {step.useSimScene
-                ? '🖱 ドラッグ配置 ｜ 矢印キー: 移動 ｜ Shift+矢印: 回転 ｜ 左ドラッグ: 回転 ｜ 右ドラッグ: 平行移動'
+                ? '🖱 ドラッグ: 粗調整 ｜ 左パネル: 精密調整 ｜ 左右ドラッグ切替は🔄/↔ボタン'
                 : 'ドラッグ: 回転 ｜ ホイール: ズーム'}
             </div>
           </div>

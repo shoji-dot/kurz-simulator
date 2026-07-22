@@ -15,3 +15,5 @@ export * from './Toggle';
 export * from './zIndex';
 export * from './Logo';
 export * from './AdjRow';
+export * from './HoldButton';
+export * from './ControlPad';

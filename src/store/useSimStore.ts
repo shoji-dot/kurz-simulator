@@ -182,13 +182,25 @@ export const useSimStore = create<SimStore>((set, get) => ({
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
+  // 不具合修正（Phase22.2 GUI Follow-up、ControlPad実装時に発見）: 矢印キー/ControlPad経由の
+  // 操作がinteractionFlags.positionTouched/angleTouchedを一度も立てないままだったため、マウス
+  // ドラッグ（handleMouseUp内でmarkPositionTouched()を呼ぶ）を一度も使わずキーボード/ControlPadのみで
+  // 操作した場合、computeAssessmentStatus().hasUserInteractedがfalseのままcomputeScore()が
+  // 一切呼ばれない状態になっていた（StepFlowMode L559参照）。handleMouseUpと同じ「操作済みフラグを
+  // 立てる」責務をここでも果たす。
   translateSelectedObject: (axis, deltaMm) => set((s) => {
     const key = axis === 'x' ? 'dragOffsetX' : axis === 'y' ? 'dragOffsetY' : 'dragOffsetZ';
-    return { placement: { ...s.placement, [key]: clampDragOffsetMm(s.placement[key] + deltaMm) } };
+    return {
+      placement: { ...s.placement, [key]: clampDragOffsetMm(s.placement[key] + deltaMm) },
+      interactionFlags: s.interactionFlags.positionTouched ? s.interactionFlags : { ...s.interactionFlags, positionTouched: true },
+    };
   }),
   rotateSelectedObject: (axis, deltaDeg) => set((s) => {
     const key = axis === 'tilt' ? 'angleTilt' : 'angleTiltZ';
-    return { placement: { ...s.placement, [key]: clampAngleDeg(s.placement[key] + deltaDeg) } };
+    return {
+      placement: { ...s.placement, [key]: clampAngleDeg(s.placement[key] + deltaDeg) },
+      interactionFlags: s.interactionFlags.angleTouched ? s.interactionFlags : { ...s.interactionFlags, angleTouched: true },
+    };
   }),
   markSizeTouched: () => set((s) =>
     s.interactionFlags.sizeTouched ? s : { interactionFlags: { ...s.interactionFlags, sizeTouched: true } }
