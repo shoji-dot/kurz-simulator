@@ -7,17 +7,20 @@
  *   Y+  : 上方
  *   X+  : 前方
  *
- * ▼ 重要ランドマーク（OpenEar ALPHA 実測値 2026-06-20）
+ * ▼ 重要ランドマーク（OpenEar ALPHA 実測値 2026-06-20、アブミ骨頭のみ2026-07-22実測補正）
  *   鼓膜中心   : [0, 2.0,  5.0]  → 臍部 [0, 0.0, 5.0]
  *   ツチ骨頭   : [0.0, 3.6, 4.2]  （臍部から 3.62mm 上方）
  *   キヌタ骨体 : [-0.8, 2.2, 3.8] （ツチ骨頭の後内方）
- *   アブミ骨頭 : [0.84, -2.65, 4.86]  ← PORP シャフト下端
- *   アブミ骨底板: [0.84, -2.65, 2.12] ← TORP シャフト下端
+ *   アブミ骨頭 : [-0.7249, -0.0273, 3.5259]  ← PORP シャフト下端
+ *     （2026-07-22: Interactive Landmark Tool実測PORP_CONTACT_POINTベースに補正。
+ *      旧値[0.84,-2.65,4.86]は「footplateがGLBローカル原点にある」という誤った前提に
+ *      基づく粗い推定値だったため廃止。詳細はLandmarkMeasurements.md参照）
+ *   アブミ骨底板: [0.84, -2.65, 2.12] ← TORP シャフト下端（実測未反映、据え置き）
  *
- * ▼ プロステーシス長の意味（3D 実測値）
- *   PORP シャフト長 = |臍部 − アブミ骨頭| → 2.78 mm
- *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm
- *   ※ 耳小骨連鎖は主に Y 方向（下方）に走行、Z 差は最小
+ * ▼ プロステーシス長の意味（3D 実測値、寸法自体は製品カタログ値=selectedLengthで別管理）
+ *   PORP シャフト長（旧アブミ骨頭基準の目安値） = |臍部 − 旧アブミ骨頭| → 2.78 mm（廃止、参考値）
+ *   TORP シャフト長 = |臍部 − 底板|  → 4.00 mm（無変更）
+ *   ※ 耳小骨連鎖は主に Y 方向（下方）に走行、Z 差は最小（旧アブミ骨頭基準の記述、要再検証）
  */
 
 import { useMemo } from 'react';
@@ -210,7 +213,7 @@ export function Incus({
   const body       = new THREE.Vector3(-0.8,  2.2,  3.8);   // 体部（OpenEar実測）
   const shortProc  = new THREE.Vector3(-1.5,  1.8,  1.5);   // 短脚先端（後内方）
   const lpStart    = new THREE.Vector3(-0.7,  1.5,  4.0);   // 長脚起点（体部下端）
-  const lpEnd      = new THREE.Vector3( 0.84,-2.65, 4.86);  // 豆状突起（= STAPES_HEAD）
+  const lpEnd      = new THREE.Vector3(-0.7249,-0.0273, 3.5259);  // 豆状突起（= STAPES_HEAD、2026-07-22実測補正）
 
   return (
     <group>
@@ -244,19 +247,24 @@ export function Incus({
 // ══════════════════════════════════════════════════════════════════
 // アブミ骨 (Stapes)
 //
-// 底板中心  : STAPES_FOOTPLATE = [0.84, -2.65, 2.12]  ← TORP 下端
-// 頭部      : STAPES_HEAD      = [0.84, -2.65, 4.86]  ← PORP 下端
-//   (頭部 → 底板 = Z 方向に 2.74 mm 内側)
+// 底板中心  : STAPES_FOOTPLATE = [0.84, -2.65, 2.12]  ← TORP 下端（実測未反映、footplateワールド位置は据え置き）
+// 頭部      : STAPES_HEAD      = [-0.7249, -0.0273, 3.5259]  ← PORP 下端
+//   2026-07-22: Interactive Landmark Toolによる実測PORP_CONTACT_POINTベースに補正。
+//   旧値[0.84,-2.65,4.86]（Z軸方向のみ2.74mm、というOpenEar解析からの粗い推定値）は
+//   「footplateがGLBローカル原点にある」という誤った前提に基づいており廃止。
+//   詳細・実測ログはLandmarkMeasurements.md参照（Reviewer: Shoji, 2026-07-22）。
 //
-// PORP シャフト長: |臍部 − 頭部| = 2.78 mm（OpenEar 実測）
-// TORP シャフト長: |臍部 − 底板| = 4.00 mm（OpenEar 実測）
-// 耳小骨連鎖は主に Y（下方）に走行、Z 差は最小（実測 0.14 mm）
+// TORP シャフト長: |臍部 − 底板| = 4.00 mm（OpenEar 実測、STAPES_FOOTPLATE基準のため無変更）
+// 耳小骨連鎖は主に Y（下方）に走行、Z 差は最小（実測 0.14 mm、旧STAPES_HEAD基準の記述のため要再検証）
 // ══════════════════════════════════════════════════════════════════
 
 /** アブミ骨底板の世界座標（OpenEar ALPHA 実測: |臍部→底板| = 4.00 mm） */
 export const STAPES_FOOTPLATE = new THREE.Vector3(0.84, -2.65, 2.12);
-/** アブミ骨頭（capitulum）の世界座標（OpenEar ALPHA 実測: |臍部→頭部| = 2.78 mm） */
-export const STAPES_HEAD      = new THREE.Vector3(0.84, -2.65, 4.86);
+/** アブミ骨頭（capitulum）の世界座標。PORPフット部の接触点（PORP_CONTACT_POINT）実測値ベース。
+ *  Measured from Stapes.glb via Interactive Landmark Tool v2 / PORP_CONTACT_POINT /
+ *  Reviewer: Shoji / Date: 2026-07-22（footplateワールド位置[0.84,-2.65,2.12]は据え置き、
+ *  ローカル実測ベクトルのみ適用。詳細はLandmarkMeasurements.md参照） */
+export const STAPES_HEAD      = new THREE.Vector3(-0.7249, -0.0273, 3.5259);
 /** 臍部（umbo）の世界座標 ── プロステーシス上端の基準 */
 export const UMBO_POS         = new THREE.Vector3(0.0,   0.0,  5.0);
 
