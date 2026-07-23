@@ -27,14 +27,14 @@
 
 import { Suspense, useRef, useEffect, useMemo, useState } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport } from '@react-three/drei';
+import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   STAPES_HEAD,
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -339,6 +339,71 @@ function DangerZoneOverlay() {
   );
 }
 
+// ── Bell構造デバッグマーカー（2026-07-23、shojiさん指摘のBELLフット×シャフト構造矛盾調査用）──
+// ?debug=coords かつ footType==='BELL'（PORP）のときのみ表示。Ground Truth取得時にBell頂点/
+// Bell底面(=現行シャフト開始点)/Bell高さの寸法線を可視化し、shojiさんがselectedLengthの定義
+// （STAPES_HEAD→HeadPlateか、Bell頂点→HeadPlateか）を確定するための一時的な調査用オーバーレイ。
+// 本実装（ProsthesisModel/BellFoot）には一切手を入れていない（Strangler Pattern、Small Change）。
+function BellDebugMarkers({ base, apex }: { base: THREE.Vector3; apex: THREE.Vector3 }) {
+  return (
+    <group>
+      {/* Bell Rim = 現行シャフト開始点（オレンジ） */}
+      <mesh position={[base.x, base.y, base.z]}>
+        <sphereGeometry args={[0.5, 12, 12]} />
+        <meshStandardMaterial color="#ff8800" emissive="#ff8800" emissiveIntensity={2} depthTest={false} />
+      </mesh>
+      <Html position={[base.x, base.y, base.z]} center distanceFactor={22} zIndexRange={[0, 10]}>
+        <div style={{
+          background: 'rgba(0,15,35,.88)', border: '1px solid #ff8800', borderRadius: 4,
+          padding: '2px 8px', fontSize: 10, color: '#ff8800', whiteSpace: 'nowrap',
+        }}>
+          Bell Rim / 現行Shaft開始点
+        </div>
+      </Html>
+
+      {/* Bell Apex（緑） */}
+      <mesh position={[apex.x, apex.y, apex.z]}>
+        <sphereGeometry args={[0.5, 12, 12]} />
+        <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={2} depthTest={false} />
+      </mesh>
+      <Html position={[apex.x, apex.y, apex.z]} center distanceFactor={22} zIndexRange={[0, 10]}>
+        <div style={{
+          background: 'rgba(0,15,35,.88)', border: '1px solid #00ff88', borderRadius: 4,
+          padding: '2px 8px', fontSize: 10, color: '#00ff88', whiteSpace: 'nowrap',
+        }}>
+          Bell Apex（頂点）
+        </div>
+      </Html>
+
+      <BellDimensionLine from={base} to={apex} />
+    </group>
+  );
+}
+
+function BellDimensionLine({ from, to }: { from: THREE.Vector3; to: THREE.Vector3 }) {
+  const mid   = from.clone().add(to).multiplyScalar(0.5);
+  const dir   = to.clone().sub(from).normalize();
+  const len   = from.distanceTo(to);
+  const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const euler = new THREE.Euler().setFromQuaternion(quat);
+  return (
+    <group position={[mid.x, mid.y, mid.z]} rotation={[euler.x, euler.y, euler.z]}>
+      <mesh>
+        <cylinderGeometry args={[0.02, 0.02, len, 8]} />
+        <meshBasicMaterial color="#ffffff" depthTest={false} />
+      </mesh>
+      <Html position={[0, 0, 0]} center distanceFactor={22} zIndexRange={[0, 10]}>
+        <div style={{
+          background: 'rgba(0,15,35,.88)', border: '1px solid #fff', borderRadius: 4,
+          padding: '2px 8px', fontSize: 10, color: '#fff', whiteSpace: 'nowrap',
+        }}>
+          Bell Height = {BELL_HEIGHT_MM.toFixed(3)}mm（実測1.48mm×0.7395）
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 // ── ドラッグ可能プロステーシス（TransformControls） ──────────────────────
 interface DraggableProsthesisProps {
   product:        KurzProduct;
@@ -490,6 +555,22 @@ export function SimScene({
   useEffect(() => {
     useSimStore.getState().computeSafety(dangerZonePoint);
   }, [dangerZonePoint]);
+
+  // Bell構造デバッグマーカー用の基準点（2026-07-23、shojiさん指摘調査用）。
+  // dangerZonePoint算出と同じbase計算式（basePos+lateralOffset+dragOffsetX等）を再利用。
+  // footType!=='BELL'のときは呼び出し側で描画しないため、方向はUMBO_POS固定で問題ない。
+  const bellBase = useMemo(
+    () => new THREE.Vector3(
+      basePos.x + lateralOffset  + dragOffsetX,
+      basePos.y + verticalOffset + dragOffsetY,
+      basePos.z + anteriorOffset + dragOffsetZ,
+    ),
+    [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ],
+  );
+  const bellApex = useMemo(() => {
+    const dir = new THREE.Vector3().subVectors(UMBO_POS, bellBase).normalize();
+    return bellBase.clone().addScaledVector(dir, BELL_HEIGHT_MM);
+  }, [bellBase]);
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
@@ -678,6 +759,11 @@ export function SimScene({
 
           {/* ── Danger Zone Overlay（Phase20.4b、?debug=coords 時のみ） ── */}
           {coordDebug && <DangerZoneOverlay />}
+
+          {/* ── Bell構造デバッグマーカー（2026-07-23、?debug=coords かつ PORP(BELL)時のみ） ── */}
+          {coordDebug && product.footType === 'BELL' && (
+            <BellDebugMarkers base={bellBase} apex={bellApex} />
+          )}
 
           {/* ── 軟骨スライス ── */}
           {showCartilage && (

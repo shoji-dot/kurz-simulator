@@ -487,11 +487,20 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
 //     slit  = 31.98° (0.558 rad) each
 //     solid = 58.02° (1.013 rad) each sector
 // ================================================================
+/**
+ * Bell全高（スケール後、mm）。実測1.48mm × スケール係数0.7395 = 1.095mm。
+ * BellFoot()のローカルY=0（リム/底面）〜BELL_HEIGHT_MM（頂点/apex）の中空カップ形状を定義する値。
+ * 2026-07-23、shojiさん指摘のBELLフット×シャフト構造矛盾の調査でSimScene.tsxのDebug Overlay
+ * （Bell Apex/Bell Rimマーカー）からも参照するため、BellFoot()内のローカル定数から export に昇格。
+ * 数値自体は変更していない（挙動変更なし、単一情報源化のみ）。
+ */
+export const BELL_HEIGHT_MM = 1.095;
+
 function BellFoot({ ghost }: { ghost?: boolean }) {
   // ── Parameters scaled to 1/20 from 20× physical model ───────
   // 20× model: bottom dia 31.8 mm → 1/20 = 1.59 mm (dia), R = 0.795
   // Scale factor: 0.795 / 1.075 = 0.7395  (applied uniformly to all dims)
-  const BELL_H     = 1.095;   // total bell height         (1.48 × 0.7395)
+  const BELL_H     = BELL_HEIGHT_MM;   // total bell height   (1.48 × 0.7395)
   const RIM_R      = 0.795;   // outer radius at rim       (dia 1.59 mm, from 20× model)
   const SLIT_TOP_R = 0.599;   // outer radius at slit top  (0.810 × 0.7395)
   const SLIT_H     = 0.717;   // slit height from rim      (0.97 × 0.7395)
