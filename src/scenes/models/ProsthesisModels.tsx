@@ -496,12 +496,20 @@ function HeadPlate({ headType = 'FENESTRATED', ghost }: { headType?: HeadType; g
  */
 export const BELL_HEIGHT_MM = 1.095;
 
+/**
+ * Bell Rim（開口部）の半径（スケール後、mm）。実測1.59mm(dia) × スケール係数0.7395 / 2 = 0.795mm。
+ * BellFoot()内のローカル定数だったが、Step14（Bell境界ランドマーク測定、LandmarkMeasurements.md）の
+ * P1-2デバッグ表示（BellDirectionCandidates、SimScene.tsx）から参照するためexportに昇格。
+ * 数値自体は変更していない（挙動変更なし、単一情報源化のみ）。2026-07-23。
+ */
+export const BELL_RIM_RADIUS_MM = 0.795;
+
 function BellFoot({ ghost }: { ghost?: boolean }) {
   // ── Parameters scaled to 1/20 from 20× physical model ───────
   // 20× model: bottom dia 31.8 mm → 1/20 = 1.59 mm (dia), R = 0.795
   // Scale factor: 0.795 / 1.075 = 0.7395  (applied uniformly to all dims)
   const BELL_H     = BELL_HEIGHT_MM;   // total bell height   (1.48 × 0.7395)
-  const RIM_R      = 0.795;   // outer radius at rim       (dia 1.59 mm, from 20× model)
+  const RIM_R      = BELL_RIM_RADIUS_MM;   // outer radius at rim (dia 1.59 mm, from 20x model)
   const SLIT_TOP_R = 0.599;   // outer radius at slit top  (0.810 × 0.7395)
   const SLIT_H     = 0.717;   // slit height from rim      (0.97 × 0.7395)
   const WALL_T     = 0.096;   // uniform wall thickness    (0.13 × 0.7395)

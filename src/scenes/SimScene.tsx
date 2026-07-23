@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -404,6 +404,72 @@ function BellDimensionLine({ from, to }: { from: THREE.Vector3; to: THREE.Vector
   );
 }
 
+// ── Bellローカル座標系 方向候補デバッグ表示（2026-07-23、Step14 P1-2用） ──
+// ?debug=coords かつ footType==='BELL' 時のみ。座標を測るためではなく方位を確認するための表示
+// （shojiさん方針: 先入観を避けるためAnterior等の解剖名はまだ付けず、A/B/C/D+角度のみ表示）。
+// Three.js LatheGeometry の実装（vertex.x=r*sin(phi), vertex.z=r*cos(phi)）に合わせ、
+// ローカル角度0°を+Z、90°を+Xとして候補点を計算する（BellFoot()のプロファイル回転と同一の
+// 角度定義、node_modules/three/src/geometries/LatheGeometry.js L141-150で確認済み）。
+// ProsthesisModel/BellFoot本体には一切手を入れていない（Strangler Pattern、Small Change）。
+interface BellCandidate {
+  label:    string;
+  angleDeg: number;
+  pos:      THREE.Vector3;
+  outerPos: THREE.Vector3;
+}
+
+function DebugLine({ from, to, color }: { from: THREE.Vector3; to: THREE.Vector3; color: string }) {
+  const mid   = from.clone().add(to).multiplyScalar(0.5);
+  const dir   = to.clone().sub(from).normalize();
+  const len   = from.distanceTo(to);
+  const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const euler = new THREE.Euler().setFromQuaternion(quat);
+  return (
+    <group position={[mid.x, mid.y, mid.z]} rotation={[euler.x, euler.y, euler.z]}>
+      <mesh>
+        <cylinderGeometry args={[0.015, 0.015, len, 6]} />
+        <meshBasicMaterial color={color} depthTest={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function BellDirectionCandidates({
+  base, candidates, axisX, axisY, axisZ,
+}: {
+  base:       THREE.Vector3;
+  candidates: BellCandidate[];
+  axisX:      THREE.Vector3;
+  axisY:      THREE.Vector3;
+  axisZ:      THREE.Vector3;
+}) {
+  return (
+    <group>
+      {candidates.map((cnd) => (
+        <group key={cnd.label}>
+          <mesh position={[cnd.pos.x, cnd.pos.y, cnd.pos.z]}>
+            <sphereGeometry args={[0.18, 10, 10]} />
+            <meshStandardMaterial color="#00e5ff" emissive="#00e5ff" emissiveIntensity={2} depthTest={false} />
+          </mesh>
+          <DebugLine from={cnd.pos} to={cnd.outerPos} color="#00e5ff" />
+          <Html position={[cnd.outerPos.x, cnd.outerPos.y, cnd.outerPos.z]} center zIndexRange={[0, 10]}>
+            <div style={{
+              background: 'rgba(0,15,35,.88)', border: '1px solid #00e5ff', borderRadius: 4,
+              padding: '2px 6px', fontSize: 9, color: '#00e5ff', whiteSpace: 'nowrap',
+            }}>
+              Candidate {cnd.label} ({cnd.angleDeg}°)
+            </div>
+          </Html>
+        </group>
+      ))}
+      {/* Bellローカル座標軸（開発用のみ、赤=local X / 緑=local Y / 青=local Z） */}
+      <DebugLine from={base} to={axisX} color="#ff4d4d" />
+      <DebugLine from={base} to={axisY} color="#4dff4d" />
+      <DebugLine from={base} to={axisZ} color="#4d88ff" />
+    </group>
+  );
+}
+
 // ── ドラッグ可能プロステーシス（TransformControls） ──────────────────────
 interface DraggableProsthesisProps {
   product:        KurzProduct;
@@ -590,10 +656,32 @@ export function SimScene({
     const footOff = -(selectedLength / 2);
     const rim  = mid.clone().add(new THREE.Vector3(0, footOff, 0).applyEuler(finalEuler));
     const apex = rim.clone().add(new THREE.Vector3(0, BELL_HEIGHT_MM, 0).applyEuler(finalEuler));
-    return { rim, apex };
+
+    // Step14 P1-2: ローカル方向候補（0/90/180/270度、Three.js LatheGeometryの角度定義
+    // x=r*sin(phi)/z=r*cos(phi)に合わせる）とBellローカル座標軸（開発用デバッグ表示のみ）。
+    const candidateAngles = [0, 90, 180, 270];
+    const candidateLabels = ['A', 'B', 'C', 'D'];
+    const candidates = candidateAngles.map((deg, i) => {
+      const rad = (deg * Math.PI) / 180;
+      const r1 = BELL_RIM_RADIUS_MM;
+      const r2 = BELL_RIM_RADIUS_MM * 1.6;
+      const pos      = rim.clone().add(new THREE.Vector3(r1 * Math.sin(rad), 0, r1 * Math.cos(rad)).applyEuler(finalEuler));
+      const outerPos = rim.clone().add(new THREE.Vector3(r2 * Math.sin(rad), 0, r2 * Math.cos(rad)).applyEuler(finalEuler));
+      return { label: candidateLabels[i], angleDeg: deg, pos, outerPos };
+    });
+    const AXIS_LEN_MM = 1.5;
+    const axisX = rim.clone().add(new THREE.Vector3(AXIS_LEN_MM, 0, 0).applyEuler(finalEuler));
+    const axisY = rim.clone().add(new THREE.Vector3(0, AXIS_LEN_MM, 0).applyEuler(finalEuler));
+    const axisZ = rim.clone().add(new THREE.Vector3(0, 0, AXIS_LEN_MM).applyEuler(finalEuler));
+
+    return { rim, apex, candidates, axisX, axisY, axisZ };
   }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
   const bellBase = bellMarkers.rim;
   const bellApex = bellMarkers.apex;
+  const bellCandidates = bellMarkers.candidates;
+  const bellAxisX = bellMarkers.axisX;
+  const bellAxisY = bellMarkers.axisY;
+  const bellAxisZ = bellMarkers.axisZ;
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
@@ -787,6 +875,17 @@ export function SimScene({
           {/* ── Bell構造デバッグマーカー（2026-07-23、?debug=coords かつ PORP(BELL)時のみ） ── */}
           {coordDebug && product.footType === 'BELL' && (
             <BellDebugMarkers base={bellBase} apex={bellApex} />
+          )}
+
+          {/* ── Bellローカル方向候補（Step14 P1-2用、2026-07-23） ── */}
+          {coordDebug && product.footType === 'BELL' && (
+            <BellDirectionCandidates
+              base={bellBase}
+              candidates={bellCandidates}
+              axisX={bellAxisX}
+              axisY={bellAxisY}
+              axisZ={bellAxisZ}
+            />
           )}
 
           {/* ── 軟骨スライス ── */}
