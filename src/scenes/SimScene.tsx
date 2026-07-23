@@ -42,6 +42,7 @@ import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } 
 import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
+import { buildGroundTruthRecord } from '../engine/groundTruth/exportGroundTruth';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
 
@@ -548,6 +549,10 @@ export function SimScene({
   const safetyScore  = useSimStore((s) => s.safetyScore);
   const safetyAlerts = useSimStore((s) => s.safetyAlerts);
 
+  // Ground Truth Export（2026-07-23、shojiさん仕様確定）: ?debug=coords限定、既存UIには影響なし。
+  const [groundTruthJson, setGroundTruthJson] = useState<string | null>(null);
+  const [groundTruthCopied, setGroundTruthCopied] = useState(false);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
     {coordDebug && (
@@ -570,6 +575,41 @@ export function SimScene({
         {nearestDangerZone && (
           `\n\nNearest: ${nearestDangerZone.zone.nameJa}\n  distance: ${nearestDangerZone.distanceMm.toFixed(2)}mm\n  warning : ${nearestDangerZone.zone.warningRadius}mm\n  danger  : ${nearestDangerZone.zone.dangerRadius}mm\n  state   : ${nearestDangerZone.state.toUpperCase()}`
         )}
+        <div style={{ marginTop: 8, pointerEvents: 'auto' }}>
+          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 3 }}>Ground Truth Export</div>
+          <button
+            type="button"
+            onClick={() => {
+              const record = buildGroundTruthRecord(surgicalCase.id, product.id, placement);
+              const json = JSON.stringify(record, null, 2);
+              setGroundTruthJson(json);
+              setGroundTruthCopied(false);
+              if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(json)
+                  .then(() => setGroundTruthCopied(true))
+                  .catch(() => setGroundTruthCopied(false));
+              }
+            }}
+            style={{
+              fontFamily: 'monospace', fontSize: 10, padding: '2px 8px',
+              cursor: 'pointer', background: '#2a2a2a', color: '#7fd3ff',
+              border: '1px solid #555', borderRadius: 3,
+            }}
+          >
+            {groundTruthCopied ? 'Copied!' : 'Copy JSON'}
+          </button>
+          {groundTruthJson && (
+            <pre
+              style={{
+                marginTop: 4, maxHeight: 180, overflow: 'auto', fontSize: 9,
+                userSelect: 'text', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                background: 'rgba(255,255,255,0.05)', padding: 4, borderRadius: 3,
+              }}
+            >
+              {groundTruthJson}
+            </pre>
+          )}
+        </div>
       </div>
     )}
     <Canvas
