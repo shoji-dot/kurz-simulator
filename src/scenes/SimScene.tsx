@@ -352,7 +352,7 @@ function BellDebugMarkers({ base, apex }: { base: THREE.Vector3; apex: THREE.Vec
         <sphereGeometry args={[0.5, 12, 12]} />
         <meshStandardMaterial color="#ff8800" emissive="#ff8800" emissiveIntensity={2} depthTest={false} />
       </mesh>
-      <Html position={[base.x, base.y, base.z]} center distanceFactor={22} zIndexRange={[0, 10]}>
+      <Html position={[base.x, base.y, base.z]} center zIndexRange={[0, 10]}>
         <div style={{
           background: 'rgba(0,15,35,.88)', border: '1px solid #ff8800', borderRadius: 4,
           padding: '2px 8px', fontSize: 10, color: '#ff8800', whiteSpace: 'nowrap',
@@ -366,7 +366,7 @@ function BellDebugMarkers({ base, apex }: { base: THREE.Vector3; apex: THREE.Vec
         <sphereGeometry args={[0.5, 12, 12]} />
         <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={2} depthTest={false} />
       </mesh>
-      <Html position={[apex.x, apex.y, apex.z]} center distanceFactor={22} zIndexRange={[0, 10]}>
+      <Html position={[apex.x, apex.y, apex.z]} center zIndexRange={[0, 10]}>
         <div style={{
           background: 'rgba(0,15,35,.88)', border: '1px solid #00ff88', borderRadius: 4,
           padding: '2px 8px', fontSize: 10, color: '#00ff88', whiteSpace: 'nowrap',
@@ -392,7 +392,7 @@ function BellDimensionLine({ from, to }: { from: THREE.Vector3; to: THREE.Vector
         <cylinderGeometry args={[0.02, 0.02, len, 8]} />
         <meshBasicMaterial color="#ffffff" depthTest={false} />
       </mesh>
-      <Html position={[0, 0, 0]} center distanceFactor={22} zIndexRange={[0, 10]}>
+      <Html position={[0, 0, 0]} center zIndexRange={[0, 10]}>
         <div style={{
           background: 'rgba(0,15,35,.88)', border: '1px solid #fff', borderRadius: 4,
           padding: '2px 8px', fontSize: 10, color: '#fff', whiteSpace: 'nowrap',
