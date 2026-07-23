@@ -557,20 +557,34 @@ export function SimScene({
   }, [dangerZonePoint]);
 
   // Bell構造デバッグマーカー用の基準点（2026-07-23、shojiさん指摘調査用）。
-  // dangerZonePoint算出と同じbase計算式（basePos+lateralOffset+dragOffsetX等）を再利用。
-  // footType!=='BELL'のときは呼び出し側で描画しないため、方向はUMBO_POS固定で問題ない。
-  const bellBase = useMemo(
-    () => new THREE.Vector3(
+  // 2026-07-23修正: ProsthesisModel本体（ProsthesisModels.tsx L727-778）の実際の変換式
+  // （base→dir→quat→euler+angleTilt/angleTiltZ→mid→footOff）を1対1で再現する。
+  // 旧実装はUMBO方向のみでangleTilt/angleTiltZを無視していたため、配置調整中（tilt≠0）に
+  // マーカーと実際のBell描画位置がズレていた（shojiさん視認報告、スクリーンショットで確認）。
+  // ProsthesisModel/BellFoot本体は一切変更していない（Strangler Pattern、マーカー側のみ修正）。
+  const bellMarkers = useMemo(() => {
+    const base = new THREE.Vector3(
       basePos.x + lateralOffset  + dragOffsetX,
       basePos.y + verticalOffset + dragOffsetY,
       basePos.z + anteriorOffset + dragOffsetZ,
-    ),
-    [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ],
-  );
-  const bellApex = useMemo(() => {
-    const dir = new THREE.Vector3().subVectors(UMBO_POS, bellBase).normalize();
-    return bellBase.clone().addScaledVector(dir, BELL_HEIGHT_MM);
-  }, [bellBase]);
+    );
+    const dir = new THREE.Vector3().subVectors(UMBO_POS, base).normalize();
+    const top = base.clone().addScaledVector(dir, selectedLength);
+    const mid = base.clone().add(top).multiplyScalar(0.5);
+
+    const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    const euler = new THREE.Euler().setFromQuaternion(quat);
+    const tiltXRad = (angleTilt  * Math.PI) / 180;
+    const tiltZRad = (angleTiltZ * Math.PI) / 180;
+    const finalEuler = new THREE.Euler(euler.x + tiltXRad, euler.y, euler.z + tiltZRad);
+
+    const footOff = -(selectedLength / 2);
+    const rim  = mid.clone().add(new THREE.Vector3(0, footOff, 0).applyEuler(finalEuler));
+    const apex = rim.clone().add(new THREE.Vector3(0, BELL_HEIGHT_MM, 0).applyEuler(finalEuler));
+    return { rim, apex };
+  }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
+  const bellBase = bellMarkers.rim;
+  const bellApex = bellMarkers.apex;
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
