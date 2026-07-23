@@ -758,11 +758,19 @@ export function ProsthesisModel({
       </group>
 
       {/* Shaft – circular cross-section; PISTON type uses Ø0.4mm */}
+      {/* 2026-07-23修正: footType==='BELL'の場合のみ、シャフトの描画区間をBell rim(Y=0)起点では
+          なくBell apex(Y=BELL_HEIGHT_MM)起点に変更。実物はBellの閉じた頂点からシャフトが立ち
+          上がる構造で、rim起点のままだとBellカップ内部とシャフトが重なって描画されていた
+          （shojiさん実機確認・BellDebugMarkersで裏付け済み）。base/dir/shaftLength/headOff/
+          footOff（Safety Engine・スコア計算が参照する値）は一切変更しない、純粋な描画修正。 */}
       {(() => {
-        const r = product.type === 'PISTON' ? 0.20 : 0.10;
+        const r        = product.type === 'PISTON' ? 0.20 : 0.10;
+        const isBell   = product.footType === 'BELL';
+        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM) : len;
+        const shaftY   = isBell ? BELL_HEIGHT_MM / 2 : 0;
         return (
-          <mesh>
-            <cylinderGeometry args={[r, r, len, 16]} />
+          <mesh position={[0, shaftY, 0]}>
+            <cylinderGeometry args={[r, r, shaftLen, 16]} />
             <TitaniumMat ghost={ghost} />
           </mesh>
         );
