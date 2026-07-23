@@ -1,5 +1,17 @@
 export type OssicleStatus = 'intact' | 'partial' | 'absent';
-export type StapesStatus = 'intact' | 'suprastructure' | 'footplate-only' | 'absent';
+/**
+ * アブミ骨(Stapes)の構造的状態。
+ * - intact / suprastructure: 前弓・後弓・頭部(capitulum)すべて残存。Bell(PORP)はSTAPES_HEADへ接続。
+ * - head-loss: 前弓・後弓は残存するが頭部(capitulum)は欠損。2026-07-23追加(型のみ、現行症例では未使用)。
+ *   Bell接続用の専用ランドマークは未実測のため、SimScene.tsxのbasePos決定ロジックでは
+ *   footplate-only/absentと同じくSTAPES_FOOTPLATEへ暫定フォールバックする(推測でランドマークを
+ *   新設しない、2026-07-23 shojiさん方針)。将来head-loss症例を追加する際は、専用ランドマーク
+ *   (例: STAPES_SUPRASTRUCTURE_CONTACT)を実測してから使うこと。
+ * - footplate-only: 前弓・後弓・頭部すべて欠損、底板のみ残存。Bell/PORPもSTAPES_FOOTPLATEへ接続
+ *   (TORP/PISTONと同じ基準点)。
+ * - absent: アブミ骨自体が存在しない。
+ */
+export type StapesStatus = 'intact' | 'suprastructure' | 'head-loss' | 'footplate-only' | 'absent';
 
 export interface SurgicalCase {
   id: string;

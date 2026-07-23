@@ -534,8 +534,17 @@ export function SimScene({
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
+  // 2026-07-23修正: BellのbasePosは従来product.footType(BELLか否か)のみで決めていたが、
+  // 症例のstapes状態(footplate-only等、頭部capitulum欠損)を考慮していなかった。
+  // TORP/PISTON(isTotal)は従来通りSTAPES_FOOTPLATE固定(頭部の有無に関わらず臨床的に正しい)。
+  // BELL(PORP)はstapes頭部が実在する(intact/suprastructure)場合のみSTAPES_HEADを使い、
+  // それ以外(head-loss/footplate-only/absent)はSTAPES_FOOTPLATEへフォールバックする
+  // (head-loss用の専用ランドマークは未実測のため新設せず、暫定でfootplate-onlyと同じ扱いにする
+  // ── 2026-07-23 shojiさん方針、RecommendedLength_Audit_Template参照)。
+  const stapStatus = surgicalCase.ossicularStatus.stapes;
+  const bellHeadAvailable = stapStatus === 'intact' || stapStatus === 'suprastructure';
   const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
-  const basePos = isTotal ? STAPES_FOOTPLATE : STAPES_HEAD;
+  const basePos = (isTotal || !bellHeadAvailable) ? STAPES_FOOTPLATE : STAPES_HEAD;
 
   // ── Phase20.4c: 実際の配置点でSafety Score算出（DANGER_ZONES近接判定）を都度更新 ──
   // basePos + オフセット = プロステーシス基準点（Placement Frame）。DraggableProsthesis/
@@ -603,8 +612,8 @@ export function SimScene({
     auricle:  'hidden',
   };
 
-  // 症例別 耳小骨 ステータス
-  const { malleus: malStatus, incus: incStatus, stapes: stapStatus } = surgicalCase.ossicularStatus;
+  // 症例別 耳小骨 ステータス(stapesは上のbasePos計算で既に取得済みのstapStatusを再利用)
+  const { malleus: malStatus, incus: incStatus } = surgicalCase.ossicularStatus;
 
   // サイドバーの表示モード（個別キー → 旧 ossicles キー → 既定 solid）
   const ossMode = (key: 'malleus' | 'incus' | 'stapes'): OpacityMode =>
@@ -765,6 +774,7 @@ export function SimScene({
               headType={product.headType}
               idealLateralOffset={surgicalCase.idealLateralOffset}
               idealAngle={surgicalCase.idealAngle}
+              basePos={basePos.clone()}
             />
           )}
 

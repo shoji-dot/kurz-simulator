@@ -317,7 +317,11 @@ export function Stapes({
 }) {
   if (status === 'absent') return null;
   const col = highlight === 'stapes' ? '#00b4d8' : BONE;
-  const hasSuprastructure = status === 'intact' || status === 'suprastructure';
+  // 2026-07-23: head-loss(前弓・後弓残存、頭部欠損)追加に伴い、crus描画とhead描画の条件を分離。
+  // 既存のintact/suprastructure/footplate-only/absentの挙動は変更なし(hasCrus/hasHeadが
+  // 従来hasSuprastructureと同じ2値でtrueになるため)。
+  const hasCrus = status === 'intact' || status === 'suprastructure' || status === 'head-loss';
+  const hasHead = status === 'intact' || status === 'suprastructure';
 
   const fp = STAPES_FOOTPLATE.clone();
   const hd = STAPES_HEAD.clone();
@@ -334,20 +338,24 @@ export function Stapes({
         <Label position={[fp.x + 2.5, fp.y, fp.z]} text="底板 (Footplate) → 卵円窓" />
       )}
 
-      {hasSuprastructure && (
+      {hasCrus && (
         <>
           {/* 前弓（Anterior crus）*/}
           <StapesCrus fp={fp} hd={hd} side="anterior"  color={col} />
           {/* 後弓（Posterior crus）*/}
           <StapesCrus fp={fp} hd={hd} side="posterior" color={col} />
 
-          {/* 頭部（Capitulum）*/}
-          <mesh position={[hd.x, hd.y, hd.z]}>
-            <sphereGeometry args={[0.32, 14, 12]} />
-            <meshStandardMaterial color={col} roughness={0.28} metalness={0.05} />
-          </mesh>
-          {showLabels && (
-            <Label position={[hd.x + 2.0, hd.y + 0.5, hd.z]} text="アブミ骨頭 (Capitulum)" />
+          {/* 頭部（Capitulum）— head-lossでは欠損のため非表示 */}
+          {hasHead && (
+            <>
+              <mesh position={[hd.x, hd.y, hd.z]}>
+                <sphereGeometry args={[0.32, 14, 12]} />
+                <meshStandardMaterial color={col} roughness={0.28} metalness={0.05} />
+              </mesh>
+              {showLabels && (
+                <Label position={[hd.x + 2.0, hd.y + 0.5, hd.z]} text="アブミ骨頭 (Capitulum)" />
+              )}
+            </>
           )}
         </>
       )}

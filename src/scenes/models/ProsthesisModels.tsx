@@ -794,18 +794,24 @@ export function IdealGhostProsthesis({
   headType           = 'FENESTRATED',
   idealLateralOffset = 0,
   idealAngle         = 0,
+  basePos,
 }: {
   product:             KurzProduct;
   length:              number;
   headType?:           HeadType;
   idealLateralOffset?: number;
   idealAngle?:         number;
+  /** 2026-07-23追加: 呼び出し元(症例)がbasePosを渡さない場合、footType既定値
+   *  (STAPES_HEAD/STAPES_FOOTPLATE)にフォールバックする(下のProsthesisModel既定ロジック)。
+   *  SimScene.tsxはstapes状態を考慮した実際のbasePosを渡すため、これを省略せず渡すこと。 */
+  basePos?:            THREE.Vector3;
 }) {
   return (
     <ProsthesisModel
       product={product}
       shaftLength={length}
       headType={headType}
+      basePos={basePos}
       lateralOffset={idealLateralOffset}
       angleTilt={idealAngle}
       ghost={true}
