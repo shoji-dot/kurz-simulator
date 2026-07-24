@@ -46,7 +46,8 @@ import { subtractVec3, dotVec3, scaleVec3, normalizeVec3, crossVec3 } from './ve
  *   ための座標系なので、平面フィッティングの重心ではなく解剖学的ランドマークを原点にする、
  *   2026-07-24shojiさん決定）。
  * - normal: 鼓膜面の法線ベクトル（単位ベクトル、+Z）。正方向=外耳道側（術者が鼓膜を見る方向）。
- * - tangent: 鼓膜面内の基準方向（+X）。UMBO→Anteriorをnormal垂直面へ投影してから正規化した方向。
+ * - tangent: 鼓膜面内の基準方向（+X）。UMBO→Anteriorをnormal垂直面へ投影してから正規化した方向
+ *   （Projection onto TM plane、Gram-Schmidt的な直交化）。
  * - bitangent: normal × tangent（+Y、面内の直交方向、右手系）。
  * Node実行で直交性(X・Y, X・N, Y・N ≈ 0)と右手系(X×Y = N)を数値検証済み（2026-07-24）。
  */
@@ -88,6 +89,7 @@ export const TM_PLANE_FIT_ORIGIN: Vec3Tuple = [-3.5806, 3.6346, 1.7099];
 /**
  * TMCoordinateFrameを構築する。origin/normalは実測値をそのまま使い、tangent/bitangentは
  * 実測点から導出する（手計算による転記を避け、再測定時の不整合を防ぐため関数化）。
+ * tangentはGram-Schmidt的な直交化（Projection onto TM plane→正規化）で求める。
  */
 export function buildTMCoordinateFrame(): TMCoordinateFrame {
   const normal = normalizeVec3(TM_NORMAL);

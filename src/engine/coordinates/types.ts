@@ -42,6 +42,8 @@ export interface OrientationState {
  * - qと-qは同一回転を表す（符号の非一意性）。比較・テストでは成分の完全一致ではなく
  *   「回転として同値か」（例: |dot(q1,q2)| ≈ 1）で判定すること。
  * - engine層の値オブジェクトであり、THREE.Quaternionとは独立した型（THREE非依存の原則を維持）。
+ * - TMCoordinateFrameが右手系（right-handed coordinate system）で定義されているため、この型が
+ *   表す回転も同じ右手系を前提とする。
  *   Three.jsとの変換はscenes/UI層のアダプターで行う。
  * （2026-07-24、shojiさん仕様確定。P4 Pose Solverの返り値型として導入）
  */
