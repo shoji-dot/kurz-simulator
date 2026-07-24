@@ -32,6 +32,10 @@
  * upがforwardとほぼ平行（縮退ケース）の場合は、`vectorMath.ts`の`computeReferenceNormal`
  * （既存のWORLD_UP/WORLD_FORWARD_FALLBACKロジック）を再利用してフォールバックする。
  *
+ * 【符号規約】返り値のquaternionは w>=0 を正規形とする（qと-qは同一回転だが、Node検証・
+ * Ground Truth比較・将来のJSON保存の安定性のためw<0の場合は符号反転して返す。回転としての
+ * 同値性は変わらない）。
+ *
  * 【検証】matrix→quaternion変換（Shepperd's method）はNode実行でTHREE.js
  * （`Quaternion.setFromRotationMatrix`相当）と200件のランダム回転で数値照合済み
  * （最大誤差 6.7e-16、q/-qの符号ambiguityを考慮した内積で比較）。決定論性・直交性・
@@ -51,7 +55,11 @@ const PARALLEL_THRESHOLD = 0.999;
 export interface PoseSolverInput {
   /** ワールド空間の位置（呼び出し側で既にオフセット等を適用済みの最終座標）。 */
   readonly position: Vec3Tuple;
-  /** 姿勢のforward方向（local+Yに対応、既存の「long axis」参照と同じ意味）。正規化は内部で行う。 */
+  /**
+   * 姿勢のforward方向（local+Yに対応、既存の「long axis」参照と同じ意味）。正規化は内部で行う。
+   * 前提条件: 有限・非零ベクトルであること。ゼロベクトル（|forward|≈0）や非有限値（NaN/Infinity）を
+   * 渡した場合の挙動は未定義（単位クォータニオンにならない可能性がある）。呼び出し側で保証すること。
+   */
   readonly forward: Vec3Tuple;
   /** twist（forward軸まわりの回転）を確定するための参照up方向（例: TM_NORMAL）。正規化は内部で行う。 */
   readonly up: Vec3Tuple;
@@ -122,7 +130,12 @@ export function solvePose(input: PoseSolverInput): Pose {
   const right = normalizeVec3(crossVec3(forward, upRef));       // local +X
   const correctedUp = normalizeVec3(crossVec3(right, forward)); // local +Z（upのforward垂直面への投影と等価）
 
-  const quaternion = quaternionFromBasis(right, forward, correctedUp);
+  const rawQuaternion = quaternionFromBasis(right, forward, correctedUp);
+  // 符号正規化: qと-qは同一回転だが、テスト・Ground Truth比較・JSON保存の安定性のため
+  // w>=0を正規形とする（2026-07-24、shojiさん指定）。
+  const quaternion: QuaternionTuple = rawQuaternion[3] < 0
+    ? [-rawQuaternion[0], -rawQuaternion[1], -rawQuaternion[2], -rawQuaternion[3]]
+    : rawQuaternion;
 
   return {
     position: input.position,
