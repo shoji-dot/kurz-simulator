@@ -34,3 +34,15 @@ export interface OrientationState {
   readonly earSide: EarSide;
   readonly viewerRole: ViewerRole;
 }
+
+/**
+ * 単位クォータニオンを表すタプル。回転を表す無次元の値（1 unit = 1mm とは無関係）。
+ * - readonly [x, y, z, w]
+ * - 正規化済み（‖q‖ = 1）であることを前提とする。呼び出し側で正規化を保証すること。
+ * - qと-qは同一回転を表す（符号の非一意性）。比較・テストでは成分の完全一致ではなく
+ *   「回転として同値か」（例: |dot(q1,q2)| ≈ 1）で判定すること。
+ * - engine層の値オブジェクトであり、THREE.Quaternionとは独立した型（THREE非依存の原則を維持）。
+ *   Three.jsとの変換はscenes/UI層のアダプターで行う。
+ * （2026-07-24、shojiさん仕様確定。P4 Pose Solverの返り値型として導入）
+ */
+export type QuaternionTuple = readonly [number, number, number, number];

@@ -55,3 +55,11 @@ export function computeReferenceNormal(tangent: Vec3Tuple): Vec3Tuple {
   const reference = dotWithUp > 0.98 ? WORLD_FORWARD_FALLBACK : WORLD_UP;
   return normalizeVec3(crossVec3(tangent, reference));
 }
+
+export function dotVec3(a: Vec3Tuple, b: Vec3Tuple): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+export function scaleVec3(v: Vec3Tuple, scalar: number): Vec3Tuple {
+  return [v[0] * scalar, v[1] * scalar, v[2] * scalar];
+}
