@@ -43,6 +43,9 @@ import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
 import { buildGroundTruthRecord } from '../engine/groundTruth/exportGroundTruth';
+import { solveBellPose } from '../engine/poseSolver/bellAdapter';
+import { TM_NORMAL } from '../engine/coordinates/tympanicMembrane';
+import { PoseComparisonOverlay } from './debug/PoseComparisonOverlay';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
 
@@ -674,7 +677,8 @@ export function SimScene({
     const axisY = rim.clone().add(new THREE.Vector3(0, AXIS_LEN_MM, 0).applyEuler(finalEuler));
     const axisZ = rim.clone().add(new THREE.Vector3(0, 0, AXIS_LEN_MM).applyEuler(finalEuler));
 
-    return { rim, apex, candidates, axisX, axisY, axisZ };
+    const oldQuaternion = new THREE.Quaternion().setFromEuler(finalEuler);
+    return { rim, apex, candidates, axisX, axisY, axisZ, mid, oldQuaternion };
   }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
   const bellBase = bellMarkers.rim;
   const bellApex = bellMarkers.apex;
@@ -682,6 +686,22 @@ export function SimScene({
   const bellAxisX = bellMarkers.axisX;
   const bellAxisY = bellMarkers.axisY;
   const bellAxisZ = bellMarkers.axisZ;
+  const bellOldPosition   = bellMarkers.mid;
+  const bellOldQuaternion = bellMarkers.oldQuaternion;
+
+  // P4-3 Step3-2: 新方式Pose（solveBellPose）。旧方式(bellMarkers)と同じ幾何入力を渡す
+  // （DraggableProsthesis L573-583と同一のbasePos/offsets/selectedLength）。
+  // ?debug=coords かつ footType==='BELL' 時のみ実際に描画される（PoseComparisonOverlay）が、
+  // 計算自体はbellMarkersと同じく常時実行する（Strangler Pattern、既存挙動には影響しない）。
+  const newPose = useMemo(() => solveBellPose({
+    stapesHead:     [basePos.x, basePos.y, basePos.z],
+    umboTarget:     [UMBO_POS.x, UMBO_POS.y, UMBO_POS.z],
+    tmNormal:       TM_NORMAL,
+    shaftLength:    selectedLength,
+    lateralOffset:  lateralOffset  + dragOffsetX,
+    verticalOffset: verticalOffset + dragOffsetY,
+    anteriorOffset: anteriorOffset + dragOffsetZ,
+  }), [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength]);
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
@@ -885,6 +905,17 @@ export function SimScene({
               axisX={bellAxisX}
               axisY={bellAxisY}
               axisZ={bellAxisZ}
+            />
+          )}
+
+          {/* ── Pose比較Ghost Overlay（P4-3 Step3-2、?debug=coords限定・footType===BELL時のみ） ── */}
+          {coordDebug && product.footType === 'BELL' && (
+            <PoseComparisonOverlay
+              product={product}
+              shaftLength={selectedLength}
+              oldPosition={bellOldPosition}
+              oldQuaternion={bellOldQuaternion}
+              newPose={newPose}
             />
           )}
 
