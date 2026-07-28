@@ -26,7 +26,7 @@
  * （P4B-1、2026-07-28）。他14症例（TORP/SoftClip）への一般化は別Adapterで行う想定。
  */
 import type { Vec3Tuple } from '../coordinates/types';
-import { solvePose, composeTwist, type Pose, type PoseInput } from './solvePose';
+import { solvePose, composeTwist, composeTilt, type Pose, type PoseInput } from './solvePose';
 
 export interface BellPoseGeometryInput {
   /** Bellの取り付け基準点（現行STAPES_HEAD相当、ワールド座標）。 */
@@ -43,6 +43,13 @@ export interface BellPoseGeometryInput {
   readonly verticalOffset: number;
   /** PlacementStateのanteriorOffset + dragOffsetZ相当。 */
   readonly anteriorOffset: number;
+  /**
+   * PlacementState.angleTilt相当（degrees、前後傾斜）。P4B-4でcomposeTilt()へ配線。
+   * 省略時は0（tilt無し）として扱う。
+   */
+  readonly angleTilt?: number;
+  /** PlacementState.angleTiltZ相当（degrees、左右傾斜）。省略時は0。 */
+  readonly angleTiltZ?: number;
 }
 
 /** buildBellPoseInput()の返り値。PoseInput（forwardのみ）とtwist解決用の参照ベクトルを分離する。 */
@@ -91,10 +98,16 @@ export function buildBellPoseInput(input: BellPoseGeometryInput): BellPoseInputs
 
 /**
  * BellPoseGeometryInputから直接Poseを得るショートカット。
- * 内部で `buildBellPoseInput → solvePose → composeTwist` を順に呼ぶ薄いオーケストレーターであり、
- * 本関数自体はquaternion計算を行わない（2026-07-28 P4B-2、外部公開の入出力は無変更）。
+ * 内部で `buildBellPoseInput → solvePose → composeTwist → composeTilt` を順に呼ぶ薄い
+ * オーケストレーターであり、本関数自体はquaternion計算を行わない
+ * （2026-07-28 P4B-2、外部公開の入出力は無変更）。
+ *
+ * 【2026-07-28 P4B-4追記】`angleTilt`/`angleTiltZ`（省略時は共に0）を`composeTwist()`の後段で
+ * `composeTilt()`へ渡すよう拡張した。0を渡した場合、`composeTilt`は`Rx_world(0)·q·Rz_local(0)`と
+ * なり恒等演算のため、既存呼び出し元（tilt引数を渡さない箇所）の出力には影響しない。
  */
 export function solveBellPose(input: BellPoseGeometryInput): Pose {
   const { poseInput, twistReference } = buildBellPoseInput(input);
-  return composeTwist(solvePose(poseInput), twistReference);
+  const twisted = composeTwist(solvePose(poseInput), twistReference);
+  return composeTilt(twisted, input.angleTilt ?? 0, input.angleTiltZ ?? 0);
 }

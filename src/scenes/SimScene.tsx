@@ -721,6 +721,9 @@ export function SimScene({
   // P4-3 Step3-2〜P4B-3 Step4: Candidate Pose（solveBellPose、新Pose Solverの出力）。
   // ?debug=coords かつ footType==='BELL' 時のみ実際に描画される（PoseComparisonOverlay）が、
   // 計算自体はReference Poseと同じく常時実行する（Strangler Pattern、既存挙動には影響しない）。
+  // 2026-07-28 P4B-4: angleTilt/angleTiltZをReference Poseと同じ値で渡すよう修正
+  // （修正前はcomposeTiltが存在せずtilt入力の経路自体が無かったため、Candidate Ghostがtilt操作に
+  // 反応しないという表示・スコアの不整合があった。監査で発見、composeTilt()追加により解消）。
   const candidatePose = useMemo(() => solveBellPose({
     stapesHead:     [basePos.x, basePos.y, basePos.z],
     umboTarget:     [UMBO_POS.x, UMBO_POS.y, UMBO_POS.z],
@@ -729,7 +732,9 @@ export function SimScene({
     lateralOffset:  lateralOffset  + dragOffsetX,
     verticalOffset: verticalOffset + dragOffsetY,
     anteriorOffset: anteriorOffset + dragOffsetZ,
-  }), [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength]);
+    angleTilt,
+    angleTiltZ,
+  }), [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
 
   // Three Adapter（poseThreeAdapter.ts）呼び出しはここ1箇所のみ。以降scenes層はTHREE型の
   // candidateGhostだけを扱い、engine Poseの生値(candidatePose)を直接使わない。

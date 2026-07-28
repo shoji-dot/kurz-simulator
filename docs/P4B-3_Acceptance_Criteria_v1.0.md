@@ -12,8 +12,11 @@ P4B-3（新Pose Solverの本番`ProsthesisModel`/`CartilageSlice`への段階的
   「片方だけ先行させると、PORPはTM基準・Cartilageは旧UMBO基準という教育上危険な不整合が
   生じる」ため、Pose Solver移行時は**両者を同時に**変更する。これは実装方針ではなく設計原則
   であり、P4B-3のスコープ・スケジュールより優先する。
-- P4B-3の対象は`solvePose()`→`composeTwist()`の2層（Forward/Twist確立）まで。`composeNormal()`
-  （Head Plate Normal確定後に追加）はP4C（Z軸Evidence取得）の範囲であり、P4B-3では実装しない。
+- P4B-3の対象は`solvePose()`→`composeTwist()`→`composeTilt()`の3層まで（2026-07-28監査で
+  追記: NEW Pose側にUI操作`angleTilt`/`angleTiltZ`を反映する経路が存在しないことが判明したため、
+  P4Bのスコープとして`composeTilt()`層を追加した。UIのtilt入力を反映する責務であり、Head Plate
+  Normalには依存しない）。`composeNormal()`（Head Plate Normal確定後に追加）はP4C（Z軸Evidence
+  取得）の範囲であり、P4B-3では実装しない。
 
 ## Acceptance Criteria
 
@@ -62,6 +65,9 @@ P4B-3（新Pose Solverの本番`ProsthesisModel`/`CartilageSlice`への段階的
    違い（Euler加算 vs 2軸拘束）に限定され、基準軸自体の変更によるものではないこと。
    判定方法: P4B-0のRoot Cause Analysis結果（`docs/Pose_Design_Constraints_v1.0.md`
    P4B-0節）との整合確認。
+   （2026-07-28追記: `composeTilt()`は`angleTilt`/`angleTiltZ`をtwist基準の上に載せる層であり、
+   本項が指す「Pose合成方式の違い」に含まれる。`composeTilt()`自体はOLD実装の閉形式分解
+   （Node検証、誤差2.4e-6°）であり、新たな基準軸のズレを生まない。）
 
 8. **将来の`composeNormal()`追加が両コンポーネント個別修正を必要としないこと**
    Pose生成経路が`ProsthesisModel`/`CartilageSlice`間で共通化されているため、P4Cで

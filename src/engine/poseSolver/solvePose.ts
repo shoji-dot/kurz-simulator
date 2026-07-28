@@ -4,7 +4,13 @@
  * 【2026-07-28改訂（P4B-2、shojiさんレビュー承認）】P4-2 Step1（2026-07-24）で実装した単一の
  * `solvePose(forward,up)→Pose`を、責務ごとに3層へ分離した:
  *
- *   PoseInput ─solvePose()→ PoseBasis ─composeTwist()→ TwistedPose ─composeNormal()→ (Final)Pose
+ *   PoseInput ─solvePose()→ PoseBasis ─composeTwist()→ TwistedPose ─composeTilt()→ TwistedPose
+ *   ─composeNormal()→ (Final)Pose
+ *
+ * 【2026-07-28追記（P4B-4）】Feature Flag導入（P4B-3 Step5）着手前の監査でUI操作
+ * `angleTilt`/`angleTiltZ`をNEW Poseへ反映する経路が欠落していることが判明したため、
+ * `composeTwist()`と`composeNormal()`の間に`composeTilt()`層を追加した（詳細は同関数のJSDoc
+ * 参照）。既存の3層の責務・数式は無変更。
  *
  * 分離の理由（P4A完了時点の状況、[[docs/Pose_Design_Constraints_v1.0.md]]参照）:
  * Head Plate Local CoordinateではOrigin/X軸/Y軸はEvidence Aで確定したが、Z軸（Head Plate
@@ -166,6 +172,77 @@ export function composeTwist(basis: PoseBasis, twistReference: Vec3Tuple): Twist
 
   return {
     position: basis.position,
+    quaternion,
+  };
+}
+
+/** 単位軸(axis)・角度(angleRad)からquaternionを生成する（axis-angle表現）。 */
+function quaternionFromAxisAngle(axis: Vec3Tuple, angleRad: number): QuaternionTuple {
+  const half = angleRad / 2;
+  const s = Math.sin(half);
+  return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(half)];
+}
+
+/**
+ * quaternionのHamilton積 a*b（THREE.Quaternion.multiplyQuaternions(a,b)と同一の演算・符号規約）。
+ * 「aを適用した後にbを適用する」の意味ではなく、three.js/一般的な合成規約
+ * （aの局所座標系上でbを追加合成する）に合わせる。2026-07-28、composeTilt()検証時にNode上で
+ * three.jsと数値照合済み。
+ */
+function multiplyQuaternions(a: QuaternionTuple, b: QuaternionTuple): QuaternionTuple {
+  const [ax, ay, az, aw] = a;
+  const [bx, by, bz, bw] = b;
+  return [
+    ax * bw + aw * bx + ay * bz - az * by,
+    ay * bw + aw * by + az * bx - ax * bz,
+    az * bw + aw * bz + ax * by - ay * bx,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
+/**
+ * Layer 3.5（P4B-4、2026-07-28 shojiさん承認）: TwistedPose + angleTilt/angleTiltZから
+ * UI操作（前後傾斜/左右傾斜）を反映したTwistedPoseを生成する。
+ *
+ * 【追加の経緯】P4B-3のFeature Flag導入（Step5）着手前の監査で、旧`CurrentAxisAlignmentModel`が
+ * ユーザー操作の`angleTilt`/`angleTiltZ`（`useSimStore.ts`のPlacementState、Safety Engineの
+ * スコア計算にも直結）を反映するのに対し、`solvePose()`→`composeTwist()`の2層にはUI入力を
+ * 反映する経路が一切存在しないことが判明した。Flag ONにした場合、研修者がtiltを操作しても
+ * 3Dモデルが視覚的に反応しない一方でフィードバック文言はtilt値を語るという、教育アプリとして
+ * 危険な不整合が生じるため、P4Bのスコープを拡張しこの層を追加した
+ * （[[docs/P4B-3_Acceptance_Criteria_v1.0.md]] 前提条件・Criteria#7参照）。
+ *
+ * 【数式の根拠】旧`computeCurrentAxisAlignmentOrientation`（`scenes/models/ProsthesisModels.tsx`）
+ * のEuler角加算処理を代数的に整理すると、以下の閉形式に一致する（近似ではなく厳密な等価変形）:
+ *
+ *   quatFinal = Rx_world(angleTilt) · quat0 · Rz_local(angleTiltZ)
+ *
+ * すなわち angleTilt は「ワールドX軸まわりの前乗算」、angleTiltZ は「ローカルZ軸まわりの
+ * 後乗算」であり、直感に反して両者は異なる基準系の回転である。Node実行で4種のbase/target×
+ * 12種のtilt角（0°〜180°、負値含む）を検証し、この閉形式とOLD実装の最大差は2.4e-6°
+ * （浮動小数点誤差レベル）であることを確認済み（2026-07-28）。
+ *
+ * 【責務境界】本関数は`twisted.quaternion`（composeTwist()の出力）を土台にtiltを合成するのみで、
+ * forward自体やtwist解決ロジックには関与しない。composeNormal()（Head Plate Normal, P4Cスコープ）
+ * とは独立した層であり、どちらの引数も参照しない。
+ *
+ * 【position】OLD実装同様、position（シャフト中点）はtiltの影響を受けない
+ * （position計算はtilt適用前のdir/base/shaftLengthのみで決まるため）。
+ */
+export function composeTilt(twisted: TwistedPose, angleTilt: number, angleTiltZ: number): TwistedPose {
+  const tiltXRad = (angleTilt  * Math.PI) / 180;
+  const tiltZRad = (angleTiltZ * Math.PI) / 180;
+
+  const qXWorld = quaternionFromAxisAngle([1, 0, 0], tiltXRad);
+  const qZLocal = quaternionFromAxisAngle([0, 0, 1], tiltZRad);
+
+  const rawQuaternion = multiplyQuaternions(multiplyQuaternions(qXWorld, twisted.quaternion), qZLocal);
+  const quaternion: QuaternionTuple = rawQuaternion[3] < 0
+    ? [-rawQuaternion[0], -rawQuaternion[1], -rawQuaternion[2], -rawQuaternion[3]]
+    : rawQuaternion;
+
+  return {
+    position: twisted.position,
     quaternion,
   };
 }
