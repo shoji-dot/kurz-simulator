@@ -45,7 +45,16 @@ import { findNearestDangerZone } from '../engine/safety';
 import { buildGroundTruthRecord } from '../engine/groundTruth/exportGroundTruth';
 import { solveBellPose } from '../engine/poseSolver/bellAdapter';
 import { TM_NORMAL } from '../engine/coordinates/tympanicMembrane';
-import { PoseComparisonOverlay } from './debug/PoseComparisonOverlay';
+import {
+  PoseComparisonOverlay,
+  POSE_COLOR_OLD,
+  POSE_COLOR_NEW,
+  POSE_COLOR_REFERENCE,
+  type GhostPoseInput,
+  type PoseVisibility,
+} from './debug/PoseComparisonOverlay';
+import { poseToThree } from './debug/poseThreeAdapter';
+import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
 
@@ -56,6 +65,10 @@ const _SIM_DEFAULT: { pos: [number,number,number]; target: [number,number,number
   // overview 方向（外側＋前方＋上方）+ SIM_OFF[2.12,2.65,0.84]
   pos: [-37.88, -22.35, 45.84], target: [2.12, 14.65, -2.16],
 };
+// P4-3 Step3-2: Pose比較Overlay用。TM_NORMALはengine層のVec3Tuple定数のためTHREE型へ変換して
+// 保持する（Three Adapterの責務と同じ「成分コピーのみ」、モジュールスコープで1回だけ変換）。
+const TM_NORMAL_VEC3 = new THREE.Vector3(TM_NORMAL[0], TM_NORMAL[1], TM_NORMAL[2]);
+
 function _loadSimCam() {
   try {
     const raw = localStorage.getItem(_SIM_KEY);
@@ -703,6 +716,10 @@ export function SimScene({
     anteriorOffset: anteriorOffset + dragOffsetZ,
   }), [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength]);
 
+  // Three Adapter（poseThreeAdapter.ts）呼び出しはここ1箇所のみ。以降scenes層はTHREE型の
+  // newGhostだけを扱い、engine Poseの生値(newPose)を直接使わない。
+  const newGhost: GhostPoseInput = useMemo(() => poseToThree(newPose), [newPose]);
+
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
   const nearestDangerZone = useMemo(() => findNearestDangerZone(dangerZonePoint), [dangerZonePoint]);
@@ -765,6 +782,27 @@ export function SimScene({
   const [groundTruthJson, setGroundTruthJson] = useState<string | null>(null);
   const [groundTruthCopied, setGroundTruthCopied] = useState(false);
 
+  // P4-3 Step3-2: Pose比較Overlay用HUD状態（2026-07-24、shojiさんレビュー対応）。
+  // 「Capture GT」は実際には現在のOLD Poseのスナップショットであり真のGround Truthでは
+  // ないため、Reference Poseと改名（誤解防止）。表示/非表示はOLD/NEW/Reference個別に切替可能。
+  const [referencePose, setReferencePose] = useState<GhostPoseInput | null>(null);
+  const [poseVisibility, setPoseVisibility] = useState<PoseVisibility>({ old: true, new: true, reference: true });
+
+  const poseStats = useMemo(() => {
+    const oldGhost: GhostPoseInput = { position: bellOldPosition, quaternion: bellOldQuaternion };
+    return {
+      oldVsNew:   comparePoses(oldGhost, newGhost),
+      oldVsRef:   referencePose ? comparePoses(referencePose, oldGhost) : null,
+      newVsRef:   referencePose ? comparePoses(referencePose, newGhost) : null,
+      // shojiさんレビュー(2026-07-24)対応: Forward Errorだけでは「鼓膜法線からどれだけ
+      // 離れているか」が分からないという指摘への数値的回答。PoseModelBaseline.mdの前提
+      // 「Head plate normal = Shaft axis(=forward)」に基づき、forwardとTM_NORMALのなす角を
+      // 直接表示する。
+      oldFwdVsTmDeg: angleToVectorDeg(oldGhost.quaternion, TM_NORMAL_VEC3),
+      newFwdVsTmDeg: angleToVectorDeg(newGhost.quaternion, TM_NORMAL_VEC3),
+    };
+  }, [bellOldPosition, bellOldQuaternion, newGhost, referencePose]);
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
     {coordDebug && (
@@ -820,6 +858,68 @@ export function SimScene({
             >
               {groundTruthJson}
             </pre>
+          )}
+        </div>
+      </div>
+    )}
+    {coordDebug && product.footType === 'BELL' && (
+      <div
+        style={{
+          position: 'absolute', top: 8, right: 8, zIndex: Z_INDEX.modal,
+          background: 'rgba(0,0,0,0.78)', color: '#ccc',
+          fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
+          borderRadius: 4, whiteSpace: 'pre', lineHeight: 1.5, userSelect: 'none', minWidth: 220,
+        }}
+      >
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>Pose Comparison (P4-3 Step3-2)</div>
+        {/* 凡例+表示切替: 2026-07-24 shojiさんレビュー対応、ラベルは3D空間ではなくHUDで管理 */}
+        {([
+          { key: 'old' as const,       color: POSE_COLOR_OLD,       label: 'OLD (legacy formula)' },
+          { key: 'new' as const,       color: POSE_COLOR_NEW,       label: 'NEW (solvePose)' },
+          { key: 'reference' as const, color: POSE_COLOR_REFERENCE, label: 'REFERENCE (snapshot)' },
+        ]).map((row) => (
+          <label key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={poseVisibility[row.key]}
+              onChange={(e) => setPoseVisibility((v) => ({ ...v, [row.key]: e.target.checked }))}
+            />
+            <span style={{ width: 10, height: 10, background: row.color, display: 'inline-block', borderRadius: 2 }} />
+            <span>{row.label}</span>
+          </label>
+        ))}
+        <div style={{ marginTop: 6, borderTop: '1px solid #444', paddingTop: 6 }}>
+          {`Old vs New    Forward:${poseStats.oldVsNew.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.oldVsNew.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.oldVsNew.positionDiffMm.toFixed(3)}mm`}
+          {poseStats.oldVsRef && `\nOld vs Ref    Forward:${poseStats.oldVsRef.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.oldVsRef.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.oldVsRef.positionDiffMm.toFixed(3)}mm`}
+          {poseStats.newVsRef && `\nNew vs Ref    Forward:${poseStats.newVsRef.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.newVsRef.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.newVsRef.positionDiffMm.toFixed(3)}mm`}
+          {!referencePose && '\nReference未キャプチャ'}
+          {`\n\nOld Forward \u2220 TM_NORMAL: ${poseStats.oldFwdVsTmDeg.toFixed(2)}\u00b0`}
+          {`\nNew Forward \u2220 TM_NORMAL: ${poseStats.newFwdVsTmDeg.toFixed(2)}\u00b0`}
+        </div>
+        <div style={{ marginTop: 6, pointerEvents: 'auto' }}>
+          <button
+            type="button"
+            onClick={() => setReferencePose({ position: bellOldPosition.clone(), quaternion: bellOldQuaternion.clone() })}
+            style={{
+              fontFamily: 'monospace', fontSize: 9, padding: '2px 6px', marginRight: 4,
+              cursor: 'pointer', background: '#2a2a2a', color: POSE_COLOR_REFERENCE,
+              border: '1px solid #555', borderRadius: 3,
+            }}
+          >
+            Capture Reference Pose (現在のOLDをスナップショット)
+          </button>
+          {referencePose && (
+            <button
+              type="button"
+              onClick={() => setReferencePose(null)}
+              style={{
+                fontFamily: 'monospace', fontSize: 9, padding: '2px 6px',
+                cursor: 'pointer', background: '#2a2a2a', color: '#ff8888',
+                border: '1px solid #555', borderRadius: 3,
+              }}
+            >
+              Clear
+            </button>
           )}
         </div>
       </div>
@@ -911,11 +1011,11 @@ export function SimScene({
           {/* ── Pose比較Ghost Overlay（P4-3 Step3-2、?debug=coords限定・footType===BELL時のみ） ── */}
           {coordDebug && product.footType === 'BELL' && (
             <PoseComparisonOverlay
-              product={product}
               shaftLength={selectedLength}
-              oldPosition={bellOldPosition}
-              oldQuaternion={bellOldQuaternion}
-              newPose={newPose}
+              oldGhost={{ position: bellOldPosition, quaternion: bellOldQuaternion }}
+              newGhost={newGhost}
+              referenceGhost={referencePose}
+              visibility={poseVisibility}
             />
           )}
 
