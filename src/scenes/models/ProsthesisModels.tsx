@@ -809,6 +809,35 @@ interface ProsthesisProps {
   ghost?:           boolean;
 }
 
+/**
+ * P4B-3 Step4: ProsthesisModelが実際に描画へ使うPoseを、コンポーネント外からも取得できる形で
+ * 公開する（Acceptance Criteria #3「Shadow比較は本番実出力を基準とする」対応）。
+ * ProsthesisModel本体はこの関数を呼ぶだけになり、SimScene.tsx側のShadow比較も同じ関数・
+ * 同じ入力を渡して呼べば、bit-for-bit同一の値を得られる（再実装ではなく単一の呼び出し元）。
+ * ghost（IdealGhostProsthesis用の見た目調整）は姿勢計算に影響しないため引数に含めない。
+ */
+export function computeProsthesisModelPose({
+  product,
+  shaftLength,
+  basePos,
+  direction,
+  lateralOffset  = 0,
+  anteriorOffset = 0,
+  verticalOffset = 0,
+  angleTilt      = 0,
+  angleTiltZ     = 0,
+}: Omit<ProsthesisProps, 'headType' | 'ghost'>): CurrentAxisAlignmentPose {
+  const base = (basePos ?? (['FLAT', 'PISTON'].includes(product.footType) ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
+  base.x += lateralOffset;
+  base.y += verticalOffset;
+  base.z += anteriorOffset;
+
+  // FLAT/PISTON（TORP/Stapedotomy）は底板真上方向（垂直）を自然方向とする
+  const target = ['FLAT', 'PISTON'].includes(product.footType) ? UMBO_POS_TORP : UMBO_POS;
+
+  return computeCurrentAxisAlignmentPose({ base, target, shaftLength, direction, angleTilt, angleTiltZ });
+}
+
 export function ProsthesisModel({
   product,
   shaftLength,
@@ -823,22 +852,10 @@ export function ProsthesisModel({
   ghost           = false,
 }: ProsthesisProps) {
 
-  const base = (basePos ?? (['FLAT', 'PISTON'].includes(product.footType) ? STAPES_FOOTPLATE : STAPES_HEAD)).clone();
-  base.x += lateralOffset;
-  base.y += verticalOffset;
-  base.z += anteriorOffset;
-
-  // FLAT/PISTON（TORP/Stapedotomy）は底板真上方向（垂直）を自然方向とする
-  const _umboTarget = ['FLAT', 'PISTON'].includes(product.footType) ? UMBO_POS_TORP : UMBO_POS;
-
-  // P4B-3: 姿勢計算はcomputeCurrentAxisAlignmentPose()へ委譲（数式は無変更、抽出のみ）。
-  const pose = computeCurrentAxisAlignmentPose({
-    base,
-    target: _umboTarget,
-    shaftLength,
-    direction,
-    angleTilt,
-    angleTiltZ,
+  // P4B-3: 姿勢計算はcomputeProsthesisModelPose()へ委譲（数式は無変更、抽出のみ）。
+  const pose = computeProsthesisModelPose({
+    product, shaftLength, basePos, direction,
+    lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
   });
   const mid = pose.position;
   const len = shaftLength;

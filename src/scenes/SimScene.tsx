@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -47,9 +47,9 @@ import { solveBellPose } from '../engine/poseSolver/bellAdapter';
 import { TM_NORMAL } from '../engine/coordinates/tympanicMembrane';
 import {
   PoseComparisonOverlay,
-  POSE_COLOR_OLD,
-  POSE_COLOR_NEW,
   POSE_COLOR_REFERENCE,
+  POSE_COLOR_CANDIDATE,
+  POSE_COLOR_ANCHOR,
   type GhostPoseInput,
   type PoseVisibility,
 } from './debug/PoseComparisonOverlay';
@@ -692,8 +692,7 @@ export function SimScene({
     const axisY = rim.clone().add(new THREE.Vector3(0, AXIS_LEN_MM, 0).applyEuler(finalEuler));
     const axisZ = rim.clone().add(new THREE.Vector3(0, 0, AXIS_LEN_MM).applyEuler(finalEuler));
 
-    const oldQuaternion = new THREE.Quaternion().setFromEuler(finalEuler);
-    return { rim, apex, candidates, axisX, axisY, axisZ, mid, oldQuaternion };
+    return { rim, apex, candidates, axisX, axisY, axisZ };
   }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
   const bellBase = bellMarkers.rim;
   const bellApex = bellMarkers.apex;
@@ -701,14 +700,28 @@ export function SimScene({
   const bellAxisX = bellMarkers.axisX;
   const bellAxisY = bellMarkers.axisY;
   const bellAxisZ = bellMarkers.axisZ;
-  const bellOldPosition   = bellMarkers.mid;
-  const bellOldQuaternion = bellMarkers.oldQuaternion;
 
-  // P4-3 Step3-2: 新方式Pose（solveBellPose）。旧方式(bellMarkers)と同じ幾何入力を渡す
-  // （DraggableProsthesis L573-583と同一のbasePos/offsets/selectedLength）。
+  // P4B-3 Step4: Reference Pose = ProsthesisModelが実際に描画へ使うPoseそのもの
+  // （computeProsthesisModelPose()、DraggableProsthesisへ渡すPropsと同一の入力）。
+  // Acceptance Criteria #3「Shadow比較は本番実出力を基準とする」対応。旧bellMarkers.mid/
+  // oldQuaternion（ProsthesisModelを模倣した独立再実装）は廃止し、本番と同じ関数呼び出しに
+  // 統一した（再実装ではなく単一の呼び出し元、drift不可能）。
+  const referencePose = useMemo(() => computeProsthesisModelPose({
+    product,
+    shaftLength:    selectedLength,
+    basePos:        basePos.clone(),
+    lateralOffset:  lateralOffset  + dragOffsetX,
+    verticalOffset: verticalOffset + dragOffsetY,
+    anteriorOffset: anteriorOffset + dragOffsetZ,
+    angleTilt,
+    angleTiltZ,
+  }), [product, basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
+  const referenceGhost: GhostPoseInput = { position: referencePose.position, quaternion: referencePose.quaternion };
+
+  // P4-3 Step3-2〜P4B-3 Step4: Candidate Pose（solveBellPose、新Pose Solverの出力）。
   // ?debug=coords かつ footType==='BELL' 時のみ実際に描画される（PoseComparisonOverlay）が、
-  // 計算自体はbellMarkersと同じく常時実行する（Strangler Pattern、既存挙動には影響しない）。
-  const newPose = useMemo(() => solveBellPose({
+  // 計算自体はReference Poseと同じく常時実行する（Strangler Pattern、既存挙動には影響しない）。
+  const candidatePose = useMemo(() => solveBellPose({
     stapesHead:     [basePos.x, basePos.y, basePos.z],
     umboTarget:     [UMBO_POS.x, UMBO_POS.y, UMBO_POS.z],
     tmNormal:       TM_NORMAL,
@@ -719,8 +732,8 @@ export function SimScene({
   }), [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength]);
 
   // Three Adapter（poseThreeAdapter.ts）呼び出しはここ1箇所のみ。以降scenes層はTHREE型の
-  // newGhostだけを扱い、engine Poseの生値(newPose)を直接使わない。
-  const newGhost: GhostPoseInput = useMemo(() => poseToThree(newPose), [newPose]);
+  // candidateGhostだけを扱い、engine Poseの生値(candidatePose)を直接使わない。
+  const candidateGhost: GhostPoseInput = useMemo(() => poseToThree(candidatePose), [candidatePose]);
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
@@ -784,26 +797,27 @@ export function SimScene({
   const [groundTruthJson, setGroundTruthJson] = useState<string | null>(null);
   const [groundTruthCopied, setGroundTruthCopied] = useState(false);
 
-  // P4-3 Step3-2: Pose比較Overlay用HUD状態（2026-07-24、shojiさんレビュー対応）。
-  // 「Capture GT」は実際には現在のOLD Poseのスナップショットであり真のGround Truthでは
-  // ないため、Reference Poseと改名（誤解防止）。表示/非表示はOLD/NEW/Reference個別に切替可能。
-  const [referencePose, setReferencePose] = useState<GhostPoseInput | null>(null);
-  const [poseVisibility, setPoseVisibility] = useState<PoseVisibility>({ old: true, new: true, reference: true });
+  // P4-3 Step3-2〜P4B-3 Step4: Pose比較Overlay用HUD状態。
+  // 「Capture GT」は実際には現在のReference Poseのスナップショットであり真のGround Truthでは
+  // ないため、Anchor Poseと呼ぶ（2026-07-24 Reference Poseへ改名、2026-07-28 Reference Poseの
+  // 意味をProsthesisModel実出力へ変更したことに伴いAnchor Poseへ再改名、命名衝突回避）。
+  // 表示/非表示はReference/Candidate/Anchor個別に切替可能。
+  const [anchorPose, setAnchorPose] = useState<GhostPoseInput | null>(null);
+  const [poseVisibility, setPoseVisibility] = useState<PoseVisibility>({ reference: true, candidate: true, anchor: true });
 
   const poseStats = useMemo(() => {
-    const oldGhost: GhostPoseInput = { position: bellOldPosition, quaternion: bellOldQuaternion };
     return {
-      oldVsNew:   comparePoses(oldGhost, newGhost),
-      oldVsRef:   referencePose ? comparePoses(referencePose, oldGhost) : null,
-      newVsRef:   referencePose ? comparePoses(referencePose, newGhost) : null,
+      referenceVsCandidate: comparePoses(referenceGhost, candidateGhost),
+      referenceVsAnchor:    anchorPose ? comparePoses(referenceGhost, anchorPose) : null,
+      candidateVsAnchor:    anchorPose ? comparePoses(candidateGhost, anchorPose) : null,
       // shojiさんレビュー(2026-07-24)対応: Forward Errorだけでは「鼓膜法線からどれだけ
       // 離れているか」が分からないという指摘への数値的回答。PoseModelBaseline.mdの前提
       // 「Head plate normal = Shaft axis(=forward)」に基づき、forwardとTM_NORMALのなす角を
       // 直接表示する。
-      oldFwdVsTmDeg: angleToVectorDeg(oldGhost.quaternion, TM_NORMAL_VEC3),
-      newFwdVsTmDeg: angleToVectorDeg(newGhost.quaternion, TM_NORMAL_VEC3),
+      referenceFwdVsTmDeg: angleToVectorDeg(referenceGhost.quaternion, TM_NORMAL_VEC3),
+      candidateFwdVsTmDeg: angleToVectorDeg(candidateGhost.quaternion, TM_NORMAL_VEC3),
     };
-  }, [bellOldPosition, bellOldQuaternion, newGhost, referencePose]);
+  }, [referenceGhost, candidateGhost, anchorPose]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -873,12 +887,12 @@ export function SimScene({
           borderRadius: 4, whiteSpace: 'pre', lineHeight: 1.5, userSelect: 'none', minWidth: 220,
         }}
       >
-        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>Pose Comparison (P4-3 Step3-2)</div>
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>Pose Comparison (P4B-3 Step4)</div>
         {/* 凡例+表示切替: 2026-07-24 shojiさんレビュー対応、ラベルは3D空間ではなくHUDで管理 */}
         {([
-          { key: 'old' as const,       color: POSE_COLOR_OLD,       label: 'OLD (legacy formula)' },
-          { key: 'new' as const,       color: POSE_COLOR_NEW,       label: 'NEW (solvePose)' },
-          { key: 'reference' as const, color: POSE_COLOR_REFERENCE, label: 'REFERENCE (snapshot)' },
+          { key: 'reference' as const, color: POSE_COLOR_REFERENCE, label: 'REFERENCE (ProsthesisModel実出力)' },
+          { key: 'candidate' as const, color: POSE_COLOR_CANDIDATE, label: 'CANDIDATE (solvePose)' },
+          { key: 'anchor'    as const, color: POSE_COLOR_ANCHOR,    label: 'ANCHOR (手動snapshot)' },
         ]).map((row) => (
           <label key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, cursor: 'pointer' }}>
             <input
@@ -891,29 +905,29 @@ export function SimScene({
           </label>
         ))}
         <div style={{ marginTop: 6, borderTop: '1px solid #444', paddingTop: 6 }}>
-          {`Old vs New    Forward:${poseStats.oldVsNew.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.oldVsNew.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.oldVsNew.positionDiffMm.toFixed(3)}mm`}
-          {poseStats.oldVsRef && `\nOld vs Ref    Forward:${poseStats.oldVsRef.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.oldVsRef.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.oldVsRef.positionDiffMm.toFixed(3)}mm`}
-          {poseStats.newVsRef && `\nNew vs Ref    Forward:${poseStats.newVsRef.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.newVsRef.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.newVsRef.positionDiffMm.toFixed(3)}mm`}
-          {!referencePose && '\nReference未キャプチャ'}
-          {`\n\nOld Forward \u2220 TM_NORMAL: ${poseStats.oldFwdVsTmDeg.toFixed(2)}\u00b0`}
-          {`\nNew Forward \u2220 TM_NORMAL: ${poseStats.newFwdVsTmDeg.toFixed(2)}\u00b0`}
+          {`Ref vs Cand   Forward:${poseStats.referenceVsCandidate.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.referenceVsCandidate.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.referenceVsCandidate.positionDiffMm.toFixed(3)}mm`}
+          {poseStats.referenceVsAnchor && `\nRef vs Anchor Forward:${poseStats.referenceVsAnchor.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.referenceVsAnchor.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.referenceVsAnchor.positionDiffMm.toFixed(3)}mm`}
+          {poseStats.candidateVsAnchor && `\nCand vs Anchor Forward:${poseStats.candidateVsAnchor.forwardErrorDeg.toFixed(2)}\u00b0  Twist:${poseStats.candidateVsAnchor.twistDeg.toFixed(2)}\u00b0  Pos:${poseStats.candidateVsAnchor.positionDiffMm.toFixed(3)}mm`}
+          {!anchorPose && '\nAnchor未キャプチャ'}
+          {`\n\nReference Forward \u2220 TM_NORMAL: ${poseStats.referenceFwdVsTmDeg.toFixed(2)}\u00b0`}
+          {`\nCandidate Forward \u2220 TM_NORMAL: ${poseStats.candidateFwdVsTmDeg.toFixed(2)}\u00b0`}
         </div>
         <div style={{ marginTop: 6, pointerEvents: 'auto' }}>
           <button
             type="button"
-            onClick={() => setReferencePose({ position: bellOldPosition.clone(), quaternion: bellOldQuaternion.clone() })}
+            onClick={() => setAnchorPose({ position: referenceGhost.position.clone(), quaternion: referenceGhost.quaternion.clone() })}
             style={{
               fontFamily: 'monospace', fontSize: 9, padding: '2px 6px', marginRight: 4,
-              cursor: 'pointer', background: '#2a2a2a', color: POSE_COLOR_REFERENCE,
+              cursor: 'pointer', background: '#2a2a2a', color: POSE_COLOR_ANCHOR,
               border: '1px solid #555', borderRadius: 3,
             }}
           >
-            Capture Reference Pose (現在のOLDをスナップショット)
+            Capture Anchor Pose (現在のReferenceをスナップショット)
           </button>
-          {referencePose && (
+          {anchorPose && (
             <button
               type="button"
-              onClick={() => setReferencePose(null)}
+              onClick={() => setAnchorPose(null)}
               style={{
                 fontFamily: 'monospace', fontSize: 9, padding: '2px 6px',
                 cursor: 'pointer', background: '#2a2a2a', color: '#ff8888',
@@ -1010,13 +1024,13 @@ export function SimScene({
             />
           )}
 
-          {/* ── Pose比較Ghost Overlay（P4-3 Step3-2、?debug=coords限定・footType===BELL時のみ） ── */}
+          {/* ── Pose比較Ghost Overlay（P4-3 Step3-2〜P4B-3 Step4、?debug=coords限定・footType===BELL時のみ） ── */}
           {coordDebug && product.footType === 'BELL' && (
             <PoseComparisonOverlay
               shaftLength={selectedLength}
-              oldGhost={{ position: bellOldPosition, quaternion: bellOldQuaternion }}
-              newGhost={newGhost}
-              referenceGhost={referencePose}
+              referenceGhost={referenceGhost}
+              candidateGhost={candidateGhost}
+              anchorGhost={anchorPose}
               visibility={poseVisibility}
             />
           )}
