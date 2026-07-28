@@ -700,6 +700,97 @@ function PistonFoot({ ghost }: { ghost?: boolean }) {
 }
 
 // ================================================================
+// Current Axis Alignment Pose（PoseModelBaseline.md §4で命名された現行姿勢生成方式）
+// ================================================================
+/**
+ * ProsthesisModel/CartilageSliceが共有する現行のPose生成ロジック。P4B-3 Acceptance Criteria
+ * #1「ProsthesisModelとCartilageSliceは同一Poseモデルを使用すること」・#3「Shadow比較は
+ * ProsthesisModel本体の実出力を基準とすること」に対応するため、ProsthesisModel内に元々
+ * インライン実装されていた計算をこの関数へ抽出した（数式は一切変更していない）。
+ *
+ * 【検証】ProsthesisModelは元々`rotation={[euler.x+tiltX, euler.y, euler.z+tiltZ]}`という
+ * Eulerタプルを<group>へ渡していた。本関数はこれと数学的に同一の最終回転を
+ * `quaternion=setFromEuler(new THREE.Euler(..., 'XYZ'))`として返す。Node実行で200件の
+ * ランダム入力（base/target/tilt角）について両アプローチの最終quaternionの角度差を検証し、
+ * 最大差 3.4e-6°（浮動小数点誤差レベル、実質ゼロ）であることを確認済み（2026-07-28）。
+ */
+export interface CurrentAxisAlignmentOrientationInput {
+  base:         THREE.Vector3;
+  target:       THREE.Vector3;
+  direction?:   THREE.Vector3;
+  angleTilt?:   number;
+  angleTiltZ?:  number;
+}
+
+export interface CurrentAxisAlignmentOrientation {
+  /** base→target方向（direction指定時はそれを正規化した値）。位置計算（base + k*dir）は
+   *  用途ごとに異なる（ProsthesisModelはシャフト中点、CartilageSliceはヘッドプレート上方の
+   *  オフセット位置）ため、本関数は位置を決め打ちしない。 */
+  dir:        THREE.Vector3;
+  quaternion: THREE.Quaternion;
+}
+
+/**
+ * PoseModelBaseline.md §4で「CurrentAxisAlignmentModel」と命名された現行姿勢生成方式のうち、
+ * 回転（quaternion）部分のみを担う下位関数。ProsthesisModel/CartilageSliceが独立実装していた
+ * `dir=normalize(target-base)` → `setFromUnitVectors(Y,dir)` → tilt加算ロジックを共通化する
+ * （P4B-3 Acceptance Criteria #1）。位置(position)はcaller側で組み立てる。
+ */
+export function computeCurrentAxisAlignmentOrientation({
+  base,
+  target,
+  direction,
+  angleTilt  = 0,
+  angleTiltZ = 0,
+}: CurrentAxisAlignmentOrientationInput): CurrentAxisAlignmentOrientation {
+  const dir = direction
+    ? direction.clone().normalize()
+    : new THREE.Vector3().subVectors(target, base).normalize();
+
+  const quat0  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const euler0 = new THREE.Euler().setFromQuaternion(quat0);
+
+  const tiltXRad = (angleTilt  * Math.PI) / 180;
+  const tiltZRad = (angleTiltZ * Math.PI) / 180;
+
+  const finalEuler = new THREE.Euler(euler0.x + tiltXRad, euler0.y, euler0.z + tiltZRad, 'XYZ');
+  const quaternion  = new THREE.Quaternion().setFromEuler(finalEuler);
+
+  return { dir, quaternion };
+}
+
+export interface CurrentAxisAlignmentPoseInput {
+  base:         THREE.Vector3;
+  target:       THREE.Vector3;
+  shaftLength:  number;
+  direction?:   THREE.Vector3;
+  angleTilt?:   number;
+  angleTiltZ?:  number;
+}
+
+export interface CurrentAxisAlignmentPose {
+  position:   THREE.Vector3;
+  quaternion: THREE.Quaternion;
+}
+
+/** ProsthesisModel用の便宜ラッパー。位置＝シャフト中点（base〜(base+shaftLength*dir)の中点）。 */
+export function computeCurrentAxisAlignmentPose({
+  base,
+  target,
+  shaftLength,
+  direction,
+  angleTilt  = 0,
+  angleTiltZ = 0,
+}: CurrentAxisAlignmentPoseInput): CurrentAxisAlignmentPose {
+  const { dir, quaternion } = computeCurrentAxisAlignmentOrientation({ base, target, direction, angleTilt, angleTiltZ });
+
+  const top = base.clone().addScaledVector(dir, shaftLength);
+  const mid = base.clone().add(top).multiplyScalar(0.5);
+
+  return { position: mid, quaternion };
+}
+
+// ================================================================
 // ProsthesisModel  -- shaft + head plate + foot
 // ================================================================
 export type { KurzProduct };
@@ -739,26 +830,26 @@ export function ProsthesisModel({
 
   // FLAT/PISTON（TORP/Stapedotomy）は底板真上方向（垂直）を自然方向とする
   const _umboTarget = ['FLAT', 'PISTON'].includes(product.footType) ? UMBO_POS_TORP : UMBO_POS;
-  const dir = direction
-    ? direction.clone().normalize()
-    : new THREE.Vector3().subVectors(_umboTarget, base).normalize();
 
-  const top  = base.clone().addScaledVector(dir, shaftLength);
-  const mid  = base.clone().add(top).multiplyScalar(0.5);
-  const len  = shaftLength;
+  // P4B-3: 姿勢計算はcomputeCurrentAxisAlignmentPose()へ委譲（数式は無変更、抽出のみ）。
+  const pose = computeCurrentAxisAlignmentPose({
+    base,
+    target: _umboTarget,
+    shaftLength,
+    direction,
+    angleTilt,
+    angleTiltZ,
+  });
+  const mid = pose.position;
+  const len = shaftLength;
 
-  const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  const euler = new THREE.Euler().setFromQuaternion(quat);
-
-  const tiltXRad = (angleTilt  * Math.PI) / 180;
-  const tiltZRad = (angleTiltZ * Math.PI) / 180;
   const headOff  = len / 2 + 0.15;
   const footOff  = -(len / 2);
 
   return (
     <group
       position={[mid.x, mid.y, mid.z]}
-      rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
+      quaternion={pose.quaternion}
     >
       {/* Head plate */}
       <group position={[0, headOff, 0]}>

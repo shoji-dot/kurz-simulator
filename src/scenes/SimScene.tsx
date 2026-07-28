@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -219,16 +219,18 @@ function CartilageSlice({
   base.y += verticalOffset  + dragOffsetY;
   base.z += anteriorOffset  + dragOffsetZ;
 
-  const dir = new THREE.Vector3().subVectors(UMBO_POS, base).normalize();
+  // P4B-3: 回転計算はProsthesisModelと共通のcomputeCurrentAxisAlignmentOrientation()へ委譲
+  // （数式は無変更、抽出のみ）。位置(center)の組み立て方はCartilage固有のためここに残す。
+  // 注: targetは従来通りUMBO_POS固定（ProsthesisModelはFLAT/PISTON時UMBO_POS_TORPを使うため
+  // 本来ここも分岐が必要な可能性があるが、これは既存の食い違いでありP4B-3の変更範囲外。
+  // 発見事項として別Issueで扱う）。
+  const { dir, quaternion } = computeCurrentAxisAlignmentOrientation({
+    base, target: UMBO_POS, angleTilt, angleTiltZ,
+  });
 
   // ヘッドプレート中心 ≒ base + (len + 0.15) * dir
   // 軟骨スライス中心 = ヘッドプレートから 1.5mm 上（鼓膜側）
   const center = base.clone().addScaledVector(dir, shaftLength + 1.65);
-
-  const quat  = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  const euler = new THREE.Euler().setFromQuaternion(quat);
-  const tiltXRad = (angleTilt  * Math.PI) / 180;
-  const tiltZRad = (angleTiltZ * Math.PI) / 180;
   // BELL_TOP: 楕円 rx=1.30mm（短辺2.6mm）× rz=1.80mm（長辺3.6mm） ← BellTopヘッドプレート実寸に一致
   // その他: headPlateDiameter/4 の真円
   const isBellTop = product.headType === 'BELL_TOP';
@@ -239,7 +241,7 @@ function CartilageSlice({
   return (
     <group
       position={[center.x, center.y, center.z]}
-      rotation={[euler.x + tiltXRad, euler.y, euler.z + tiltZRad]}
+      quaternion={quaternion}
     >
       {/* 軟骨本体 — scale で楕円化（unit cylinder × RX/RZ） */}
       <mesh scale={[RX, 1, RZ]}>
