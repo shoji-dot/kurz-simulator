@@ -807,6 +807,13 @@ interface ProsthesisProps {
   angleTilt?:       number;
   angleTiltZ?:      number;
   ghost?:           boolean;
+  /**
+   * P4B-3 Step5（Feature Flag）: 指定時、computeProsthesisModelPose()の代わりにこの
+   * position/quaternionをそのまま使う。CartilageSlice側の同名propと同時に切り替えることで
+   * 「片方だけNEW」という中間状態を防ぐ（[[docs/P4B-3_Acceptance_Criteria_v1.0.md]] Criteria#2）。
+   * 未指定時は従来通りcomputeProsthesisModelPose()を使う（Flag OFF＝既存動作は完全無変更）。
+   */
+  poseOverride?:    { position: THREE.Vector3; quaternion: THREE.Quaternion };
 }
 
 /**
@@ -850,10 +857,13 @@ export function ProsthesisModel({
   angleTilt       = 0,
   angleTiltZ      = 0,
   ghost           = false,
+  poseOverride,
 }: ProsthesisProps) {
 
   // P4B-3: 姿勢計算はcomputeProsthesisModelPose()へ委譲（数式は無変更、抽出のみ）。
-  const pose = computeProsthesisModelPose({
+  // P4B-3 Step5: poseOverride指定時はこちらを優先する（Feature Flag ON時、Candidate Poseを
+  // 直接使う。??演算子のため未指定時はcomputeProsthesisModelPose()のみ評価される）。
+  const pose = poseOverride ?? computeProsthesisModelPose({
     product, shaftLength, basePos, direction,
     lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
   });

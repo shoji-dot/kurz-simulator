@@ -21,13 +21,20 @@ P4B-3（新Pose Solverの本番`ProsthesisModel`/`CartilageSlice`への段階的
 ## Acceptance Criteria
 
 1. **Prosthesis/Cartilage同一Poseモデル**
-   `ProsthesisModel`と`CartilageSlice`が同一のPose生成経路（`solvePose()`→`composeTwist()`）を
-   共有していること。独立実装の重複が残っていないこと。
+   `ProsthesisModel`と`CartilageSlice`が同一のPose生成経路（`solvePose()`→`composeTwist()`→
+   `composeTilt()`、2026-07-28 P4B-4追記）を共有していること。独立実装の重複が残っていないこと。
    判定方法: コードレビュー（両コンポーネントが同一関数を呼んでいるかgrep確認）。
 
 2. **Feature Flag同時切替**
-   `POSE_SOLVER_V2`のON/OFFで、Prosthesis・Cartilage双方が同時にOLD/NEWへ切り替わること。
-   一方だけがNEWでもう一方がOLD、という中間状態にユーザーが到達できないこと。
+   （2026-07-28実装時点の実態に合わせ改訂: 名称`POSE_SOLVER_V2`という単一定数ではなく、
+   `SimScene.tsx`内の`useNewPoseSolver`状態＋`?debug=coords`限定HUDチェックボックス
+   「NEW Pose Pipelineを本番描画へ適用」として実装した。既定OFF、研修者が触れる経路には
+   出さない。対応footTypeは`solveBellPose`が扱う**BELL（PORP）のみ**。FLAT/CLIP/PISTON用の
+   Adapterは未実装のため、それ以外のfootTypeではチェックボックスの値に関わらず常にOLDを
+   使う（`supportsNewPoseSolver = product.footType === 'BELL'`、2026-07-28 shojiさん承認）。）
+   Flag ON時、Prosthesis・Cartilage双方が同時にOLD/NEWへ切り替わること。一方だけがNEWで
+   もう一方がOLD、という中間状態にユーザーが到達できないこと（両者とも同一の
+   `poseFlagActive`真偽値からpropを受け取ることで保証）。
    判定方法: Flag ON/OFF両方の状態でGUI目視確認（Prosthesis・Cartilage両方の見た目が
    一致して切り替わるか）。
 

@@ -44,6 +44,7 @@ import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from
 import { findNearestDangerZone } from '../engine/safety';
 import { buildGroundTruthRecord } from '../engine/groundTruth/exportGroundTruth';
 import { solveBellPose } from '../engine/poseSolver/bellAdapter';
+import { solvePose, composeTwist, composeTilt } from '../engine/poseSolver/solvePose';
 import { TM_NORMAL } from '../engine/coordinates/tympanicMembrane';
 import {
   PoseComparisonOverlay,
@@ -206,6 +207,12 @@ interface CartilageSliceProps {
   dragOffsetX:    number;
   dragOffsetY:    number;
   dragOffsetZ:    number;
+  /**
+   * P4B-3 Step5（Feature Flag）: 指定時、内部のOLD計算（computeCurrentAxisAlignmentOrientation）
+   * を使わずこの位置・回転をそのまま採用する。ProsthesisModelと同時に切り替えるための経路
+   * （[[docs/P4B-3_Acceptance_Criteria_v1.0.md]] Criteria#2「同時切替」対応）。未指定時は従来通り。
+   */
+  poseOverride?:  { position: THREE.Vector3; quaternion: THREE.Quaternion };
 }
 
 function CartilageSlice({
@@ -213,6 +220,7 @@ function CartilageSlice({
   lateralOffset, anteriorOffset, verticalOffset,
   angleTilt, angleTiltZ,
   dragOffsetX, dragOffsetY, dragOffsetZ,
+  poseOverride,
 }: CartilageSliceProps) {
   const base = basePos.clone();
   base.x += lateralOffset   + dragOffsetX;
@@ -224,13 +232,15 @@ function CartilageSlice({
   // 注: targetは従来通りUMBO_POS固定（ProsthesisModelはFLAT/PISTON時UMBO_POS_TORPを使うため
   // 本来ここも分岐が必要な可能性があるが、これは既存の食い違いでありP4B-3の変更範囲外。
   // 発見事項として別Issueで扱う）。
-  const { dir, quaternion } = computeCurrentAxisAlignmentOrientation({
+  const { dir, quaternion: oldQuaternion } = computeCurrentAxisAlignmentOrientation({
     base, target: UMBO_POS, angleTilt, angleTiltZ,
   });
 
   // ヘッドプレート中心 ≒ base + (len + 0.15) * dir
   // 軟骨スライス中心 = ヘッドプレートから 1.5mm 上（鼓膜側）
-  const center = base.clone().addScaledVector(dir, shaftLength + 1.65);
+  const oldCenter = base.clone().addScaledVector(dir, shaftLength + 1.65);
+  const center     = poseOverride ? poseOverride.position   : oldCenter;
+  const quaternion = poseOverride ? poseOverride.quaternion : oldQuaternion;
   // BELL_TOP: 楕円 rx=1.30mm（短辺2.6mm）× rz=1.80mm（長辺3.6mm） ← BellTopヘッドプレート実寸に一致
   // その他: headPlateDiameter/4 の真円
   const isBellTop = product.headType === 'BELL_TOP';
@@ -503,6 +513,9 @@ interface DraggableProsthesisProps {
   dragOffsetZ:    number;
   /** 'move' のときのみ TransformControls を表示・有効化 */
   dragMode:       DragMode;
+  /** P4B-3 Step5（Feature Flag）: 指定時、ProsthesisModelへそのまま転送する。CartilageSliceの
+   *  poseOverrideと同時に渡すことで、両者を同時にOLD/NEWへ切り替える（中間状態を作らない）。 */
+  poseOverride?:  { position: THREE.Vector3; quaternion: THREE.Quaternion };
 }
 
 function DraggableProsthesis({
@@ -511,6 +524,7 @@ function DraggableProsthesis({
   angleTilt, angleTiltZ,
   dragOffsetX, dragOffsetY, dragOffsetZ,
   dragMode,
+  poseOverride,
 }: DraggableProsthesisProps) {
   const tcRef = useRef<any>(null);
 
@@ -598,6 +612,7 @@ function DraggableProsthesis({
         anteriorOffset={anteriorOffset + dragOffsetZ}
         angleTilt={angleTilt}
         angleTiltZ={angleTiltZ}
+        poseOverride={poseOverride}
       />
     </TransformControls>
   );
@@ -739,6 +754,42 @@ export function SimScene({
   // Three Adapter（poseThreeAdapter.ts）呼び出しはここ1箇所のみ。以降scenes層はTHREE型の
   // candidateGhostだけを扱い、engine Poseの生値(candidatePose)を直接使わない。
   const candidateGhost: GhostPoseInput = useMemo(() => poseToThree(candidatePose), [candidatePose]);
+
+  // P4B-3 Step5（Feature Flag）: NEW Pose Pipeline切替。既定OFF＝既存挙動に一切影響しない
+  // （Strangler Pattern）。?debug=coords限定のHUDチェックボックスからのみON/OFF可能
+  // （2026-07-28 shojiさん承認: 実運用へは未検証のため、研修者が触れる経路には出さない）。
+  const [useNewPoseSolver, setUseNewPoseSolver] = useState(false);
+
+  // P4B-3 Step5（Feature Flag）: CartilageSlice用のCandidate Pose。solveBellPose()はProsthesisModel
+  // 用のシャフト中点位置式を内蔵しているため流用できず、solvePose/composeTwist/composeTiltを
+  // 直接呼び出しCartilageSlice自身の位置式（base + (shaftLength+1.65)*dir）と組み合わせる
+  // （新しい数式は追加していない。PoseComparisonOverlayのGhost複製と同じ理由で、既存の位置定数
+  // 1.65をここでも再利用するのみ）。
+  // 【既知の技術的負債（2026-07-28、shojiさんレビュー指摘）】理想形はPose生成を1箇所
+  // （例: `computeBellPose(...)`）に集約し、ProsthesisModel/CartilageSlice双方がそれを呼ぶ
+  // 構造。今回はP4B-4のスコープ（数式を増やさない）を優先しSimScene側で個別に組み立てたが、
+  // 将来のリファクタリング候補として残す（P4B完了後、composeNormal導入等のタイミングで検討）。
+  const cartilageCandidatePose: GhostPoseInput = useMemo(() => {
+    const base: Vec3Tuple = [
+      basePos.x + lateralOffset  + dragOffsetX,
+      basePos.y + verticalOffset + dragOffsetY,
+      basePos.z + anteriorOffset + dragOffsetZ,
+    ];
+    const forward: Vec3Tuple = [UMBO_POS.x - base[0], UMBO_POS.y - base[1], UMBO_POS.z - base[2]];
+    const basis   = solvePose({ position: base, forward });
+    const twisted = composeTwist(basis, TM_NORMAL);
+    const tilted  = composeTilt(twisted, angleTilt, angleTiltZ);
+    const dir     = new THREE.Vector3(basis.forward[0], basis.forward[1], basis.forward[2]);
+    const position = new THREE.Vector3(base[0], base[1], base[2]).addScaledVector(dir, selectedLength + 1.65);
+    const quaternion = new THREE.Quaternion(tilted.quaternion[0], tilted.quaternion[1], tilted.quaternion[2], tilted.quaternion[3]);
+    return { position, quaternion };
+  }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
+
+  // P4B-3 Step5（Feature Flag）: 対応footTypeはBELL（solveBellPose）のみ。FLAT/CLIP/PISTON用の
+  // Adapterは未実装のため、それ以外のfootTypeではFlagの値に関わらず常にOLDを使う
+  // （2026-07-28 shojiさん承認、Acceptance Criteriaの対象はBELL系に限定）。
+  const supportsNewPoseSolver = product.footType === 'BELL';
+  const poseFlagActive = useNewPoseSolver && supportsNewPoseSolver;
 
   // Phase20.5.2: デバッグ・原因切り分け用。warningRadius圏外でも常に最寄りのDANGER_ZONEと
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
@@ -893,6 +944,17 @@ export function SimScene({
         }}
       >
         <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>Pose Comparison (P4B-3 Step4)</div>
+        {/* P4B-3 Step5: Feature Flag。実際にProsthesisModel/CartilageSliceの描画へ反映される
+            切替なので、既存のReference/Candidate/Anchor表示トグル（見た目だけの切替）とは別枠で
+            強調表示する（誤操作防止）。 */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, cursor: 'pointer', color: '#ffd27f' }}>
+          <input
+            type="checkbox"
+            checked={useNewPoseSolver}
+            onChange={(e) => setUseNewPoseSolver(e.target.checked)}
+          />
+          <span>NEW Pose Pipeline を本番描画へ適用 (Step5, BELL限定)</span>
+        </label>
         {/* 凡例+表示切替: 2026-07-24 shojiさんレビュー対応、ラベルは3D空間ではなくHUDで管理 */}
         {([
           { key: 'reference' as const, color: POSE_COLOR_REFERENCE, label: 'REFERENCE (ProsthesisModel実出力)' },
@@ -1054,6 +1116,7 @@ export function SimScene({
               dragOffsetX={dragOffsetX}
               dragOffsetY={dragOffsetY}
               dragOffsetZ={dragOffsetZ}
+              poseOverride={poseFlagActive ? cartilageCandidatePose : undefined}
             />
           )}
 
@@ -1071,6 +1134,7 @@ export function SimScene({
             dragOffsetY={dragOffsetY}
             dragOffsetZ={dragOffsetZ}
             dragMode={dragMode}
+            poseOverride={poseFlagActive ? candidateGhost : undefined}
           />
         {/* ── デバッグランドマーク（showDebugMarkers=true のとき表示）── */}
           {showDebugMarkers && (
