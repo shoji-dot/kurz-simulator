@@ -1,9 +1,37 @@
 # P3: Ground Truth Acquisition Plan v1.0 (Draft)
 
-**Status**: Draft(P3-0/P3-1/P3-2/P3-3確定・commit ca7c662・push確認済み、P3-4 Case Priority Definition作成完了・shoji確認待ち、P3-5未着手)
+**Status**: Draft(P3-0〜P3-4確定・commit 5160d8d・push待ち、P3-5 Measurement Protocol/Data Format/Validation Criteria作成完了・shoji確認待ち)
 **位置づけ**: P2(Measurement Definition v1.0、Approved)完了を受け、Layer1-4の変換過程を
 記録するための計画。2026-07-29、shojiさんとの確認に基づき作成。コード変更は行わない
 (Strangler Pattern、Definition/Plan文書)。
+
+## Project Scope Note(shoji提示、2026-07-29。文書全体の前提のため冒頭に配置)
+
+> The simulator cases are educational scenarios rather than patient-specific reproductions.
+> The anatomical model is based on a shared OpenEar ALPHA dataset and is not expected to
+> match the dimensions or pathology of any individual case. Consequently, the reference
+> values defined in this document represent expert educational references within the scope
+> of this project, not patient-specific clinical ground truth.
+
+(日本語訳): 本プロジェクトの症例は実患者の再現ではなく、教育目的のシナリオである。解剖モデルは
+共有のOpenEar ALPHAデータセットに基づいており、個々の症例の寸法や病態と一致することは想定
+されていない(コード確認: `RealAnatomyModels.tsx`のBone.glb/Auricle.glbコメント「same OpenEar
+ALPHA CT」、`cases.ts`に症例別3Dモデル参照は存在しない)。したがって、本書で定義する基準値は、
+患者固有のClinical Ground Truthではなく、**本プロジェクトの範囲内における教育的基準値
+(Educational Reference)**である。
+
+この前提は、次の3つの疑問に一括して答える: ①なぜ症例と3Dモデルの寸法が厳密には一致しないか
+(共有解剖モデルであるため) ②なぜEvidence A+を目指さないか(実患者が存在しないため) ③なぜ
+専門家判断が基準になるか(教育シナリオに対する最良の到達可能Evidenceであるため)。
+
+**用語についての注記(今回は名称変更せず、将来の検討事項として記録するに留める)**: 上記の
+前提により、本文書がP3-0〜P3-4で用いてきた「Clinical GT」という呼称は、厳密には
+「Educational Reference(教育的基準値)」と理解する方が実態に近い。ただし本セッションでは
+P3-0〜P3-4の既存記述を大規模に置き換えることはせず(Small Change原則)、P3-5以降の新規記述
+でのみこの区別を意識する。呼称自体の統一は将来のP3凍結時またはP4以降の検討事項とする。
+
+**この節は2026-07-29、P3-5作業中に判明した事実をP3-0〜P3-4に遡って適用したものであり、
+文書全体(P3-0〜P3-5すべて)に及ぶ前提として扱う(shoji指摘により、P3-5内から文書冒頭へ移設)。**
 
 ## P3-0: Existing GT Data Classification
 
@@ -295,10 +323,21 @@ Priority 3: Definition Pending
 **Priority 1(3症例、いずれもPORP)の根拠の再確認**: case-004/008/012はいずれも
 `porp-ttp-variac`かつclinicalNotesが「実測(サイザー)」または「実測」と明記する3症例
 (P2 Layer3節で既確認)。優先理由は**recommendedLengthとGT(Simulator配置キャプチャ)の
-乖離幅ではなく**、既存記載が「実際の術中実測」を主張している点にある。ここでLayer1
-Evidence(A+相当)を取得できれば、①この3症例のclinicalNotes記載の信頼性を検証できる
-②将来「実測」表記が付された症例のEvidence C記載を、Evidence A+に格上げする際の
-検証手順を確立できる、という2つの波及効果がある。
+乖離幅ではなく**、既存記載が「実際の術中実測」を主張している点にある。
+
+**重要な訂正(2026-07-29、shoji確認によりP3-5着手前に判明)**: 当初、ここでLayer1 Evidence
+(A+相当=術中直接実測)を取得できる前提で記述していたが、これは誤りだった。15症例は**shojiさんが
+実際に執刀した患者記録ではなく、教育目的で作成した架空/合成シナリオ**である(2026-07-29確認)。
+したがって、これら3症例について「実患者を再測定してA+を得る」という経路は存在しない。
+Priority1で本プロジェクト内で実際に到達可能な最大Evidenceは**Evidence B(shojiさんの
+専門的臨床判断による確定的な値の付与)であり、Evidence A+ではない**(「Bが上限」という表現は
+Evidence階層上BがA+より一般的に優れるという意味ではなく、あくまで本Planの対象データの性質上
+到達できる最大値という限定的な意味であることに注意)。P3-3のEvidence Hierarchy定義自体(A+=術中直接
+実測)は変更しないが、**本Acquisition Planの対象である15症例に関しては、Layer1でA+に到達する
+経路が現時点で存在しないことを明示する**(将来的に側頭骨模型実測等の代替経路が検討される場合は
+別途Unknownとして扱う)。波及効果も修正: ①この3症例のclinicalNotes記載(Evidence C)を、
+shojiさんの専門的臨床判断(Evidence B)によって確定させることができる ②将来「実測」表記が
+付された症例のEvidence C記載を、Evidence Bへ確定させる際の検証手順を確立できる。
 
 **Priority 3(Soft Clip、3症例)の位置づけ**: この3症例はLayer1実測値がUnknownである点は
 Priority1/2と同じだが、それ以前にAnchor定義(Incus Long Process→Footplate)自体が
@@ -306,15 +345,97 @@ Pending Clinical Confirmationであるため、Layer1取得に着手する前提
 P3-4の範囲では「定義確定が先決」と位置づけるに留め、定義確定の具体的手順はP3-5
 (Measurement Protocol)以降で検討する。
 
-## P3-5(次セッションで詳細化、アウトラインのみ)
+## P3-5: Measurement Protocol / Data Format / Validation Criteria
 
-1. **Measurement Protocol**: Priority1の3症例(004/008/012)から着手する具体的な
-   Evidence取得手順(shojiさんへのヒアリング形式か、既存カルテ参照か等は未定)。
-2. **Data Format**: 取得したLayer1 Evidenceをどこにどう記録するか(`cases.ts`拡張か
-   別ファイルか等は未定)。
-3. **Validation Criteria**: 取得したEvidenceをA+として確定させる基準(未着手)。
+### 前提(P3-4からの訂正を反映、文書冒頭のProject Scope Note参照)
+
+文書冒頭の「Project Scope Note」で明記した通り、15症例は教育用の架空/合成シナリオであり、
+実患者の再測定によるLayer1 Evidence A+の取得経路は存在しない(上記Priority1節の訂正参照)。
+以下のProtocol/Format/Criteriaは、**Evidence B
+(shojiさんの専門的臨床判断)を本プロジェクト内で到達可能な最大Evidenceとして設計する**
+(「天井」という表現は一般的な優劣を意味しない、上記注記参照)。A+はEvidence Hierarchy定義上
+は存在するが、本Planの範囲では「将来、側頭骨模型実測等の代替経路が確立された場合にのみ
+到達しうる、現時点ではUnknownの経路」として扱う。
+
+### 1. Measurement Protocol
+
+「誰が確認しても同じ意味になる」ことを目的とし、製品カテゴリ別にAnchorとMeasurementの対応を
+固定する。P3-2/P3-3で確定した定義をそのまま踏襲する(新規定義は行わない)。
+
+| 製品カテゴリ | Anchor(Reference→Target) | Measurement | 本プロジェクト内で到達可能な最大Evidence |
+|---|---|---|---|
+| PORP | TM(または軟骨再建面) → Stapes Head | Clinical GT distance(shojiさんの専門的臨床判断による確定値) | B |
+| TORP | TM(または軟骨再建面) → Footplate | Clinical GT distance(同上) | B |
+| Soft Clip Stapes | Incus Long Process → Footplate | **Protocol TBDではなく「Clinical workflow confirmation required before protocol definition」** | Anchor定義自体がPending Clinical Confirmationのため測定手順の確定より前の段階 |
+
+**実施順序**: Priority1(case-004/008/012)から着手し、Priority2(残りPORP/TORP計9症例)、
+Priority3(Soft Clip)の順(P3-4で確定済み)。
+
+**具体的な取得形式(未確定、次セッションでshojiさんと相談)**: ヒアリング形式(症例ごとに
+「この症例なら実際にはどの程度の距離を想定するか」を口頭で確認)か、既存clinicalNotes記載を
+shojiさんが直接レビューし確定/修正する形式か、いずれかは未定。
+
+### 2. Data Format
+
+**設計方針(shoji提示、2026-07-29)**: 取得したClinical GT Recordは`recommendedLength`
+(Layer3)とは別フィールド・別構造で保持する。理由: 両者を同一フィールドで扱うと、P2で確立した
+Layer1〜4分離(recommendedLengthは既にLayer3を表すという結論、P2既述)が再び混同されるため。
+
+**型定義(ドキュメント上の提案。P3はDefinition/Planフェーズのためコード実装はしない
+[[project_kurz]]方針、Strangler Pattern)**:
+
+**命名についての訂正(shojiさんレビュー、2026-07-29)**: 当初`ClinicalGroundTruthRecord`と
+提案したが、上記Project Scope Noteの前提(実患者ではなく教育シナリオである)を踏まえると
+「Clinical」という語は「実患者測定値」を想起させ実態と乖離する。本文書では
+`EducationalReferenceRecord`に改める。将来コード実装する段階で改めて命名を検討する余地は
+残す(現時点ではドキュメント提案のみのため、この改名も確定ではなく提案の更新)。
+
+```ts
+type EducationalReferenceRecord = {
+  caseId: string;
+  productId: string;
+
+  anchorDefinition: {
+    referencePoint: string;   // 例: "TM" | "軟骨再建面"
+    targetPoint: string;      // 例: "Stapes Head" | "Footplate" | "Incus Long Process"
+  };
+
+  measurement: {
+    valueMm: number;
+    method: string;           // 例: "clinical-judgment"(shoji専門的臨床判断) | 将来の代替経路名
+    operator?: string;
+  };
+
+  evidence: {
+    level: "A+" | "A" | "B" | "C";
+    source: string;
+  };
+
+  validationStatus: "confirmed" | "pending";
+};
+```
+
+**注記**: `evidence.level`は現時点の本Planでは実質的に"B"のみが到達可能(上記前提節参照)。
+将来"A+"経路が確立された場合に備え型上は残すが、現状のデータ投入で"A+"を用いることはない。
+このフィールド自体、実装はせず設計提案として文書に残すのみ(P3スコープ外)。
+
+### 3. Validation Criteria
+
+Educational Reference(Layer1)からGeometry Capture(Layer4)までの4段階それぞれについて、
+確認観点を分離する(混同しないことが目的、[[feedback]]の構造的事実と数値的帰結の分離原則に従う)。
+
+| Layer | Validation観点 | 現状 |
+|---|---|---|
+| Layer1(Anatomical Distance) | Expert-defined reference validation(専門家判断による基準値が定義(P2/P3-2)通りのAnchorに基づいているかの一貫性確認。実患者の実測検証ではない) | 未着手(P3-5以降で実施) |
+| Layer2(Cartilage Compensation) | 補正値の適用根拠が存在するか(IFU 0.3-0.5mm等) | 未実装(P2既述、症例別適用は現状ゼロ) |
+| Layer3(Selected Length Record) | `selectedLength`(=`recommendedLength`)がLayer1から説明可能か | Priority1の3症例で検証予定(P3-4) |
+| Layer4(Implant Model Geometry) | Geometry表現がLayer3の値と一致するか(Bell Structural Height+Shaft Geometric Length) | P1/P2で確認済み(`shaftLen = len - BELL_HEIGHT_MM`、修正不要) |
+
+**P3-5開始時の注意点(shoji指摘)**: 測定方法を先に決めすぎない。特にSoft Clip(Anchor定義自体
+Pending)・Cartilage Compensationの症例別適用根拠(Unknown)・Functional Length概念とLayer1の
+関係(Unknown、P2既述)は、Protocol化せずValidation対象としてUnknownのまま保持する。
 
 ## 次のステップ
 
-P3-4をshojiさんに確認のうえ、P3-5(Measurement Protocol / Data Format / Validation Criteria)を
-次セッションで詳細化する。
+P3-5をshojiさんに確認のうえ、実際のEvidence取得(Priority1の3症例からのヒアリング等)に着手する
+か、あるいはP3全体を一区切りとして凍結するかを相談する。
