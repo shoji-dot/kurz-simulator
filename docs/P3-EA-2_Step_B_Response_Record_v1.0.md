@@ -1,6 +1,8 @@
 # P3-EA-2 Step B: 専門家レビュー回答記録 v1.0
 
-**Status**: Draft(記録完了、shoji確認待ち)
+**Status**: Completed (Evidence Review Recorded) — 「Definition Confirmed」ではなく、shojiさんの
+専門的判断(Evidence B)を記録した状態であることを明記する(shojiさんレビュー、2026-07-29)。
+本文書内のFinding 1〜4への対応方針は`docs/P3-EA-3_Evidence_Validation_v1.0.md`を参照。
 **Date**: 2026-07-29
 **位置づけ**: `docs/P3-EA-2_Step_B_Interview_Form_v1.0.md`(commit `1f109ab`)へのshojiさん回答を記録する。
 本文書で得られる情報は`docs/P3-EA-1_Evidence_Acquisition_Plan_v1.0.md`で確定した通り
