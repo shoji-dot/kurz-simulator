@@ -70,6 +70,28 @@ teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証�
 構文チェック(診断0件)のみ実施、プロジェクト全体のBuild/Lintはsandbox環境のI/O速度により
 未完了(Issue-027と同じ制約、下記参照)。
 
+### 決定記録(shojiさんレビュー、2026-07-29、正式版)
+
+> case-001は「鼓室形成II型」ではなく「鼓室形成III型」へ修正する。
+>
+> 理由: malleus intact、incus absent、stapes suprastructureであり、PORPをツチ骨柄下から
+> アブミ骨頭へ介在させる再建経路は、JOS2010分類ではⅢi-M（アブミ骨-ツチ骨間再建）相当となる。
+> case-008と構造的に同一であり、ツチ骨柄残存のみを根拠にII型と分類することは不適切。
+>
+> なお「ツチ骨柄残存＝II型」という簡略基準は廃止し、今後は再建経路（接続先）を基準に分類する。
+
+### Procedure分類の新原則(次Addendumで正式化予定)
+
+上記決定により、`cases.ts`全体のprocedure分類は以下の原則へ更新する方針が確定した。
+
+```
+旧: malleus状態(intact/partial/absent) → procedure
+新: 再建経路(何が何に接続されるか) → JOS2010分類 → procedure表示
+```
+
+この原則の正式なAddendum文書化は、case-011確認・case-005確認の後にまとめて行う
+(shoji指定順序、下記「次の進め方」参照)。
+
 ## 副次的に発見・修正した別件(症例表示順バグ)
 
 本Issue対応中にshojiさんがGUIで、症例選択画面の表示順(`cases.ts`末尾の
@@ -97,9 +119,19 @@ teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証�
 
 コード変更は行わない。まずshojiさんに1・2の確認を依頼し、回答を得てから対応要否を判断する。
 
+## 次の進め方(shoji指定順序、2026-07-29)
+
+```
+① case-001修正確認        完了
+② case-011確認            次工程
+③ case-005のII型変法問題   ②の後
+④ procedure分類ルールAddendum作成   ③の後
+```
+
 ## 参照
 
 - `docs/P3-EA-2_Step_B_Response_Record_v1.0.md`(Q4-008、Finding 4)
 - `docs/P3-EA-3_Evidence_Validation_v1.0.md`(Finding 4節、本Issueへの切り出し経緯)
-- `src/data/cases.ts`(case-001/008/011)
+- `docs/Issue-026_Case001_Confirmation_v1.0.md`(case-001確認記録)
+- `src/data/cases.ts`(case-001/002/003/004/005/008/011)
 - 「伝音再建法の分類と名称について（2010）」日本耳科学会用語委員会報告(shoji提示)
