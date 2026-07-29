@@ -1,6 +1,6 @@
 # P3: Ground Truth Acquisition Plan v1.0 (Draft)
 
-**Status**: Draft(P3-0/P3-1/P3-2確定、P3-3 Mapping Table作成完了・shoji確認待ち、P3-4/P3-5未着手)
+**Status**: Draft(P3-0/P3-1/P3-2/P3-3確定・commit ca7c662・push確認済み、P3-4 Case Priority Definition作成完了・shoji確認待ち、P3-5未着手)
 **位置づけ**: P2(Measurement Definition v1.0、Approved)完了を受け、Layer1-4の変換過程を
 記録するための計画。2026-07-29、shojiさんとの確認に基づき作成。コード変更は行わない
 (Strangler Pattern、Definition/Plan文書)。
@@ -219,12 +219,102 @@ P2文書で確定していること**を指し、**個々の症例でLayer1の�
 | KURZカタログ「Functional Length」とLayer1の関係 | Unknown | 未分類 | Unknown | KURZ製品カタログ | TORPにFunctional Length概念が存在しないという既存所見と、Layer1がPORP/TORP双方に適用される前提が整合しないまま(P2既述、統一を保留) |
 | Stapedotomy術式におけるlength selectionワークフロー全体 | Unknown | Layer1〜3 | Pending Clinical Confirmation | — | 実臨床でのstapes surgery測定定義・軟骨補正の要否・length selection手順いずれもEvidence未取得(P3-2既述) |
 
-## P3-4〜P3-5(次セッションで詳細化、アウトラインのみ)
+## P3-4: Case Priority Definition
 
-1. **Case Priority Definition**: case-004→008→012を優先する根拠の再整理(Evidence確度High、
-   実測サイザー分類済み。ただし「GT差異があるから優先」という誤った根拠は使わない)。
-2. **Measurement Protocol / Data Format / Validation Criteria**: 未着手。
+### 目的
+
+15症例すべてを同一優先度で扱うのではなく、P3-3で確定したDefinition Status(基準点定義の確定度)と
+Layer1 Data Availability(実測値の有無)を軸に、Clinical GT Evidence取得(将来のP3-5以降で実施)の
+着手順序を決めることが目的である。
+
+**禁止事項(P3-0/P3-1から継続)**: 「recommended−GTの乖離幅が大きいから優先する」という理由は
+使わない。乖離幅はLayer3(Selected Length Record)とLayer4(Geometry Capture)の間の観測差に
+過ぎず、Layer1(Clinical GT)取得の優先度とは無関係([[p3_purpose]]非目的1、P3-0で既に固定)。
+
+### Axis 1: 臨床カテゴリ別 症例配置(P3-2/P3-3から再掲、変更なし)
+
+| 臨床カテゴリ | 製品 | 症例 | Definition Status |
+|---|---|---|---|
+| PORP | porp-ttp-variac | 001,003,004,005,007,008,011,012(8件) | Definition Confirmed |
+| TORP | torp-ttp-variac | 002,006,009,013(4件) | Definition Confirmed |
+| Soft Clip Stapes | soft-clip-stapes | 010,014,015(3件) | Pending Clinical Confirmation |
+
+### Axis 2: Evidence Gap(製品カテゴリ別、P3-3 Mapping Tableの要約)
+
+| 臨床カテゴリ | 既知 | 不足 |
+|---|---|---|
+| PORP | Anchor定義(TM→Stapes Head、Evidence B) | Layer1実測値(全8症例Unknown)、Layer2軟骨補正の症例別適用根拠 |
+| TORP | Anchor定義(TM→Footplate、Evidence B) | Layer1実測値(全4症例Unknown)、Layer2軟骨補正の症例別適用根拠 |
+| Soft Clip Stapes | 製品構造(Incus固定、Evidence A/C) | Anchor定義自体のClinical Confirmation、Layer1実測値(全3症例Unknown)、Layer2補正適用可否自体がUnknown |
+
+### Definition Status × Layer1 Data Availabilityマトリクスの限界(先に明示)
+
+2軸で単純にマトリクス化すると、Layer1 Data Availabilityは**全15症例で一律Unknown**
+(P3-3既確認)であるため、この2軸だけではConfirmed群(PORP/TORP、12症例)内部の優先順位を
+区別できない。したがって、Confirmed群内部の優先度分けには第3の観点として
+**既存clinicalNotes記載(Layer1近似のClinical Narrative、Evidence C)の強度**を用いる。
+これはLayer1実測値そのものではなく、あくまで「取得時に参照可能な既存の手掛かりの強さ」を
+表す観点であり、Evidence C(推定・仮説)の域を出ないことを明記する。
+
+### Priority Tiers
+
+**Priorityの意味(shojiさんレビュー指摘により明記)**: Priorityは臨床的正しさの順位ではなく、Ground Truth Acquisition(Evidence取得)の着手順序を示す。Priority 1の症例が他より「臨床的に正しい」「信頼できる」ことを意味しない。
+
+```
+Priority 1: Definition Confirmed かつ Evidence acquisition impact大
+            (既存clinicalNotesが「実測(サイザー)/実測」と明記している症例。
+             実際にLayer1 Evidenceを取得した場合、この記載自体の信頼性を検証できる)
+Priority 2: Definition Confirmed だが Data acquisition未実施
+            (既存clinicalNotesが「約(推定)」または記載なしの症例。
+             取得の意義はあるが、比較対象となる既存記載が弱い、または無い)
+Priority 3: Definition Pending
+            (Soft Clip Stapes。Anchor定義自体のClinical Confirmationが先決であり、
+             個々の症例のLayer1取得は定義確定後でなければ意味を持たない)
+```
+
+### 症例別Priority一覧
+
+| Case | 製品 | Definition Status | Layer1 Data Availability | clinicalNotes記載(Evidence C) | Priority |
+|---|---|---|---|---|---|
+| case-004 | PORP | Confirmed | Unknown | 実測(サイザー) 2.0mm | 1 |
+| case-008 | PORP | Confirmed | Unknown | 実測 2.5mm | 1 |
+| case-012 | PORP | Confirmed | Unknown | 実測 2.0mm | 1 |
+| case-001 | PORP | Confirmed | Unknown | 約(推定) 2.5mm | 2 |
+| case-005 | PORP | Confirmed | Unknown | 約(推定,癒着解除後) 3.0mm | 2 |
+| case-007 | PORP | Confirmed | Unknown | 約(推定,成人比やや短い) 2.0mm | 2 |
+| case-003 | PORP | Confirmed | Unknown | 記載なし | 2 |
+| case-011 | PORP | Confirmed | Unknown | 記載なし | 2 |
+| case-002 | TORP | Confirmed | Unknown | 約(推定) 5.0mm | 2 |
+| case-013 | TORP | Confirmed | Unknown | 約(推定) 4.5mm | 2 |
+| case-006 | TORP | Confirmed | Unknown | 記載なし | 2 |
+| case-009 | TORP | Confirmed | Unknown | 記載なし | 2 |
+| case-010 | Soft Clip Stapes | Pending Clinical Confirmation | Unknown | 記載なし | 3 |
+| case-014 | Soft Clip Stapes | Pending Clinical Confirmation | Unknown | 約(推定) 4.0mm | 3 |
+| case-015 | Soft Clip Stapes | Pending Clinical Confirmation | Unknown | 約(推定) 4.25mm | 3 |
+
+**Priority 1(3症例、いずれもPORP)の根拠の再確認**: case-004/008/012はいずれも
+`porp-ttp-variac`かつclinicalNotesが「実測(サイザー)」または「実測」と明記する3症例
+(P2 Layer3節で既確認)。優先理由は**recommendedLengthとGT(Simulator配置キャプチャ)の
+乖離幅ではなく**、既存記載が「実際の術中実測」を主張している点にある。ここでLayer1
+Evidence(A+相当)を取得できれば、①この3症例のclinicalNotes記載の信頼性を検証できる
+②将来「実測」表記が付された症例のEvidence C記載を、Evidence A+に格上げする際の
+検証手順を確立できる、という2つの波及効果がある。
+
+**Priority 3(Soft Clip、3症例)の位置づけ**: この3症例はLayer1実測値がUnknownである点は
+Priority1/2と同じだが、それ以前にAnchor定義(Incus Long Process→Footplate)自体が
+Pending Clinical Confirmationであるため、Layer1取得に着手する前提が整っていない。
+P3-4の範囲では「定義確定が先決」と位置づけるに留め、定義確定の具体的手順はP3-5
+(Measurement Protocol)以降で検討する。
+
+## P3-5(次セッションで詳細化、アウトラインのみ)
+
+1. **Measurement Protocol**: Priority1の3症例(004/008/012)から着手する具体的な
+   Evidence取得手順(shojiさんへのヒアリング形式か、既存カルテ参照か等は未定)。
+2. **Data Format**: 取得したLayer1 Evidenceをどこにどう記録するか(`cases.ts`拡張か
+   別ファイルか等は未定)。
+3. **Validation Criteria**: 取得したEvidenceをA+として確定させる基準(未着手)。
 
 ## 次のステップ
 
-P3-3をshojiさんに確認のうえ、P3-4(Case Priority Definition)以降を次セッションで詳細化する。
+P3-4をshojiさんに確認のうえ、P3-5(Measurement Protocol / Data Format / Validation Criteria)を
+次セッションで詳細化する。
