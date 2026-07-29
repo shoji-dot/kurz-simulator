@@ -1,3 +1,7 @@
+**Status**: Resolved・実装済み(2026-07-29)。shojiさんへの確認質問「ツチ骨モデルを表示する
+教育的意図はあるか」に対し「完全欠損症例として非表示でよい(推奨案を採用)」との回答を得て、
+`src/data/cases.ts`のcase-003 `ossicularStatus.malleus`を`'partial'`→`'absent'`へ変更した。
+
 # Issue-027: case-003 `ossicularStatus.malleus`型値の見直し候補
 
 `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
@@ -43,23 +47,37 @@ shojiさんへの確認(Q4-003)で、以下の回答を得た。
 この変更が意図した挙動か(除去済みなら本来非表示が正しい、という理解でよいか)をshojiさんに
 確認してから実施する。
 
-## 確認が必要な事項
+## 確認事項への回答・実施結果
 
-1. `partial`→`absent`変更後、ツチ骨モデルが非表示になることは教育的に正しいか(コレステアトーマ
-   による完全除去例なので、表示すべき残存構造がないという理解でよいか)。
-2. 他症例(case-005/007、いずれも`partial`のまま据え置き予定)には同様の精査が不要か
-   (Step B追加確認で個別に確認済み: case-005は菲薄化・残存、case-007は解剖学的に存在するが
-   機能的に非連結、いずれも`partial`型設定自体は妥当と判断済み)。
-3. `caseGenerator/internal/caseMappings.ts`等、未調査の参照箇所に`partial`固有の分岐がないか
-   (実装着手前にClaude Codeへ依頼する場合、この確認も依頼範囲に含める)。
+1. **「`partial`→`absent`変更後の非表示は教育的に正しいか」**: shojiさんへAskUserQuestionで
+   確認。「完全欠損症例として非表示でよい」を選択(コレステアトーマによる完全除去例であり、
+   見せるべき残存構造がないという理解で一致)。
+2. 他症例(case-005/007)には同様の変更は不要(Step B追加確認で個別確認済み、`partial`型設定
+   自体は妥当と判断済み、本Issueの対象外)。
+3. `caseGenerator/internal/caseMappings.ts`等、`malleus`を参照する他ファイルにcase-003固有の
+   ID参照は見つからなかった(`grep case-003`は`src/data/cases.ts`のみヒット)。`partial`固有の
+   分岐ロジック自体(`SimScene.tsx`/`StepFlowMode.tsx`の透明度・表示モード切替)は他症例
+   (case-005/007)にも適用され続けるため影響なし。
 
-## 優先度・スコープ
+## 実装内容(完了)
+
+`src/data/cases.ts`のcase-003(120行目付近)の`ossicularStatus`を
+`{ malleus: 'partial', incus: 'absent', stapes: 'suprastructure' }`から
+`{ malleus: 'absent', incus: 'absent', stapes: 'suprastructure' }`へ変更。変更理由を
+コード内コメントとして併記(Issue-027・shoji確認日付を明記)。
+
+**検証**: TypeScriptコンパイラAPI(`ts.transpileModule`)による構文チェックで診断0件を確認。
+`npx tsc -b`/`npx eslint`によるプロジェクト全体のBuild/Lintはsandbox環境のI/O速度により
+今回セッション内で完了確認できなかった(45秒のコマンドタイムアウトを複数回超過、変更内容とは
+無関係な環境要因)。`'absent'`は同ファイル内の他症例(例: case-002/004等)で既に使用されている
+`OssicleStatus`型の既存メンバーであり、型エラーが生じる可能性は極めて低い。**shojiさんの
+ローカル環境で`npm run build`/`npm run lint`を実行し、最終確認をお願いしたい**
+(Verification Order: Build→Type Check→Lintの最終ステップ)。
+
+## 優先度・スコープ(実施済みのため参考情報として保持)
 
 優先度: 低〜中。教育的正確性に関わるが、Safety Engine等のClinical Safety機能には影響しない
-(型変更は表示/UIロジックへの影響のみ)。P3-EA系列の直接のブロッカーではない。
-
-コード変更は行わない。上記確認事項1〜3を整理し、対象ファイル・完了条件・テスト内容
-(3Dビュー上での表示確認等)を明確にした上で、Claude Codeへの実装依頼として起票する。
+(型変更は表示/UIロジックへの影響のみ)。
 
 ## 参照
 

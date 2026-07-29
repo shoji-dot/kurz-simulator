@@ -121,7 +121,10 @@ export const surgicalCases: SurgicalCase[] = ([
     title: '症例4: ツチ骨・キヌタ骨欠損（III型）— TTP-VARIAC PORP（応用）',
     description: '35歳男性。コレステアトーマ初回手術後（アティコトミー）。ツチ骨・キヌタ骨はコレステアトーマにより除去。アブミ骨上部構造（頭部・前後弓）は温存、可動性良好。鼓室形成III型にTTP-VARIAC PORPを使用するin-stage再建の応用例。',
     difficulty: 'advanced',
-    ossicularStatus: { malleus: 'partial', incus: 'absent', stapes: 'suprastructure' },
+    // Issue-027(2026-07-29): malleus: 'partial'→'absent'に修正。description/clinicalNotes/
+    // teachingPointsが一貫して「ツチ骨柄なし・除去」を示しており、shojiさん確認により
+    // 完全欠損症例として非表示(hidden)表示が教育的に正しいと確定(P3-EA-2 Step B追加確認)。
+    ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
     recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.0,
     // クリップがアブミ骨頭部を掴むため中央(offset 0)が必須。
