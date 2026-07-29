@@ -63,7 +63,16 @@ recommendedLength自体はALPHA単一モデル制約により恣意的)を踏ま
 
 ## Finding 3: PORP Anchor Definition Extension Proposal
 
-### 決定: P3-2への即時反映は保留。Extension Proposalとして本文書に保持する
+**更新(2026-07-29)**: malleus:partial(case-003/005/007)の確認が完了し、本Findingは
+**Resolved**扱いとする。詳細は
+`docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+参照。結論: partialは固定の第3Anchorパターンではなく、症例ごとのnarrative確認により
+Ⅲc相当/Ⅲi-M相当いずれかへ分類する(判断手順は上記回答記録の「PORP Anchor Definitionの
+最終形」節を参照)。副次的に、case-003の`ossicularStatus.malleus`型値自体の見直し候補
+(Issue-027)が新たに生じた。P3-2本文への反映方式(v1.1かAddendumか)は、Issue-026対応後に
+まとめて判断する。
+
+### 決定(当初、旧版として残す): P3-2への即時反映は保留。Extension Proposalとして本文書に保持する
 
 **理由(shoji判断)**: `ossicularStatus.malleus`には`absent`/`partial`/`intact`の3状態が存在する
 (`cases.ts`型定義参照)。Step Bで確認できたのは`absent`(case-004/012)と`intact`(case-008)の
@@ -102,11 +111,12 @@ cases.ts全体の整合性に関わる横断的論点のため。
 
 | Decision Point | 結果 |
 |---|---|
-| Anchor分岐をP3-2へ即反映 | 保留(partial症例確認後に再検討) |
-| Anchor分岐案をEvidence Bとして保存 | 実施(本文書のExtension Proposal) |
-| Malleus partial症例(003/005/007)のAnchor確認 | 次フェーズで実施予定(未着手) |
+| Anchor分岐をP3-2へ即反映 | 保留(Issue-026対応後にまとめて判断) |
+| Anchor分岐案をEvidence Bとして保存 | 実施(本文書のExtension Proposal、判断手順として確定) |
+| Malleus partial症例(003/005/007)のAnchor確認 | **完了**(2026-07-29、Resolved) |
 | 軟骨補正0.2mm/0.5mmの統一 | 保留(Unknown維持) |
-| case-001/011の分類確認 | Issue-026として別途起票 |
+| case-001/011の分類確認 | Issue-026として別途起票、着手待ち |
+| case-003の`ossicularStatus.malleus`型値見直し | Issue-027として新規起票予定、未実施 |
 | `cases.ts`修正 | 未実施(方針確定後に別途実装依頼) |
 
 ## 次のステップ
