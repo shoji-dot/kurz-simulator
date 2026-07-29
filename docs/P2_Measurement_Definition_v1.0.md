@@ -4,10 +4,12 @@
 表す数値かを4層に分離して定義する。コード変更は行わない(Strangler Pattern、Definition文書)。
 2026-07-29、shojiさんとの確認(Bell Landmark測定・cases.ts監査)に基づき作成。
 
+**Status**: Approved(2026-07-29、shoji確認済み)
+
 ## 前提(確定済み、変更しない)
 
-- `docs/selectedLength_定義書_v1.0.md` D1: Functional Lengthを教育システム全体の基準概念とする
-  (2026-07-23決定済み)。
+- プロジェクトルート管理の既存文書`selectedLength_定義書_v1.0.md`(OneDrive、kurz-simulator/docs外)
+  D1: Functional Lengthを教育システム全体の基準概念とする(2026-07-23決定済み)。
 - P1: Bell外形(`BELL_HEIGHT_MM=1.095mm`・`BELL_RIM_RADIUS_MM=0.795mm`)はEvidence確定済み、
   再測定不要。シャフトはBell内部に実物構造として存在せず、Bell頂点(apex)に接続される
   (2026-07-29、shoji確認、Evidence区分: Ground Truth/術者回答)。
@@ -54,7 +56,8 @@ Stapes Head(PORP/Bell) または Footplate(TORP/FLAT/Stapedotomy)
 **定義(2026-07-29 shoji確認により確定)**: 術者がLayer 1・Layer 2を踏まえて最終的に選択した
 製品カタログ上のシャフト長(`shaftLengths`グリッド値)。
 
-**Evidence**: case-004/008/012(`RecommendedLength_Audit_Template`で「実測(サイザー)」に
+**Evidence**: case-004/008/012(`RecommendedLength_Audit_Template_2026-07-23.md`
+(OneDriveプロジェクトルート管理)で「実測(サイザー)」に
 分類された3症例)の記載値(2.0mm/2.5mm/2.0mm)は、いずれも`porp-ttp-variac`の
 `shaftLengths`グリッド(1.75〜4.50mm、0.25mm刻み)に完全に一致する。サイザーの生実測値が
 偶然この刻みに一致する必然性はないため、**これらは生の解剖学的距離ではなく、製品規格値へ
@@ -87,7 +90,7 @@ selectedLength(base→top)
 **Bell Apexの位置づけ**: Clinical Definition(Layer 1〜3)には含めない。Geometry Landmark
 (Layer 4)として扱う(2026-07-29 shoji方針)。
 
-## 未解決のまま残す数値(統一しない、`selectedLength_定義書`D3を継承)
+## 未解決のまま残す数値(統一しない、`selectedLength_定義書_v1.0.md`(OneDrive管理)D3を継承)
 
 以下3つの数値は出所が異なるため、無理に1つに統一しない。
 
@@ -104,7 +107,7 @@ Unknownのまま残す。
 
 ## cases.tsとの対応関係(監査結果)
 
-`RecommendedLength_Audit_Template`の分類に基づき、15症例は以下のようにLayer上の性質が異なる。
+`RecommendedLength_Audit_Template_2026-07-23.md`(OneDrive管理)の分類に基づき、15症例は以下のようにLayer上の性質が異なる。
 
 - **実測(サイザー)、Layer 3として確定(3症例)**: case-004/008/012。
 - **約(推定)、性質不明(7症例)**: case-001/002/005/007/013/014/015。推定値がLayer 1相当か
@@ -113,7 +116,7 @@ Unknownのまま残す。
 
 **P2としての判断**: 上記の分類にかかわらず、**`recommendedLength`フィールド自体はアプリ内で
 一貫してLayer 3(Selected Implant Length)として扱われている**(スコア計算・Ground Truth
-Export・UI表示すべて同一の生数値を参照、`selectedLength_定義書`第6章で確認済み)。したがって
+Export・UI表示すべて同一の生数値を参照、`selectedLength_定義書_v1.0.md`(OneDrive管理)第6章で確認済み)。したがって
 コード上の扱いを変更する必要はない。「約(推定)」症例のclinicalNotes文言がLayer 1的な表現
 (生の解剖学的距離)になっている点は、**教育的な説明文としての性質**であり、`recommendedLength`
 という数値そのものの層とは別問題として扱う。
@@ -128,6 +131,6 @@ TMと平行にならず、シャフトを若干曲げてHead PlateとTMを平行
 
 ## 次のステップ
 
-本文書の内容についてshojiさんの最終確認を得たのち、P3(Ground Truth再取得計画)へ進む。P3では
+shojiさん確認済み(2026-07-29)。本文書をApprovedとし、P3(Ground Truth再取得計画)へ進む。P3では
 実測(サイザー)3症例を優先し、推定7症例・記載なし5症例は優先度を下げて扱う方針(前回監査で
 提案済み)を維持する。
