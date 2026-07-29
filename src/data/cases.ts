@@ -41,8 +41,12 @@ export interface SurgicalCase {
 export const surgicalCases: SurgicalCase[] = ([
   {
     id: 'case-001',
-    title: '症例1: キヌタ骨欠損（II型）— PORP',
-    description: '42歳女性。慢性中耳炎。鼓膜穿孔、キヌタ骨欠損。ツチ骨柄・アブミ骨上部構造は温存。鼓室形成II型の適応。PORP（ツチ骨柄下）を使用。',
+    // Issue-026(2026-07-29): II型→III型に表記修正。malleus:intact/incus:absentでPORPを
+    // ツチ骨柄下〜アブミ骨頭間に設置する構造はJOS2010のIIIi-M(III型インターポジション)に相当し、
+    // II型(キヌタ骨上に鼓膜を形成、プロステーシス非使用)の定義とは一致しない(case-008と同一
+    // パターン、shoji確認済み)。
+    title: '症例1: キヌタ骨欠損（III型）— PORP',
+    description: '42歳女性。慢性中耳炎。鼓膜穿孔、キヌタ骨欠損。ツチ骨柄・アブミ骨上部構造は温存。鼓室形成III型の適応。PORP（ツチ骨柄下）を使用。',
     difficulty: 'beginner',
     ossicularStatus: { malleus: 'intact', incus: 'absent', stapes: 'suprastructure' },
     recommendedProductId: 'porp-ttp-variac',
@@ -60,13 +64,15 @@ export const surgicalCases: SurgicalCase[] = ([
       '適切な張力：鼓膜閉鎖後わずかに張力がかかる程度。',
     ],
     tags: {
-      procedure: ['鼓室形成II型', 'PORP'],
+      procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['慢性中耳炎', 'キヌタ骨欠損'],
     },
   },
   {
     id: 'case-004',
-    title: '症例2: ツチ骨・キヌタ骨欠損（III型）— PORP',
+    // 表示順バグ修正(2026-07-29): 挿入順に振られた番号「症例2」がid昇順表示(H3-b)と
+    // 食い違っていたため「症例4」に修正(shoji指摘)。
+    title: '症例4: ツチ骨・キヌタ骨欠損（III型）— PORP',
     description: '47歳女性。真珠腫性中耳炎（アティコトミー後再発）。ツチ骨・キヌタ骨は真珠腫により破壊・摘出。アブミ骨上部構造（頭部・前後脚）は温存、可動性良好。鼓室形成III型の典型例。PORP適応。',
     difficulty: 'intermediate',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'suprastructure' },
@@ -92,7 +98,9 @@ export const surgicalCases: SurgicalCase[] = ([
   },
   {
     id: 'case-002',
-    title: '症例3: 全耳小骨欠損（IV型）— TORP',
+    // 表示順バグ修正(2026-07-29): 挿入順に振られた番号「症例3」がid昇順表示(H3-b)と
+    // 食い違っていたため「症例2」に修正(shoji指摘)。
+    title: '症例2: 全耳小骨欠損（IV型）— TORP',
     description: '58歳男性。真珠腫性中耳炎。ツチ骨・キヌタ骨・アブミ骨上部構造を全摘出。アブミ骨底板のみ残存、可動性良好。鼓室形成IV型の典型例。TORP適応。',
     difficulty: 'intermediate',
     ossicularStatus: { malleus: 'absent', incus: 'absent', stapes: 'footplate-only' },
@@ -118,7 +126,9 @@ export const surgicalCases: SurgicalCase[] = ([
   },
   {
     id: 'case-003',
-    title: '症例4: ツチ骨・キヌタ骨欠損（III型）— TTP-VARIAC PORP（応用）',
+    // 表示順バグ修正(2026-07-29): 挿入順に振られた番号「症例4」がid昇順表示(H3-b)と
+    // 食い違っていたため「症例3」に修正(shoji指摘)。
+    title: '症例3: ツチ骨・キヌタ骨欠損（III型）— TTP-VARIAC PORP（応用）',
     description: '35歳男性。コレステアトーマ初回手術後（アティコトミー）。ツチ骨・キヌタ骨はコレステアトーマにより除去。アブミ骨上部構造（頭部・前後弓）は温存、可動性良好。鼓室形成III型にTTP-VARIAC PORPを使用するin-stage再建の応用例。',
     difficulty: 'advanced',
     // Issue-027(2026-07-29): malleus: 'partial'→'absent'に修正。description/clinicalNotes/

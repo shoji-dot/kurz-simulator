@@ -1,5 +1,10 @@
 # Issue-026: Ossicular Procedure Classification整合性監査
 
+**Status**: case-001分は解決・実装済み(2026-07-29)。`docs/Issue-026_Case001_Confirmation_v1.0.md`
+でshojiさんへ確認し、「Ⅲ型への表記変更が必要」との回答を得て`src/data/cases.ts`のcase-001
+(title/description/tags.procedure)をII型→III型に修正した。**case-011の確認は未着手のまま
+残っている**。
+
 P3-EA-2 Step B(`docs/P3-EA-2_Step_B_Response_Record_v1.0.md`、commit `9c34dad`)のQ4回答で
 判明した論点を、独立した調査専用Issueとして切り出す。**不具合の確定ではなく、確認が必要な
 論点の記録**である(調査Issueと修正Issueを区別する方針、[[feedback]]のIssue-021運用を踏襲)。
@@ -41,14 +46,47 @@ case-011は`incus: partial`であり、case-001/008(`incus: absent`)と構造が
 
 ## 確認が必要な事項
 
-1. case-001のtags.procedure「II型」は、JOS2010のⅡ型定義(「キヌタ骨上に鼓膜を形成する」)と
-   整合するか、それともcase-008同様Ⅲi-M相当であり表記修正が必要か。
+1. ~~case-001のtags.procedure「II型」は、JOS2010のⅡ型定義…~~ **解決済み**。shojiさんの
+   回答「Ⅲ型への表記変更が必要」を受け、`src/data/cases.ts`のcase-001を修正した(title/
+   description/tags.procedureの3箇所、下記実装内容参照)。
 2. case-011(`incus: partial`)のtags.procedure「II型」は妥当か。`incus: partial`という状態が
    JOS2010の分類上どう扱われるか(部分残存キヌタ骨がある場合の扱いはJOS2010原文に明記が
-   ない可能性があり、追加確認が必要)。
-3. 上記1・2の結果次第で、`cases.ts`の`tags.procedure`修正が必要になる場合、影響範囲
-   (該当症例のみか、teachingPoints内の説明文にも影響するか)を整理してからClaude Codeへの
-   実装依頼として起票する。
+   ない可能性があり、追加確認が必要)。**未着手**。
+3. (新規・任意で確認したい点)case-005のtags.procedureは「鼓室形成II型変法」だが、
+   `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+   でcase-005は機能的にツチ骨柄が連鎖に関与する(Ⅲi-M相当)と整理済み。「II型変法」という
+   表記が「Ⅲi-M」の考え方と両立するか(「変法」という言葉で吸収できる差か)は未確認。
+   本Issueの直接のスコープ外だが、case-001と同種の論点のため参考記録する。
+
+## 実装内容(case-001、完了)
+
+`src/data/cases.ts`のcase-001を以下の通り修正(コミット、下記参照)。
+
+- `title`: 「症例1: キヌタ骨欠損（II型）— PORP」→「症例1: キヌタ骨欠損（III型）— PORP」
+- `description`: 「鼓室形成II型の適応」→「鼓室形成III型の適応」
+- `tags.procedure`: `['鼓室形成II型', 'PORP']`→`['鼓室形成III型', 'PORP']`
+
+teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証は`ts.transpileModule`による
+構文チェック(診断0件)のみ実施、プロジェクト全体のBuild/Lintはsandbox環境のI/O速度により
+未完了(Issue-027と同じ制約、下記参照)。
+
+## 副次的に発見・修正した別件(症例表示順バグ)
+
+本Issue対応中にshojiさんがGUIで、症例選択画面の表示順(`cases.ts`末尾の
+`.sort((a,b) => a.id.localeCompare(b.id))`によるid昇順表示)と、各症例`title`内に
+埋め込まれた手書きの症例番号("症例N:")が食い違っていることを発見した。
+
+原因: `title`文字列内の番号は配列の**挿入順**(case-001, 004, 002, 003, 005, ...)を基準に
+振られていたが、表示は`id`昇順にソートされるため、挿入順とid順がずれるcase-002/003/004の
+3件でnumberの食い違いが生じていた。
+
+| Case | 修正前title内番号 | 修正後 |
+|---|---|---|
+| case-002 | 症例3 | 症例2 |
+| case-003 | 症例4 | 症例3 |
+| case-004 | 症例2 | 症例4 |
+
+3件とも`title`文字列のみの修正(表示テキストのみ、`id`・ロジックへの影響なし)。修正済み。
 
 ## 優先度・スコープ
 
