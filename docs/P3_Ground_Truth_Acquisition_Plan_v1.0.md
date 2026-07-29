@@ -1,6 +1,6 @@
 # P3: Ground Truth Acquisition Plan v1.0 (Draft)
 
-**Status**: Draft(P3-0/P3-1確定、P3-2以降は未着手)
+**Status**: Draft(P3-0/P3-1/P3-2確定、P3-3以降は未着手)
 **位置づけ**: P2(Measurement Definition v1.0、Approved)完了を受け、Layer1-4の変換過程を
 記録するための計画。2026-07-29、shojiさんとの確認に基づき作成。コード変更は行わない
 (Strangler Pattern、Definition/Plan文書)。
@@ -86,16 +86,70 @@ P3で整備するEvidence記録は、以下の後続作業の入力として想�
 - 将来的なGeometry(Bell/Head Plate等)の改善検討時の裏付け資料
 - Education Layer(症例解説・教育コンテンツ)における出典明示
 
-## P3-2〜P3-5(次セッションで詳細化、アウトラインのみ)
+## P3-2: Ground Truth Definition
 
-1. **Ground Truth Definition**: P3-0の用語整理を踏まえ、Clinical GT(Layer1)を
-   新たに取得する場合の定義方法。
-2. **Evidence Hierarchy Mapping**: [[feedback]]のEvidence A+/A/B/C階層と、上表のLayer1-4を
-   どう対応づけるか。
-3. **Case Priority Definition**: case-004→008→012を優先する根拠の再整理(Evidence確度High、
+### Step1: 現行Simulator対象範囲(`data/cases.ts` / `data/products.ts`確認結果)
+
+症例数15件(case-001〜015、欠番なし)。使用中の`recommendedProductId`は3種類のみ、
+`footType`も3種類のみ(BELL/FLAT/PISTON)。
+
+| productId | type | footType | 該当case数 | ossicularStatus.stapes |
+|---|---|---|---|---|
+| porp-ttp-variac | PORP | BELL | 8件(001,003,004,005,007,008,011,012) | 全件 suprastructure(温存) |
+| torp-ttp-variac | TORP | FLAT | 4件(002,006,009,013) | 全件 footplate-only |
+| soft-clip-stapes | PISTON | PISTON | 3件(010,014,015) | footplate-only(ただしmalleus/incus intact) |
+
+**Stapedotomyは既にCurrent Scope内**(Future Scope扱いは誤り)。soft-clip-stapesの
+`description`に「アブミ骨形成術(Stapedotomy)用ピストン型プロステーシス」と明記されており、
+15症例中3件を占める。
+
+### Clinical GT Definition v0.1
+
+| 製品カテゴリ | Clinical GT候補(Layer 1) | Status |
+|---|---|---|
+| PORP(porp-ttp-variac) | TM(またはツチ骨柄) → Stapes Head | Confirmed(P2で既に採用) |
+| TORP(torp-ttp-variac) | TM → Footplate | Confirmed(P2で既に採用) |
+| Soft Clip Stapes(soft-clip-stapes、Stapedotomy) | Incus Long Process → Footplate | Pending Clinical Confirmation |
+
+**Soft Clip Stapesの訂正経緯**: 検討開始時点の候補「TM → Footplate/Prosthesis interface」は
+PORP/TORP(耳小骨連鎖再建)の発想を混用したものであり、製品構造(`headType: SOFT_CLIP`、
+`headPlateDiameter: 1.2mm`、「キヌタ骨長突起に自動固定」)と整合しなかったため撤回した。
+該当3症例はいずれもmalleus/incus intact(TORPのfootplate-onlyがmalleus/incus absentなのと
+対照的)であり、構造上はTMではなくIncus Long Processが起点になる。
+
+**Confirmed / Pendingの区別根拠**:
+
+| 項目 | 状態 |
+|---|---|
+| soft-clip-stapesがincus固定型の製品であること | Confirmed(製品定義から) |
+| Incus Long Process→Footplateが幾何学的距離として必要であること | Confirmed(構造から) |
+| これをClinical GT測定定義として採用すること | Pending Clinical Confirmation |
+
+Pendingとする理由: Simulator構造・製品設計上の接続点は確認できるが、実臨床での術者測定定義・
+軟骨補正をどこに含めるか・stapes surgeryでのlength selection workflowはまだEvidenceがなく、
+[[feedback]]のUnknown明記方針(推測で埋めない)に従いConfirmedへ格上げしない。
+
+### P3-2で行うこと / 行わないこと
+
+**やる**:
+- `cases.ts`上の臨床カテゴリ固定(Step1)
+- product → anatomy relationshipの整理
+- Clinical GT候補の定義(Confirmed/Pending区分つき)
+- Evidence状態管理
+
+**やらない**:
+- Stapedotomyの最終測定定義確定
+- Soft Clip Stapesのlength calculation確定
+- recommendedLengthの正誤評価
+
+## P3-3〜P3-5(次セッションで詳細化、アウトラインのみ)
+
+1. **Evidence Hierarchy Mapping**: [[feedback]]のEvidence A+/A/B/C階層と、P3-0の
+   Layer1-4・P3-2のConfirmed/Pending区分をどう対応づけるか。
+2. **Case Priority Definition**: case-004→008→012を優先する根拠の再整理(Evidence確度High、
    実測サイザー分類済み。ただし「GT差異があるから優先」という誤った根拠は使わない)。
-4. **Measurement Protocol / Data Format / Validation Criteria**: 未着手。
+3. **Measurement Protocol / Data Format / Validation Criteria**: 未着手。
 
 ## 次のステップ
 
-P3-1をshojiさんに確認のうえ、P3-2(Ground Truth Definition)以降を次セッションで詳細化する。
+P3-2をshojiさんに確認のうえ、P3-3(Evidence Hierarchy Mapping)以降を次セッションで詳細化する。
