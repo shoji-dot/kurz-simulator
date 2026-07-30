@@ -1,6 +1,8 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: Draft(shoji確認待ち、G3-2着手前に固定が必要)
+**Status**: Decision Confirmed(shoji判断 2026-07-30)。§3.2(天井側形状)=Option 1(追加実測)、
+§3.3(実装方式)=LatheGeometry化、§4(Reference Coordinate)=案A(foot中央Anchor維持)で確定。
+**G3-2着手には追加実測(`docs/FlatFoot_Measurement_Record_v1.0.md`)の完了が前提条件**。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -83,36 +85,33 @@ shojiさんによる20倍模型ノギス実測(2026-07-30、`docs/TORP_SoftClip_
 | 上部縁の面取りサイズ | 未定 | 定量値なし |
 | 天井側の壁厚 | 開口部と同一(0.10mm)と仮定 | 未実測。テーパーに伴い変化する可能性 |
 
-**推奨対応(2択、shoji確認事項)**:
+**決定(shoji、2026-07-30)**: **Option 1(追加実測)を採用**。理由: 今回のFlatFoot改善の
+目的は見た目修正ではなく「簡略Geometry→Evidence A+ベースのReference Visual Geometry」への
+移行であり、`BellFoot()`で確立した「実測値→Geometry定義」という品質基準をTORPにも揃える。
+特に単純円柱→釣り鐘型中空構造への変更であるため、天井側形状(未確定パラメータ)がモデル
+品質を左右する。
 
-- **Option 1(追加実測)**: 天井側外径・テーパー角・面取りサイズを追加でノギス実測してから
-  G3-2着手。最も正確だが、着手が1ステップ遅れる。
-- **Option 2(暫定値でG3-2着手)**: 高さ・開口部外径/内径(§3.1、Evidence A+)のみを正確に
-  反映し、天井側は現行コードの比率(radiusTop/radiusBottom ≈ 0.24/0.18 ≈ 1.33倍)を
-  「開口部外径 ÷ 1.33 ≈ 0.30mm」のように暫定的に流用する。面取りは今回は省略
-  (円柱の直線テーパーのみ)。**この場合、天井側径・面取りはEvidence C(推定)として明記**し、
-  将来Evidence A+が取得され次第v1.1で更新する。
-
-  本文書はOption 2を暫定推奨とする(shoji確認待ち)。理由: 開口部(接触面に近い、教育的に
-  最も目立つ部分)の寸法精度が最優先であり、天井側(シャフトに隠れる/目立たない部分)は
-  相対的に優先度が低い。
+追加実測が必要な項目は`docs/FlatFoot_Measurement_Record_v1.0.md`に整理した(shoji測定待ち)。
+測定完了までG3-2(実装)には着手しない。
 
 ### 3.3 構造(中空・開口)
 
 - 現行の「外側ソリッド円柱+内側の半透明円柱で穴を表現」という手法(2メッシュ構成)は、
   実物の「壁厚0.10mmの中空シェル」を正確に表現できていない(内側円柱がただの色付き
   塗りつぶしであり、真の貫通穴・開口端面を表現しない)。
-- **改善案**: `BellFoot()`(`ProsthesisModels.tsx:507-602`)が既に採用している
-  「outerProfile/innerProfile + `THREE.LatheGeometry`」パターンを再利用し、外殻・内殻を
-  正しい壁厚(0.10mm)でオフセットした回転体として構築する。下面(Y=0付近、開口)は開いた
-  ままにし、上面付近はテーパーして閉じる(またはシャフト接続部として別途処理)。
-  この場合、現行の「暗色半透明シリンダーで穴を表現する」トリックは不要になる。
-- **代替案(実装コスト優先)**: LatheGeometryへの置き換えを見送り、外側円柱の寸法のみ
-  Evidence A+値へ更新し、内側の暗色円柱もサイズ追従させる(現行の2メッシュ構成を維持)。
-  実物のテーパー・面取りは表現しないが、最小変更で高さ・径の精度は改善する。
 
-  **どちらを採用するかはG3-2着手前にshojiさんへ確認する**(§6 Compatibility constraintsの
-  「Small Change原則」との兼ね合いで、後者(最小変更)がProject Instructionsに沿いやすい)。
+**決定(shoji、2026-07-30)**: **`BellFoot()`と同じLatheGeometry方式を採用**
+(`ProsthesisModels.tsx:507-602`の`outerProfile`/`innerProfile` + `THREE.LatheGeometry`
+パターンを再利用)。外殻・内殻を正しい壁厚(0.10mm、天井側は追加実測後に確定)でオフセット
+した回転体として構築する。下面(Y=0付近、開口)は開いたままにし、上面付近はテーパーして
+閉じる(またはシャフト接続部として別途処理)。現行の「暗色半透明シリンダーで穴を表現する」
+トリックは廃止する。
+
+理由(shoji整理): ①FlatFootは円形・中空・テーパー・面取りという回転対称形状であり
+LatheGeometryが本来の対象。②PORP(`BellFoot`、LatheGeometry、Evidence A)とTORP
+(`FlatFoot`)のGeometry実装方式を揃えることで、Reference Geometry思想をPORP/TORP間で
+統一できる。③将来KURZ CAD/3D Scan/追加実測が入った場合、変更点が「Profile data更新」に
+限定される(実装方式そのものの作り直しが不要)。
 
 ## 4. Reference Coordinate(原点・Anchorとの関係)
 
@@ -131,10 +130,11 @@ shojiさんによる20倍模型ノギス実測(2026-07-30、`docs/TORP_SoftClip_
   より直感的な対応になるが、これまでの「Anchor=foot中央」という整理(Option A)からの
   変更を意味し、Visual Mesh変更のはずがReference側の解釈変更に波及する恐れがある。
 
-**本文書は案A(現状踏襲)を推奨する**。理由: shojiさんが直前のOption A決定で「Anchor = foot
-中央」という解釈を明示的に採用しており、Reference側の解釈を変えないままVisual Meshだけを
-改善するという本Phaseの目的(§0 Purpose、G2文書)に最も忠実。案Bは実質的にReference側の
-再定義を伴うため、G3(Visual Mesh改善)のスコープを超える。
+**決定(shoji、2026-07-30)**: **案A(現状踏襲、foot中央Anchor維持)を採用**。理由:
+①G2で確定した「Anchor = Prosthesis Local Coordinate上の基準点」を守るため。②案Bを採用
+すると、PORP Bell/TORP Flat/Soft Clip PistonでAnchor定義の意味が分裂し、Pose Solver
+Adapter側の意味変更にもつながる。現在の設計(Reference GeometryとVisual Meshの分離)では
+避けるべき。
 
 ## 5. Non-goals(今回変更しないもの、明記)
 
@@ -188,14 +188,20 @@ case-013
 
 ## 7. Next Step
 
-本文書(v1.0)をshojiさんに確認いただき、以下を決定する。
+**決定済み(2026-07-30)**: §3.2=Option 1(追加実測)、§3.3=LatheGeometry化、§4=案A
+(foot中央Anchor維持)。
 
-1. §3.2の未確定パラメータ: Option 1(追加実測)/ Option 2(暫定値、Evidence C明記)。
-2. §3.3の実装方式: LatheGeometryへの置き換え / 現行2メッシュ構成の寸法更新のみ。
-3. §4のReference Coordinate: 案A(現状踏襲、推奨)/ 案B(開口面をY=0に合わせる)。
+```
+G3-1   FlatFoot Geometry Improvement Specification   (完了、本文書)
+  ↓
+G3-1.5 追加実測記録(docs/FlatFoot_Measurement_Record_v1.0.md)   (次工程、shoji測定待ち)
+  ↓
+G3-2   FlatFoot LatheGeometry Implementation          (実測完了後)
+```
 
-決定後、Phase G3-2(Visual Mesh実装)へ進む。実装は本文書で確定した仕様のみを対象とし、
-§5 Non-goalsに列挙した項目には一切触れない。
+G3-1.5(天井外径・天井内径・テーパー開始位置・テーパー角・面取り幅・シャフト接続部径の
+追加ノギス実測)が完了するまで、G3-2(実装)には着手しない。実装着手後は本文書で確定した
+仕様のみを対象とし、§5 Non-goalsに列挙した項目には一切触れない。
 
 ## 8. 参照文書
 
