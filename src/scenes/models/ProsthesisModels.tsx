@@ -604,20 +604,67 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 // ── FLAT foot (TORP Düsseldorf AERIAL) ───────────────────────────
 //   Catalog: "cannulated distal footing to increase fluid adhesion
 //   force to the stapes footplate" → hollow shaft tip, not a disc.
-//   Slightly widened terminal cylinder with visible hollow center.
+//
+//   Phase G3-2改訂(2026-07-30、Evidence A+): 20倍模型ノギス実測に基づく再構築。
+//   詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1(開口部寸法)、
+//   docs/FlatFoot_Measurement_Record_v1.0.md(天井・テーパー・面取り追加実測)、
+//   docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md(仕様・shoji決定)。
+//
+//   実測値(実寸、÷20換算後):
+//     全高                        : 0.80 mm
+//     開口部(底面、アブミ骨底板側) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm)
+//     天井(シャフト接続部側)      外径 : 0.10 mm(既存シャフト半径 r=0.10 と一致、shoji確認)
+//     面取り                      : 天井外周エッジに幅0.065mm・角度5-10°
+//     天井中央キャップ厚み        : 約0.04-0.05mm(中空はシャフト側手前で閉じる)
+//
+//   Evidence Gap(明示): 実測「テーパー角5-10°」は、開口部外径(0.395mm)→天井外径
+//   (0.10mm)の変化を全高0.8mmに単純適用すると幾何学的に両立しない(単純計算では
+//   半頂角約20°相当になる)。そのため本実装では、開口部・天井の両端点(Evidence A+)
+//   を厳密に再現し、実測「5-10°」は天井直下の面取り(chamfer)区間の角度として解釈した。
+//   中間区間のプロファイル点は両端点を滑らかに繋ぐ補間値(Evidence C、推定)。
+//
+//   Reference Coordinate(G3-1 §4決定、案A): Anchor(=STAPES_FOOTPLATE)はFoot groupの
+//   ローカル原点(0,0,0)のまま変更しない。「Anchor=foot中央」を維持するため、メッシュは
+//   現状踏襲で原点を中心に対称配置する(開口部 y=-0.40 〜 天井 y=+0.40)。
+//
+//   実装方式(shoji決定): BellFoot()と同じouterProfile/innerProfile + LatheGeometry方式。
+//   旧実装の「暗色半透明シリンダーで穴を表現する」トリックは廃止し、内殻もTitanium材質の
+//   実面として描画する(BellFootと同じ考え方)。
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
+  // 外殻プロファイル: 開口部(下端 y=-0.40, Evidence A+) → 天井/シャフト接続部
+  // (上端 y=+0.40, Evidence A+、既存シャフト半径と一致) → 天井付近で面取り。
+  const outerProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.395, -0.40),
+    new THREE.Vector2(0.32,  -0.15),
+    new THREE.Vector2(0.24,   0.05),
+    new THREE.Vector2(0.17,   0.24),
+    new THREE.Vector2(0.13,   0.36),
+    new THREE.Vector2(0.11,   0.385),
+    new THREE.Vector2(0.10,   0.40),
+  ], []);
+
+  // 内殻(中空)プロファイル: 開口部(下端、Evidence A+、壁厚0.10mmと整合) → 天井手前で
+  // 半径0へ収束し中空を閉じる(以降y=0.40までは中実キャップ、約0.045mm)。
+  const innerProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.295, -0.40),
+    new THREE.Vector2(0.22,  -0.15),
+    new THREE.Vector2(0.15,   0.05),
+    new THREE.Vector2(0.09,   0.22),
+    new THREE.Vector2(0.03,   0.32),
+    new THREE.Vector2(0.00,   0.355),
+  ], []);
+
+  const outerGeo = useMemo(() => new THREE.LatheGeometry(outerProfile, 24), [outerProfile]);
+  const innerGeo = useMemo(() => new THREE.LatheGeometry(innerProfile, 24), [innerProfile]);
+
   return (
     <group>
-      {/* Tapered terminal cylinder (cannulated end) */}
-      <mesh>
-        <cylinderGeometry args={[0.24, 0.18, 0.42, 16]} />
-        <TitaniumMat ghost={ghost} />
+      <mesh geometry={outerGeo}>
+        <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* Hollow interior — creates fluid adhesion force */}
-      <mesh position={[0, -0.08, 0]}>
-        <cylinderGeometry args={[0.09, 0.09, 0.28, 8]} />
-        <meshStandardMaterial color="#050810" transparent opacity={ghost ? 0.0 : 0.90} />
+      <mesh geometry={innerGeo}>
+        <TitaniumMatDS ghost={ghost} />
       </mesh>
     </group>
   );

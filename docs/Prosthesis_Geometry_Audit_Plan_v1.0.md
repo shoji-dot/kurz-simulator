@@ -1,9 +1,10 @@
 # Prosthesis Geometry Audit Plan v1.0
 
-**Status**: Phase G1/G2 Completed(shoji確認 2026-07-30)。Phase G3(製品別改善実装)は
+**Status**: Phase G1/G2 Completed(shoji確認 2026-07-30)。Phase G3はFlatFoot(TORP)が
+Implemented(`FlatFoot_Geometry_Improvement_Spec_v1.0.md`)、Soft Clip/PORP Bell微調整は
 未着手。詳細成果物は`Prosthesis_Reference_Landmark_Definition_v1.0.md`(G1-1/G1-2)、
 `TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)、`Prosthesis_Reference_Geometry_Definition_v1.0.md`
-(G2、G2-Review含む)を参照。
+(G2、G2-Review含む)、`FlatFoot_Geometry_Improvement_Spec_v1.0.md`(G3-1/G3-2)を参照。
 **Date**: 2026-07-30
 **位置づけ**: `docs/P4_Transition_Deferred_Management_Plan_v1.0.md` Priority1(プロステーシス
 モデル品質向上)のPhase G1。PORP/TORP/Soft ClipのGeometry実装を評価項目ごとに監査し、

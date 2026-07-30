@@ -1,6 +1,7 @@
 # FlatFoot Measurement Record v1.0
 
-**Status**: shoji測定待ち(G3-2着手のブロッカー)
+**Status**: shoji測定完了(2026-07-30)。G3-2(`FlatFoot()`のLatheGeometry実装)に反映済み。
+最終プロファイル・実装解釈の詳細は`docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md` §8参照。
 **Date**: 2026-07-30
 **位置づけ**: `docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md` §3.2の決定(Option 1: 追加実測)
 に基づく測定記録テンプレート。20倍模型のノギス実測値をこのファイルに追記していただければ、
