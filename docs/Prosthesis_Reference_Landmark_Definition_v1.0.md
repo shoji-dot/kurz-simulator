@@ -43,6 +43,13 @@ Anchor Landmark(`base` = `STAPES_HEAD`/`STAPES_FOOTPLATE`、`OssicleModels.ts`)�
 のローカル原点(0,0,0)とworld空間で厳密に一致する。**問題は、このローカル原点が各Footジオ
 メトリの「実際に接触する面」と一致しているかがFoot種別ごとに異なる点。**
 
+> **【G2訂正、2026-07-30】** 上記の「厳密に一致する」は`angleTilt = angleTiltZ = 0`の場合に
+> 限る近似だった。tilt≠0では最大0.6mm程度(検証範囲内)乖離することをNode実行で数値検証
+> 済み。詳細・意図的挙動かの判断は`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
+> §2・§7-6を参照(shoji確認待ち)。本節(§2、tilt=0前提のContact Point監査)自体の
+> 結論(BELL/FLAT/PISTONの相対ギャップ)はローカル座標系内の比較のため、この訂正による
+> 影響を受けない。
+
 | footType | 使用製品 | ローカル原点(=Anchor)とジオメトリの関係 | 評価 |
 |---|---|---|---|
 | `BELL` | porp-ttp-variac | `BellFoot()`のリム(開口部、ローカルY=0)がローカル原点と厳密に一致(`outerProfile`の起点が`(RIM_R, 0)`) | **整合**(カップ形状の開口面がAnchor位置と一致する設計) |
