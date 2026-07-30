@@ -218,6 +218,14 @@ P2文書で確定していること**を指し、**個々の症例でLayer1の�
 | Layer2軟骨補正の適用根拠 | A(範囲)/B(具体例) | Layer1→2変換 | Pending | KURZ IFU(0.3-0.5mm、Evidence A)、shoji口頭(0.2mm、2026-07-29、Evidence B) | 症例別の補正適用は現行コード・データいずれにも実装されていない(P2既述) |
 | Selected Length Record(`recommendedLength`) | A(コード内definitionとして一貫) | Layer3 | Confirmed(コード上の値として) | `cases.ts` / P2 v1.0 | Layer1→2→3の導出過程は未記録。正誤判定の根拠にはしない([[p3_purpose]]非目的1) |
 
+> **追記(2026-07-30、P3-EA-3 Anchor分岐 最終整理、shoji承認・案B。P2への追記と同内容をP3-3にも適用)**:
+> 上記「TM(または軟骨再建面) → Stapes Head」はPORPのみ、さらにⅢc相当(軟骨再建面 → Stapes
+> Head)/Ⅲi-M相当(ツチ骨柄 → Stapes Head)に分岐する。malleus状態(absent/intact/partial)単独
+> では判定できず、症例ごとのnarrative確認が必要。判断手順の確定版は
+> `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+> 「PORP Anchor Definitionの最終形」を参照。本追記は既存の表・定義を変更するものではなく、
+> 追加情報として付記する(Strangler Pattern、既存文言は無変更)。
+
 #### TORP(torp-ttp-variac、4症例: 002/006/009/013)
 
 | Clinical Item | Evidence Level | Layer | Status | Source | Limitation |

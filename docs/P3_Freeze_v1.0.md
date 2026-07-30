@@ -44,6 +44,13 @@ P3の目的(P3-1で確定): recommendedLengthの正誤判定ではなく、Clini
 | 7 | Data Format: `EducationalReferenceRecord`型を提案(`recommendedLength`とは別構造、ドキュメント上の提案のみ・コード未実装) | P3-5 |
 | 8 | Validation Criteria: Layer1〜4individually、Layer1は「Expert-defined reference validation」(実患者実測検証ではない) | P3-5 |
 
+> **追記(2026-07-30、P3-EA-3 Anchor分岐 最終整理、shoji承認・案B)**: #2のPORP=TM→Stapes Head
+> は、さらにⅢc相当(軟骨再建面→Stapes Head)/Ⅲi-M相当(ツチ骨柄→Stapes Head)に分岐する
+> (malleus状態単独では判定できず、症例ごとのnarrative確認が必要)。詳細・判断手順は
+> `docs/P2_Measurement_Definition_v1.0.md`および
+> `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+> 参照。本追記は上表の内容を変更するものではない(Strangler Pattern)。
+
 ## 3. Assumptions(前提、Project Scope Note)
 
 2026-07-29、shojiさんへの直接確認により判明・確定した前提(ベース文書冒頭に配置、P3-0〜P3-5

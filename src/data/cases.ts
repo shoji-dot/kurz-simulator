@@ -220,7 +220,8 @@ export const surgicalCases: SurgicalCase[] = ([
     ossicularStatus: { malleus: 'intact', incus: 'absent', stapes: 'suprastructure' },
     recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 2.5,
-    // ツチ骨・アブミ骨は正常位置(外傷性キヌタ骨脱臼のみ)。II型と同様の解剖。
+    // ツチ骨・アブミ骨は正常位置(外傷性キヌタ骨脱臼のみ)。ツチ骨柄下配置はcase-001/011と
+    // 同様の座標パターン(JOS2010ではIIIi-M相当、Issue-026 2026-07-29確認。II型ではない)。
     // ツチ骨柄(X≈0)下配置のため約0.2mm内側オフセット・傾斜約15°が理想。
     idealLateralOffset: -0.2,
     idealAngle: 5,

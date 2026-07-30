@@ -19,7 +19,7 @@ Patient-specific Measurement Evidenceではない」**という再分類が妥�
 
 | 項目 | 分類(確定) |
 |---|---|
-| `recommendedLength` | Layer3 Code Record |
+| `recommendedLength` | Layer3 Selected Length Record(P3-0/P3-3の正式用語に統一、2026-07-30訂正) |
 | `clinicalNotes`記載距離 | Evidence C相当(Scenario Narrative) |
 | Expert explanation(Step B回答) | Evidence B |
 | Patient anatomy measurement(症例固有の解剖実測値) | Unknown |
