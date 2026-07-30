@@ -1,9 +1,11 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented v2(2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
-LatheGeometry方式で再実装。v1はshojiさんのGUI確認で「外殻が円錐台になっている」形状解釈
-ミスが発覚(§8.0)し、外殻=円柱+天井面取りのみ・テーパーは内殻(中空)側のみへ修正(v2)。
-Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、GUI再確認待ち。
+**Status**: G3-2 Implemented v3(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
+単純な貫通型中空円柱(外殻+内殻、`cylinderGeometry`openEnded)へ実装。v1(外殻が誤って円錐台)
+→v2(LatheGeometryでテーパー・面取り・内部キャップを再現)といずれもshojiさんのGUI確認で
+差し戻しになり、v3で「テーパー・面取りの厳密再現はスコープ外、実物は単純な中空円柱+上面
+中央のシャフト接続」という最終方針に確定(§8.0参照)。Build/TypeCheck/Lint/Review/Clinical
+Validation(Verification Order)完了、GUI再確認待ち。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -199,68 +201,72 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 
 ## 8. G3-2 Implementation Record
 
-### 8.0 v2修正(2026-07-30、shoji GUI指摘)
+### 8.0 実装の変遷(v1→v2→v3)
 
-v1(初回実装)は「テーパー開始位置: 天井中央半径2mm(実寸0.1mm)」という実測値を**外殻
-(outerProfile)** に適用し、外形が円錐台(cone)になっていた。shojiさんのGUI確認(TORP症例)
-により、この測定値は外周ではなく**内部(中空キャビティ)の天井形状**を指すと判明。
+| version | 内容 | 結果 |
+|---|---|---|
+| v1 | 「テーパー開始位置: 天井中央半径2mm(実寸0.1mm)」という実測値を誤って**外殻**
+  (outerProfile)に適用。LatheGeometry、outerProfileが7点のテーパー形状 | shoji GUI確認で
+  差し戻し(「外形が円錐台になっている」) |
+| v2 | 外殻/内殻を訂正: 外殻=円柱+天井面取りのみ、内殻(中空)側にテーパー・閉塞キャップを
+  再現。LatheGeometry継続 | shoji GUI確認で再度差し戻し(「テーパー・面取りの厳密再現は
+  スコープ外。実物はもっと単純」) |
+| **v3(最終、採用)** | テーパー・面取り・内部キャップを一切再現せず、**単純な貫通型中空
+  円柱**(外殻+内殻、`cylinderGeometry`、openEnded=true)へ簡略化 | 現行実装。GUI再確認待ち |
 
-正しい構造:
-- **外殻**: 開口部外径(0.395mm)を全高にわたって維持する円柱。天井外周にのみ小さな面取り。
-- **内殻**: 開口部から円柱状の空洞(壁厚0.10mm維持)、天井付近(内部半径0.1mm相当)から
-  内部形状のみが先細りし閉じる。
+**教訓**: 実測メモの数値をどの面(外殻/内殻)へ、どの精度で適用するかは、GUI確認を経て
+初めて確定した。教育用Visual Geometryでは「Evidence A+の主要寸法(全高・開口部外径/内径)を
+正確に反映しつつ、細部形状(テーパー・面取り)は過剰に作り込まない」という原則が今回の
+やり取りで明確になった。
 
-この訂正により、FlatFootは「中空円柱+内部形状」という本来の特徴(PORP BellFootの円錐/
-カップ形状とは異なる)を正しく表現する。§8.1以降はv2(訂正後)の内容。
+### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v3)
 
-### 8.1 最終プロファイル(`ProsthesisModels.tsx`内`FlatFoot()`、v2)
+```tsx
+function FlatFoot({ ghost }: { ghost?: boolean }) {
+  const OUTER_R = 0.395;  // 開口部外径(Evidence A+)、本体全体で一定
+  const INNER_R = 0.295;  // 開口部内径(Evidence A+、壁厚0.10mmと整合)、本体全体で一定
+  const HEIGHT  = 0.80;   // 全高(Evidence A+)
 
-外殻(outerProfile、(半径, y)、開口部→天井): 円柱本体を維持し、天井外周のみ面取り。
+  return (
+    <group>
+      <mesh>
+        <cylinderGeometry args={[OUTER_R, OUTER_R, HEIGHT, 24, 1, true]} />
+        <TitaniumMatDS ghost={ghost} />
+      </mesh>
+      <mesh>
+        <cylinderGeometry args={[INNER_R, INNER_R, HEIGHT, 24, 1, true]} />
+        <TitaniumMatDS ghost={ghost} />
+      </mesh>
+    </group>
+  );
+}
 ```
-(0.395, -0.40)  開口部外径(Evidence A+)
-(0.395,  0.34)  円柱本体、天井直下まで径を維持
-(0.35,   0.40)  天井外周の面取りのみ(Evidence A+、幅0.065mm相当)
-```
 
-内殻(innerProfile、中空キャビティ、開口部→天井付近で閉じる): 本体内は円柱状の空洞、
-天井付近でのみ内部が先細りする。
-```
-(0.295, -0.40)  開口部内径(Evidence A+、壁厚0.10mmと整合)
-(0.295,  0.18)  本体内は円柱状キャビティを維持
-(0.10,   0.30)  内部天井テーパー開始(Evidence A+、半径0.1mm相当)
-(0.00,   0.355) 中空はここで閉じる(以降y=0.40まで中実キャップ、約0.045mm)
-```
+外殻・内殻ともテーパーなしの単純円柱(半径一定)、`openEnded=true`により上下端に蓋を作らず
+貫通させる。シャフトとの接続は`ProsthesisModel`側の既存ロジック(シャフトメッシュを別途
+描画)がそのまま担うため、`FlatFoot()`自身はスリーブ形状のみを担当すればよい(shoji整理:
+「外形：円柱/内部：中空(上下貫通)/シャフト：円柱上面中央に接続」)。
 
-### 8.2 Evidence解釈
-
-「内部天井テーパー開始位置: 半径0.1mm相当」「面取り: 幅0.065mm・角度5-10°」はいずれも
-Evidence A+(shoji追加実測)の値をそのまま採用した。中間区間のプロファイル点(y=0.18や
-テーパー・面取りの正確な曲率)は両端点を滑らかに繋ぐ補間値であり、Evidence C(推定)。
-「テーパー角5-10°」は面取り区間の角度として解釈しており、この点はv1から変更していない
-(v1の誤りは適用対象が外殻だった点であり、角度解釈自体の誤りではない)。
-
-### 8.3 Verification Order結果(v2、再検証済み)
+### 8.2 Verification Order結果(v3、最終)
 
 | ステップ | 結果 |
 |---|---|
 | Build | ✓(`vite build`、790 modules transformed、約26秒、エラーなし) |
 | Type Check | ✓(`tsc --noEmit --project tsconfig.app.json`、エラーなし) |
 | Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
-| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ27行追加・30行削除に限定。他関数への
+| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ22行追加・43行削除に限定。他関数への
   影響なし) |
 | Clinical Validation | ✓(視覚のみの変更。Pose Anchor/Shaft Axis/Safety Engineに
-  該当するコードへの変更なし。Node実行で外殻半径がy=-0.40〜+0.33まで一定0.395mmを維持し
-  (円柱形状を確認)、天井付近のみ0.35mmへ面取りされること、内殻半径は0.295mm一定から
-  y=0.30付近で0.1mm、y=0.355で0(閉塞)へ先細りすることを数値検証(shoji指摘の形状が
-  正しく反映されたことを確認)) |
+  該当するコードへの変更なし。Node実行で外殻・内殻ともbounding boxが高さ0.80mm・半径一定
+  (テーパーなし)であること、壁厚が0.10mmであることを数値検証) |
 
-### 8.4 Regression確認(§6予定分)
+### 8.3 Regression確認(§6予定分)
 
 - Anchor位置・Shaft Axis・Pose結果・Safety Score: `computeCurrentAxisAlignmentOrientation()`
   /`computeCurrentAxisAlignmentPose()`/`computeProsthesisModelPose()`および
   `dangerZonePoint`関連コードは一切変更していないため、構造的に不変(コードを直接変更して
-  いないことがdiffで確認済み)。
-- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v2修正後の
+  いないことがdiffで確認済み、v1/v2/v3を通じて一貫)。
+- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v3の単純化後の
   外観をGUIで再度ご確認いただく)。
 
 ## 9. 参照文書
