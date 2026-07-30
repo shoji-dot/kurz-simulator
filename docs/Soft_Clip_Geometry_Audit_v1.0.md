@@ -1,6 +1,7 @@
 # Soft Clip Geometry Audit v1.0
 
-**Status**: Draft(shoji確認待ち)。**コード変更は行っていない(調査のみ)**。
+**Status**: Audit確認済み(shoji、2026-07-30)、**提案A採用・G3-3 Phase 1実装完了**
+(§10参照)。Phase 2(SoftClipHead形状改善)はEvidence取得待ちで保留。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-3(Soft Clip改善、
 FlatFoot(G3-2、Completed & Clinical Visual Validation PASSED)の次)。既存の
@@ -189,16 +190,63 @@ shojiさんが提案された上方向からの画像・寸法情報を、通常
 
 ## 8. Next Step
 
-本文書をshojiさんに確認のうえ、以下のいずれかへ進む。
+**shoji決定(2026-07-30)**: 提案Aを採用。G3-3をPhase 1(重複バグ除去、即着手)とPhase 2
+(SoftClipHead形状改善、Evidence取得後に再評価)に分割する。Phase 1の実施結果は§9参照。
 
-- **G3-3実装①(推奨)**: 提案Aのシャフト接続修正のみ先行実装(Bell/Flatと同一パターン、
-  Small Change、Anchor/Pose/Safety不変)。
-- **追加Evidence取得**: 実画像ファイル・上視点写真・寸法情報の共有を待ってからWing/Bridge
-  形状の調整に着手する。
-- 実装に着手する場合も、Verification Order(Build→TypeCheck→Lint→Review→Clinical
-  Validation)を継続する。
+## 9. G3-3 Phase 1 Implementation Record(2026-07-30)
 
-## 9. 参照文書
+**shoji決定**: 提案A(現行TubeGeometry/cylinderGeometry方式を維持し、シャフト接続の重複
+のみ先行修正)を採用。理由: Soft ClipはFlatFoot以上に曲線形状の認識が重要だが、Wing曲線・
+全体スパン・PistonFoot寸法についてEvidenceが不足しており、この状態でGeometry再設計を
+行うとFlatFoot G3-2初期(v1、形状解釈違い)と同じ手戻りリスクがある。したがって今回は
+「①明確な重複バグ除去 → ②Evidence収集 → ③必要なら形状改善」の順で進める方針を明示。
+
+### 9.1 実施内容(Phase 1、Small Change)
+
+`PistonFoot()`(`ProsthesisModels.tsx:726-`)collar寸法(位置y=0.10、cylinderGeometry
+[0.20,0.20,0.20,12])を`PISTON_COLLAR_TOP_Y_MM`(=0.20)という名前付き定数に置き換え
+(数値・見た目とも無変更、`BELL_HEIGHT_MM`/`FLAT_CEILING_Y_MM`と同じ理由でexport)。
+`ProsthesisModel()`のシャフト計算(`:957-979`)に`isPiston`分岐を追加し、シャフト下端を
+Foot group原点(footOff、従来の到達点)ではなくcollar上端(footOff+0.20)止まりに短縮した。
+BELL(2026-07-23)・FLAT(v7、本日)と完全に同一のパターン。
+
+**禁止事項の遵守確認(diff scope、`git diff`確認済み)**: `SoftClipHead`/`SoftClipStem`/
+`SoftClipBridge`/`SoftClipWing`は無変更。`base`/`direction`/`shaftLength`/`headOff`/
+`footOff`(Anchor/Pose Solver/Safety Engine参照値)は無変更。新規CAD/GLB化なし。変更は
+`PistonFoot()`と`ProsthesisModel()`のシャフト計算ブロックのみに限定。
+
+### 9.2 Verification Order結果
+
+| ステップ | 結果 |
+|---|---|
+| Node数値検証 | ✓ three.js実インスタンス化で、全8シャフト長(3.5/3.75/4.0/4.25/4.5/
+  4.75/5.0/5.5mm)について①シャフト下端がcollar上端(footOff+0.20)以上であること
+  (重複解消)②シャフト上端が修正前と同じ`len/2`のまま不変であること③BELL/FLAT分岐の
+  数式が無変更であることを確認 |
+| Build | ✓(`vite build`、790 modules transformed、約41秒、エラーなし) |
+| Type Check | ✓(`tsc --noEmit -p .`、エラーなし) |
+| Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
+| Review | ✓(`git diff`でdiff scopeが`PistonFoot()`+`ProsthesisModel()`シャフト計算
+  ブロックのみに限定されていることを確認。SoftClipHead系・Anchor/Pose/Safety関連コードへの
+  変更が0行であることを確認) |
+| Clinical Validation | GUI目視確認(case-010/014/015)は**shoji確認待ち** |
+
+### 9.3 Phase 2(保留)
+
+以下のEvidence取得後に再評価する(shoji指定):
+- 横方向実画像(ASCIIアートの元画像)
+- 上方向実画像
+- Wing曲率が確認できる画像
+- 全体寸法
+- PistonFoot寸法
+
+Evidence取得後、`Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(FlatFootの
+`FlatFoot_Geometry_Improvement_Spec_v1.0.md`と同型)を作成し、必要であればGeometry方式
+変更を検討する。矩形断面の忠実再現(提案B)は、Soft Clipが「ワイヤー+板+曲線」で構成される
+特性上、角が立ち工業部品的に見えるリスクがあるためshoji自身も現時点では非推奨と判断して
+いる(§6参照)。現行のTubeGeometry方式は教育用Visual Geometryとして合理的な暫定解と評価。
+
+## 10. 参照文書
 
 - `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`(Phase G1-G3全体位置づけ)
 - `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3、Head Center/Contact Landmark確認の前提)

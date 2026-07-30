@@ -722,7 +722,25 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
 // ── PISTON foot (Soft Clip Stapes / Stapedotomy) ─────────────────
 //   Catalog Ø0.4/0.6mm shaft. Rounded piston tip enters oval window.
 //   Small hemisphere + short cylinder ≈ clinical piston shape.
+//
+//   G3-3 Phase 1(2026-07-30、`docs/Soft_Clip_Geometry_Audit_v1.0.md` §3.2で新規発見・
+//   shoji承認済み): `collar`(cylinderGeometry、半径0.20mm)はローカルy=[0, 0.20]に位置する。
+//   従来`ProsthesisModel()`のシャフト計算にPISTON用の短縮分岐が無く、シャフト
+//   (PISTON時も半径0.20mm)がFoot group原点(ローカルy=0、collar下端と一致)まで伸びていた
+//   ため、シャフトとcollarが局所y=[0, 0.20]の区間で同一半径・同軸のまま完全に重複していた
+//   (Bell:2026-07-23、Flat:v7で対応済みと同一パターン)。`PISTON_COLLAR_TOP_Y_MM`は
+//   collar上端のローカルY座標で、`ProsthesisModel()`のシャフト短縮計算(BELL_HEIGHT_MM/
+//   FLAT_CEILING_Y_MMと同じパターン)から参照するためexportする。
 // ================================================================
+/**
+ * PistonFoot collar上端のローカルY座標(mm)。PistonFoot()のローカル原点(0,0,0、Anchor=
+ * STAPES_FOOTPLATE)を基準に、collar(cylinderGeometry、半径0.20mm)はローカルy=[0, 0.20]。
+ * G3-3 Phase 1でシャフトがcollar内部まで重複していた不具合の修正で、
+ * ProsthesisModel()のシャフト短縮計算(isPiston分岐)から参照するためローカル定数から
+ * exportに昇格。BELL_HEIGHT_MM/FLAT_CEILING_Y_MMと同じ理由・パターン。
+ */
+export const PISTON_COLLAR_TOP_Y_MM = 0.20;
+
 function PistonFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
@@ -732,8 +750,8 @@ function PistonFoot({ ghost }: { ghost?: boolean }) {
         <TitaniumMat ghost={ghost} />
       </mesh>
       {/* Short cylindrical collar above the tip */}
-      <mesh position={[0, 0.10, 0]}>
-        <cylinderGeometry args={[0.20, 0.20, 0.20, 12]} />
+      <mesh position={[0, PISTON_COLLAR_TOP_Y_MM / 2, 0]}>
+        <cylinderGeometry args={[0.20, 0.20, PISTON_COLLAR_TOP_Y_MM, 12]} />
         <TitaniumMat ghost={ghost} />
       </mesh>
     </group>
@@ -935,16 +953,26 @@ export function ProsthesisModel({
           Foot中央）まで伸びていたため、v7で天井の穴を塞いだ結果、シャフトが天井を突き抜けて
           Foot内部（中空カップの中心）まで侵入して見える不具合をshojiさんが指摘
           （FLATFOOTの内部にシャフトは存在しない）。base/dir/shaftLength/headOff/footOff
+          は一切変更しない、純粋な描画修正。
+          2026-07-30追加(G3-3 Phase 1): footType==='PISTON'の場合も同じパターンでシャフトを
+          PistonFoot collar上端(Y=PISTON_COLLAR_TOP_Y_MM)止まりに短縮。従来footOff（=
+          PistonFootのローカル原点=Anchor）まで伸びていたため、collar（半径0.20mm、局所
+          y=[0, 0.20]）とシャフト（PISTON時も半径0.20mm）が同一半径・同軸のまま完全に重複
+          していた不具合（`docs/Soft_Clip_Geometry_Audit_v1.0.md` §3.2で新規発見、shoji承認
+          済み）を修正。SoftClipHead/Wing/Bridge/Stem・base/dir/shaftLength/headOff/footOff
           は一切変更しない、純粋な描画修正。 */}
       {(() => {
         const r        = product.type === 'PISTON' ? 0.20 : 0.10;
         const isBell   = product.footType === 'BELL';
         const isFlat   = product.footType === 'FLAT';
-        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM)
-                        : isFlat ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
+        const isPiston = product.footType === 'PISTON';
+        const shaftLen = isBell   ? Math.max(0.01, len - BELL_HEIGHT_MM)
+                        : isFlat   ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
+                        : isPiston ? Math.max(0.01, len - PISTON_COLLAR_TOP_Y_MM)
                         : len;
-        const shaftY   = isBell ? BELL_HEIGHT_MM / 2
-                        : isFlat ? FLAT_CEILING_Y_MM / 2
+        const shaftY   = isBell   ? BELL_HEIGHT_MM / 2
+                        : isFlat   ? FLAT_CEILING_Y_MM / 2
+                        : isPiston ? PISTON_COLLAR_TOP_Y_MM / 2
                         : 0;
         return (
           <mesh position={[0, shaftY, 0]}>
