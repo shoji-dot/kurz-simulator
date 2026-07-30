@@ -29,6 +29,24 @@ Definition(Anchor定義、Frozen)とは別軸の文書であり、P3-2本文は�
 確認で成立しないことが判明した(いずれもmalleus intact/partialだが、PORPで再建する限り
 JOS2010のⅢi-M相当であり、II型ではない)。
 
+### 表記の二層構造(UI表記とEvidence Layer)
+
+「Ⅲ型」と「Ⅲc/Ⅲi-M相当」は矛盾する表記ではなく、抽象度が異なる二層である。
+
+```
+UI(tags.procedure)
+　鼓室形成III型
+
+Evidence Layer(判断根拠、PORP Anchor Definition手順)
+　・Ⅲc相当(軟骨再建面 → Stapes Head)
+　・Ⅲi-M相当(ツチ骨柄 → Stapes Head)
+```
+
+`tags.procedure`はJOS2010の大分類(Ⅰ〜Ⅳ型)のみを表示し、Ⅲc/Ⅲi-Mの内訳は表示しない。
+内訳の判断手順は
+`docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+「PORP Anchor Definitionの最終形」を参照。
+
 ## 2. 決定ログ(Issue-026を通じた変更履歴)
 
 | Case | 修正前 | 修正後 | 理由 | Commit |
@@ -54,10 +72,11 @@ JOS2010のⅢi-M相当であり、II型ではない)。
 
 ## 4. Known Limitations / Pending事項
 
-- **case-005のII型定義適用可能性**: shojiさんの指摘により、「II型」という分類自体が
-  incus absentの症例(本来は耳小骨連鎖が保たれている前提の分類)に当てはまるかという、
-  より根本的な疑問が生じている。この医学的精査は今後耳鼻科医への確認を経て行う予定
-  (今回のIII型統一はその精査を待たない実務上の判断)。
+- **JOS2010におけるII型の適用範囲(case-005由来の論点)**: 残る論点は「III型かII型か」では
+  ない(Issue-026の結論により実務上は既にIII型へ変更済み)。残るのは「JOS2010のII型定義が
+  incus absentの症例(本来は耳小骨連鎖が保たれている前提の分類)にそもそも適用可能かという、
+  定義の解釈そのもの」である。JOS2010におけるII型の適用範囲について、教育資料作成上の参考
+  として耳鼻科専門医へ確認予定。現在のSimulator実装(III型)は変更予定なし。
 - **Soft Clip Stapes(Stapedotomy)のAnchor定義**: `docs/P3-EA-3_Evidence_Validation_v1.0.md`
   で既に「Pending Clinical Confirmation」と記録済み。本Addendumのprocedure表示原則とは
   独立した論点(Anchor定義はP3-2/P3-EA系列の管轄)。

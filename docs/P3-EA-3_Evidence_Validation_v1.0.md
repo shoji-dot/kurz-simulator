@@ -111,21 +111,49 @@ cases.ts全体の整合性に関わる横断的論点のため。
 
 | Decision Point | 結果 |
 |---|---|
-| Anchor分岐をP3-2へ即反映 | 保留(Issue-026対応後にまとめて判断) |
+| Anchor分岐をP3-2(`P2_Measurement_Definition_v1.0.md`)へ反映するか | **完了**(案B: 注記追加、2026-07-30実施。詳細は下記「5. Anchor分岐 最終整理」) |
 | Anchor分岐案をEvidence Bとして保存 | 実施(本文書のExtension Proposal、判断手順として確定) |
-| Malleus partial症例(003/005/007)のAnchor確認 | **完了**(2026-07-29、Resolved) |
+| Malleus partial症例(003/005/007)のAnchor確認 | 完了(2026-07-29、Resolved) |
 | 軟骨補正0.2mm/0.5mmの統一 | 保留(Unknown維持) |
-| case-001/011の分類確認 | Issue-026として別途起票、着手待ち |
-| case-003の`ossicularStatus.malleus`型値見直し | Issue-027として新規起票予定、未実施 |
-| `cases.ts`修正 | 未実施(方針確定後に別途実装依頼) |
+| case-001/011の分類確認 | **完了**(Issue-026、2026-07-29クローズ。`docs/Issue-026_Procedure_Classification_Addendum_v1.0.md`) |
+| case-003の`ossicularStatus.malleus`型値見直し | **完了**(Issue-027実装済み、`partial`→`absent`) |
+| `cases.ts`修正 | **実施済み**(case-001/005/011のtags.procedure、case-003のossicularStatus.malleus) |
+
+## 5. Anchor分岐 最終整理(2026-07-30追記)
+
+前提が全て揃った(Malleus partial Anchor確認=Resolved、Issue-026=Close、Issue-027=実装済み)ため、
+残る唯一の未決事項である「Anchor分岐をP3-2本文へ反映するか」を検討する。
+
+### 現状(確定事項の再掲、変更なし)
+
+- P3-2(`docs/P2_Measurement_Definition_v1.0.md` Layer 1)の現行記述:
+  「TM(または軟骨再建面) → Stapes Head(PORP/Bell)」という単一Anchorのみ。Ⅲc/Ⅲi-Mの分岐は
+  記述されていない。
+- 一方、PORP Anchor Definitionの判断手順(本文書Finding 3、確定版)は
+  「①malleus absentか確認→Ⅲc、②intact/partialならnarrativeで機能的関与を確認→Ⅲi-M/Ⅲc」
+  という分岐を持つ。P3-2本文とP3-EA系列の間に**記述粒度の差**が残っている。
+
+### 案(Frozen Layer変更のため複数案として提示、独断で決定しない)
+
+| 案 | 内容 | Small Change適合度 | リスク・トレードオフ |
+|---|---|---|---|
+| A: 現状維持 | P3-2本文は変更しない。Ⅲc/Ⅲi-M分岐はP3-EA系列文書(本文書+Response記録)のみで保持し続ける。 | 最も高い(変更ゼロ) | 将来P3-5(Measurement Protocol)実装時、症例別の判断根拠を毎回P3-EA文書まで遡る必要がある。P3-2だけを読む人には分岐の存在が伝わらない。 |
+| B: P3-2へ注記追加(Addendum形式) | Layer 1基準点の記述末尾に「PORPのみⅢc/Ⅲi-M分岐が存在し、判断手順は別紙参照」という1〜2文とリンクを**追加のみ**行う。既存文言は削除・書き換えしない。 | 高い(追加のみ、既存記述を壊さない) | Frozen文書への軽微な追記が発生する(Strangler Pattern上は許容範囲だが、Approved文書への手入れという事実は残る)。 |
+| C: P3-2 v1.1へ改訂 | Layer 1セクションをPORP/TORP/Soft Clipの分岐を正式に統合した表形式へ書き換える。 | 低い(構造変更) | 参照箇所の洗い出し・影響範囲確認が必要。Small Change原則からは最も逸脱する。 |
+
+**Technical Architectとしての所見**: B(P3-2へ注記追加)がStrangler Pattern/Small Change原則に
+最も整合する。
+
+**決定(2026-07-30、shoji承認)**: 案B(注記追加)を採用。`docs/P2_Measurement_Definition_v1.0.md`
+のLayer 1基準点セクション末尾に、Ⅲc/Ⅲi-M分岐の存在とResponse文書へのリンクを追記(既存文言は
+無変更)。P3-2のStatus(Approved)自体は変更しない。
 
 ## 次のステップ
 
-1. Malleus partial症例(case-003/005/007)のAnchorパターン確認(Priority2の一部として、または
-   独立したヒアリングとして実施するかは次セッションでshojiさんと相談)。
-2. Issue-026(Ossicular Procedure Classification Audit)の着手判断。
-3. 上記が整理された段階で、P3-2 v1.1/Addendumの形式を確定し、必要であれば`cases.ts`の実装
-   依頼(対象ファイル・完了条件・テスト内容を整理の上)をClaude Codeへ起票する。
+1. ~~Malleus partial症例(case-003/005/007)のAnchorパターン確認~~ → **完了**(2026-07-29、Resolved)。
+2. ~~Issue-026(Ossicular Procedure Classification Audit)の着手判断~~ → **完了**(2026-07-29クローズ)。
+3. ~~「5. Anchor分岐 最終整理」の案A/B/C選択~~ → **完了**(案B採用、2026-07-30実施)。
+4. 次はKnown Limitationsに残るteachingPoints文言(case-004/012)の見直しへ進む。
 
 ## No inference added
 

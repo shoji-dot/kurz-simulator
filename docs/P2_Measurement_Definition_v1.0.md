@@ -36,6 +36,14 @@ Stapes Head(PORP/Bell) または Footplate(TORP/FLAT/Stapedotomy)
 `base`変数切替ロジック(`stapStatus`/`footType`による`STAPES_HEAD`/`STAPES_FOOTPLATE`分岐、
 `SimScene.tsx:643-646`)と一致する。
 
+> **追記(2026-07-30、P3-EA-3 Anchor分岐 最終整理、shoji承認・案B)**: PORPのみ、上記
+> 「TM(または軟骨再建面) → Stapes Head」はさらにⅢc相当(軟骨再建面 → Stapes Head)/
+> Ⅲi-M相当(ツチ骨柄 → Stapes Head)に分岐する。malleus状態(absent/intact/partial)単独では
+> 判定できず、症例ごとのnarrative確認が必要。判断手順の確定版は
+> `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
+> 「PORP Anchor Definitionの最終形」を参照。本追記は既存の基準点定義を変更するものではなく、
+> 追加情報として付記する(Strangler Pattern、既存文言は無変更)。
+
 **現状**: `cases.ts`にこの生の値を保持する専用フィールドは存在しない。clinicalNotesの文中に
 記述される場合があるが(例: 「約2.5mm」)、記述の性質は症例ごとに異なる(下記Layer 3参照)。
 
