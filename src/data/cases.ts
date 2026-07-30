@@ -156,14 +156,20 @@ export const surgicalCases: SurgicalCase[] = ([
   },
   {
     id: 'case-005',
-    title: '症例5: ツチ骨柄下PORP（II型変法）— 難症例',
+    // Issue-026(2026-07-29): 「II型変法」→「III型」に表記修正。再建経路(ツチ骨柄→PORP→
+    // アブミ骨頭部)はcase-001/008/011と同じIIIi-M相当。shoji確認: Ⅱ型の定義(耳小骨連鎖が
+    // 保たれ再建鼓膜を直接キヌタ骨等に接続)はincus:absentの本症例にはそもそも当てはまらない
+    // 可能性が高いとの見解。「変法」は分類ではなく難症例(ツチ骨柄菲薄化・固定不完全)である
+    // ことを示す注記だったため、difficulty:'advanced'で難度は既に表現されており「変法」の
+    // 修飾語は不要と判断。詳細な医学的精査は今後耳鼻科医へ別途依頼予定(shoji方針)。
+    title: '症例5: ツチ骨柄下PORP（III型）— 難症例',
     description: '61歳男性。癒着性中耳炎術後。キヌタ骨欠損、ツチ骨柄菲薄化・一部癒着。アブミ骨上部構造は温存。鼓膜は菲薄化し癒着傾向あり。PORPをツチ骨柄下に設置するが、ツチ骨柄の固定不完全により正確なセンタリングが要求される難症例。',
     difficulty: 'advanced',
     ossicularStatus: { malleus: 'partial', incus: 'absent', stapes: 'suprastructure' },
     recommendedProductId: 'porp-ttp-variac',
     recommendedLength: 3.0,
     // 癒着性中耳炎では鼓膜・ツチ骨柄が内側に引き寄せられる。
-    // II型変法のため通常より約0.1mm多く内側へオフセット。傾斜はやや小さい(12°)。
+    // III型(ツチ骨柄下設置)の難症例のため通常より約0.1mm多く内側へオフセット。傾斜はやや小さい(12°)。
     idealLateralOffset: -0.3,
     idealAngle: 5,
     preOpAbg: 40,
@@ -176,7 +182,7 @@ export const surgicalCases: SurgicalCase[] = ([
       '鼓膜が菲薄化している場合、PORP押し出しリスクが高い。軟骨による鼓膜補強は必須条件。',
     ],
     tags: {
-      procedure: ['鼓室形成II型変法', 'PORP'],
+      procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['癒着性中耳炎', 'キヌタ骨欠損'],
     },
   },

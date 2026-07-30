@@ -1,8 +1,10 @@
 # Issue-026: Ossicular Procedure Classification整合性監査
 
-**Status**: case-001・case-011分は解決・実装済み(2026-07-29)。いずれもII型→III型に修正した
-(`docs/Issue-026_Case001_Confirmation_v1.0.md`・`docs/Issue-026_Case011_Confirmation_v1.0.md`
-参照)。**次はcase-005(「II型変法」表記)の確認**(shoji指定順序③)。
+**Status**: case-001・case-011・case-005分は解決・実装済み(2026-07-29)。いずれもIII型へ統一した
+(`docs/Issue-026_Case001_Confirmation_v1.0.md`・`docs/Issue-026_Case011_Confirmation_v1.0.md`・
+`docs/Issue-026_Case005_Confirmation_v1.0.md`参照)。case-005については、II型の定義自体が
+incus absentの症例にそもそも当てはまるかという医学的精査はshojiさんが今後耳鼻科医へ別途
+依頼予定であり未確定(Pending)。**次はProcedure分類ルールAddendum作成**(shoji指定順序④)。
 
 P3-EA-2 Step B(`docs/P3-EA-2_Step_B_Response_Record_v1.0.md`、commit `9c34dad`)のQ4回答で
 判明した論点を、独立した調査専用Issueとして切り出す。**不具合の確定ではなく、確認が必要な
@@ -53,11 +55,11 @@ case-011は`incus: partial`であり、case-001/008(`incus: absent`)と構造が
    3.良い。」)、キヌタ骨長突起残存部は術中に除去され再建経路に関与しないと確認できたため、
    case-001と同じ理由でII型→III型に修正した(title/description/teachingPoints[0]/
    tags.procedureの4箇所)。
-3. (新規・任意で確認したい点)case-005のtags.procedureは「鼓室形成II型変法」だが、
-   `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
-   でcase-005は機能的にツチ骨柄が連鎖に関与する(Ⅲi-M相当)と整理済み。「II型変法」という
-   表記が「Ⅲi-M」の考え方と両立するか(「変法」という言葉で吸収できる差か)は未確認。
-   本Issueの直接のスコープ外だが、case-001と同種の論点のため参考記録する。
+3. ~~case-005のtags.procedureは「鼓室形成II型変法」だが…~~ **解決済み**。
+   `docs/Issue-026_Case005_Confirmation_v1.0.md`でshojiさんに確認。「変法」は難症例で
+   あることを示す注記として扱い、III型へ統一(title/tags.procedure/コード内コメントの
+   3箇所)。なお、II型の定義自体がincus absentの症例に本来当てはまるかという医学的精査は
+   今後耳鼻科医へ別途依頼予定(Pending、shoji方針)。
 
 ## 実装内容(case-001、完了)
 
@@ -125,8 +127,8 @@ teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証�
 ```
 ① case-001修正確認        完了
 ② case-011確認            完了
-③ case-005のII型変法問題   次工程
-④ procedure分類ルールAddendum作成   ③の後
+③ case-005のII型変法問題   完了
+④ procedure分類ルールAddendum作成   次工程
 ```
 
 ## 参照
