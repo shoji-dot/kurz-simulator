@@ -1,6 +1,7 @@
 # Prosthesis Reference Landmark Definition v1.0
 
-**Status**: Draft(shoji確認待ち)
+**Status**: G1-1/G1-2 Confirmed(shoji承認 2026-07-30)。G1-3(TORP/Soft Clip残り)は
+`docs/TORP_SoftClip_Geometry_Audit_v1.0.md`で別途進行中。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G1-1(Head Plate Center)・
 G1-2(Contact Point)の監査結果。実コード(`src/scenes/models/ProsthesisModels.tsx`、
@@ -45,30 +46,54 @@ Anchor Landmark(`base` = `STAPES_HEAD`/`STAPES_FOOTPLATE`、`OssicleModels.ts`)�
 | footType | 使用製品 | ローカル原点(=Anchor)とジオメトリの関係 | 評価 |
 |---|---|---|---|
 | `BELL` | porp-ttp-variac | `BellFoot()`のリム(開口部、ローカルY=0)がローカル原点と厳密に一致(`outerProfile`の起点が`(RIM_R, 0)`) | **整合**(カップ形状の開口面がAnchor位置と一致する設計) |
-| `FLAT` | torp-ttp-variac | `FlatFoot()`は円柱(高さ0.42mm)がローカル原点を中心に対称配置(position省略=原点固定)。Anchorは円柱の**中央**に位置し、先端(接触面寄り)は原点から±0.21mmずれる | **要確認**(Anchorと視覚的接触面の間に構造的なギャップの可能性) |
+| `FLAT` | torp-ttp-variac | `FlatFoot()`は円柱(高さ0.42mm)がローカル原点を中心に対称配置(position省略=原点固定)。Anchorは円柱の**中央**に位置し、先端(接触面寄り)は原点から±0.21mmずれる | **確認済み(shoji 2026-07-30)**: Option A採用、Anchor設計は変更不要(詳細は§2.1) |
 | `PISTON` | soft-clip-stapes | `PistonFoot()`の半球ティップ(sphereGeometry、原点中心、θ最大約99°=赤道をわずかに超える範囲)。原点は半球の下端付近に位置 | **ほぼ整合**(ギャップ約0.03mm、BELLほど厳密ではないが実務上小さい) |
 | `CLIP` | (未使用) | `ClipFoot()`原点は「シャフト基部の接合カラー」(position `[0,0.05,0]`、高さ0.13)近傍 | 対象外(未使用製品) |
 
 **最重要発見**: `FLAT`(TORP)のみ、Anchor Landmarkとフット形状の視覚的接触面の間に構造的な
 ギャップ(円柱高さの半分、約0.21mm)がある可能性がある。`BELL`/`PISTON`は概ね整合している。
 
-## 3. Known Unknowns(次調査)
+### 2.1 FLAT Footギャップ問題の解決(shoji確認 2026-07-30)
 
-- `SOFT_CLIP`ヘッドプレート(`SoftClipStem`/`SoftClipBridge`/`SoftClipWing`)の幾何中心定義。
-- `FLAT`フットのAnchor⇔接触面ギャップ(約0.21mm相当)が意図的設計(例: 円柱が底板を跨いで
-  刺さる構造を表現)か、未検証の誤差かの判断(**shoji確認が必要**)。
+shojiさんが実物(20倍模型)を計測した結果、以下の通り確認・決定した。
+
+- **実測結果**: 高さ16mm/開口部厚み2.0mm/内径11.8mm/外径15.8mm(20倍模型)。単純な円柱では
+  なく、下面(アブミ骨底板側)が開口し天井付近がテーパーする「釣り鐘型」に近い中空構造。
+- **結論**: コード上の`FlatFoot()`は円柱として簡略化されているが、実製品は中空ベル形状に
+  近い。Anchorと接触面の約0.21mm差は「接触位置の誤差」ではなく「簡略化されたGeometry表現
+  による差」と判断。
+- **Anchor設計(Option A)を維持**: `Anchor = shaft axis基準点 = foot中央`。FLAT Footは実製品
+  として「Foot頂点中央にシャフトが接合する」設計のため、`shaft axis → foot center →
+  functional reconstruction axis`が成立する。Pose Solverの現在のAnchor設計は変更不要。
+- **概念整理**: `Anchor Landmark ≠ Physical Contact Surface`だが、`Anchor Landmark =
+  Functional Reconstruction Reference`として扱う(Pose Solver入力は常にAnchor基準)。
+- **寸法自体の乖離は別問題として`docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)で扱う**:
+  上記の実測値(実寸換算: 高さ0.8mm/外径0.79mm/内径0.59mm)は、現行コードの値(高さ0.42mm/
+  外径0.48-0.36mm/内径0.18mm)と大きく乖離している。これはAnchor位置の設計問題ではなく、
+  Visual Meshの寸法精度(Evidence Level)の問題のため、別文書で追跡する。
+
+## 3. Known Unknowns / 確認済み事項
+
+**確認済み(2026-07-30)**:
+- `FLAT`フットのAnchor⇔接触面ギャップ → §2.1の通りAnchor設計は変更不要と判断(shoji確認済み)。
+- `SOFT_CLIP`ヘッドプレートの原点定義 → `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`で
+  シャフト軸上に一致(オフセットなし)と確認。
+
+**未確認(次調査)**:
 - `BELL_TOP`の(+0.14, −0.24)オフセットが、`composeNormal()`実装時のNormal Vector計算
-  (Head Plate Local Coordinateとの整合)にどう影響するか。
+  (Head Plate Local Coordinateとの整合)にどう影響するか(P4C再開後の課題)。
+- `FLAT`/`PISTON`のVisual Mesh寸法自体のEvidence Level向上(実装変更を伴うため、Phase G3で
+  判断)。
 
 ## 4. Next Step
 
-`FLAT`フットのギャップ(§2)について、意図的設計かどうかをshojiさんに確認する。確認後、
-Phase G1-3(TORP/Soft Clip Geometry Auditの残り)またはPhase G2(Reference Geometry定義)
-へ進む。
+Phase G1-3(TORP FlatFoot寸法監査・Soft Clip Head Center/Contact Landmark確認)は
+`docs/TORP_SoftClip_Geometry_Audit_v1.0.md`へ分離して実施する。
 
 ## 5. 参照文書
 
 - `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`(Phase G1の全体計画)
+- `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(Phase G1-3、本文書の後続監査)
 - `src/scenes/models/ProsthesisModels.tsx`(`BellTop`:289、`BellFoot`:507、`FlatFoot`:609、
   `PistonFoot`:685、`computeProsthesisModelPose`:826、`ProsthesisModel`:848)
 - `src/data/products.ts`(headType/footType割り当て)
