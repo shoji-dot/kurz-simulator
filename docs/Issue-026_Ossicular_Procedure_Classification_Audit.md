@@ -128,8 +128,12 @@ teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証�
 ① case-001修正確認        完了
 ② case-011確認            完了
 ③ case-005のII型変法問題   完了
-④ procedure分類ルールAddendum作成   次工程
+④ procedure分類ルールAddendum作成   完了(docs/Issue-026_Procedure_Classification_Addendum_v1.0.md)
 ```
+
+**本Issue-026は①〜④すべて完了、正式にクローズする。** 全15症例のtags.procedure棚卸し結果
+(PORP8件=III型で統一、TORP4件=IV型で統一、Soft Clip3件=既存表記のまま整合)はAddendum文書
+参照。
 
 ## 参照
 
