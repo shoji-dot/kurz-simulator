@@ -1,6 +1,7 @@
 # Issue-026 case-011確認: II型表記の妥当性
 
-**Status**: Draft(shoji確認待ち)
+**Status**: Resolved・実装済み(2026-07-29)。shojiさんの回答「1.無い。2.使っていない。3.良い。」
+を受け、case-011を`case-001`と同じ理由でII型→III型に修正した(下記実装内容参照)。
 **Date**: 2026-07-29
 **位置づけ**: `docs/Issue-026_Ossicular_Procedure_Classification_Audit.md`の次工程
 (shoji指定順序: ①case-001[完了]→②case-011→③case-005→④Addendum)。
@@ -56,8 +57,22 @@
 **回答欄**:
 
 ```
-(shoji記入欄)
+1. 無い。
+2. 使っていない。
+3. 良い。
 ```
+
+## 実装内容(完了)
+
+`src/data/cases.ts`のcase-011を以下の通り修正。
+
+- `title`: 「症例11: 小児慢性中耳炎 — PORP（II型 小児）」→「症例11: 小児慢性中耳炎 — PORP（III型 小児）」
+- `description`: 「鼓室形成II型の適応」→「鼓室形成III型の適応」
+- `teachingPoints[0]`: 「…骨吸収が最多パターン（II型）。…」→「…骨吸収が最多パターン（III型）。…」
+- `tags.procedure`: `['鼓室形成II型', 'PORP', '軟骨グラフト']`→`['鼓室形成III型', 'PORP', '軟骨グラフト']`
+
+検証は`ts.transpileModule`による構文チェック(診断0件)を実施(Issue-027/Issue-026 case-001と
+同様、プロジェクト全体のBuild/Lintはsandbox環境のI/O速度により今回も未完了)。
 
 ## (参考)修正した場合の影響
 

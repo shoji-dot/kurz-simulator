@@ -1,9 +1,8 @@
 # Issue-026: Ossicular Procedure Classification整合性監査
 
-**Status**: case-001分は解決・実装済み(2026-07-29)。`docs/Issue-026_Case001_Confirmation_v1.0.md`
-でshojiさんへ確認し、「Ⅲ型への表記変更が必要」との回答を得て`src/data/cases.ts`のcase-001
-(title/description/tags.procedure)をII型→III型に修正した。**case-011の確認は未着手のまま
-残っている**。
+**Status**: case-001・case-011分は解決・実装済み(2026-07-29)。いずれもII型→III型に修正した
+(`docs/Issue-026_Case001_Confirmation_v1.0.md`・`docs/Issue-026_Case011_Confirmation_v1.0.md`
+参照)。**次はcase-005(「II型変法」表記)の確認**(shoji指定順序③)。
 
 P3-EA-2 Step B(`docs/P3-EA-2_Step_B_Response_Record_v1.0.md`、commit `9c34dad`)のQ4回答で
 判明した論点を、独立した調査専用Issueとして切り出す。**不具合の確定ではなく、確認が必要な
@@ -49,9 +48,11 @@ case-011は`incus: partial`であり、case-001/008(`incus: absent`)と構造が
 1. ~~case-001のtags.procedure「II型」は、JOS2010のⅡ型定義…~~ **解決済み**。shojiさんの
    回答「Ⅲ型への表記変更が必要」を受け、`src/data/cases.ts`のcase-001を修正した(title/
    description/tags.procedureの3箇所、下記実装内容参照)。
-2. case-011(`incus: partial`)のtags.procedure「II型」は妥当か。`incus: partial`という状態が
-   JOS2010の分類上どう扱われるか(部分残存キヌタ骨がある場合の扱いはJOS2010原文に明記が
-   ない可能性があり、追加確認が必要)。**未着手**。
+2. ~~case-011(`incus: partial`)のtags.procedure「II型」は妥当か…~~ **解決済み**。
+   `docs/Issue-026_Case011_Confirmation_v1.0.md`でshojiさんに確認(「1.無い。2.使っていない。
+   3.良い。」)、キヌタ骨長突起残存部は術中に除去され再建経路に関与しないと確認できたため、
+   case-001と同じ理由でII型→III型に修正した(title/description/teachingPoints[0]/
+   tags.procedureの4箇所)。
 3. (新規・任意で確認したい点)case-005のtags.procedureは「鼓室形成II型変法」だが、
    `docs/P3-EA-2_Step_B_Additional_Confirmation_Malleus_Partial_Anchor_Review_Response_v1.0.md`
    でcase-005は機能的にツチ骨柄が連鎖に関与する(Ⅲi-M相当)と整理済み。「II型変法」という
@@ -123,8 +124,8 @@ teachingPointsにII/III型の言及はなく変更不要(確認済み)。検証�
 
 ```
 ① case-001修正確認        完了
-② case-011確認            次工程
-③ case-005のII型変法問題   ②の後
+② case-011確認            完了
+③ case-005のII型変法問題   次工程
 ④ procedure分類ルールAddendum作成   ③の後
 ```
 
