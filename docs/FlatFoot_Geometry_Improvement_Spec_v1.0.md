@@ -1,14 +1,19 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented v7(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
-「外壁→天井中心(r=0)で完全に閉じる単一LatheGeometry(内壁なし)」へ再実装。v6は天井を
-「外周0.395→内周0.295の輪(annulus)」として閉じていたため、天井中心に半径0.295の穴が
-残ったままだった(壁厚0.10mm分のリングしか塞がっていない)。shojiさんのGUI確認で
-「天井が抜けている」「断面はコの字型(下面解放が正)」「天井中心の穴からシャフトがFoot内部
-まで突き抜けて見える」と判明。天井Profileの終端をr=0にすることで完全な円盤として自動的に
-閉じ、あわせて`ProsthesisModel()`のシャフト短縮計算(BELL用パターンと同型)に`FLAT`分岐を
-追加してシャフトをFlatFoot天井(Y=FLAT_CEILING_Y_MM)止まりに変更(§8.0/§8.1参照)。
-Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、GUI再確認待ち。
+**Status**: **G3-2 Completed & Clinical Visual Validation PASSED(v7、shoji確認2026-07-30)**。
+`FlatFoot()`(`ProsthesisModels.tsx:609`)を「外壁→天井中心(r=0)で完全に閉じる単一
+LatheGeometry(内壁なし)」へ再実装。v6は天井を「外周0.395→内周0.295の輪(annulus)」として
+閉じていたため、天井中心に半径0.295の穴が残ったままだった(壁厚0.10mm分のリングしか
+塞がっていない)。shojiさんのGUI確認で「天井が抜けている」「断面はコの字型(下面解放が正)」
+「天井中心の穴からシャフトがFoot内部まで突き抜けて見える」と判明。天井Profileの終端をr=0に
+することで完全な円盤として自動的に閉じ、あわせて`ProsthesisModel()`のシャフト短縮計算(BELL
+用パターンと同型)に`FLAT`分岐を追加してシャフトをFlatFoot天井(Y=FLAT_CEILING_Y_MM)止まりに
+変更(§8.0/§8.1参照)。Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)
+完了。**2026-07-30、shojiさんがGUI(case-002/006/009/013)でv7を確認し、Clinical Visual
+Validationを正式に通過と判定(§8.4)。壁厚(実測0.10mm)の厳密な数値再現は今回のスコープ外とし、
+将来の「High Precision Geometry Phase」での改善候補として明示的に先送りする(教育用Visual
+Geometryとしては現Phaseで「外観・構造として正しく認識できること」= Visual Recognitionを
+優先する方針、§8.4)。G3(FlatFoot)はこれをもってCompleted**。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -301,6 +306,35 @@ FlatFoot()からexport)を用いた`isFlat`分岐を追加し、シャフトを�
   向け前例で既に確立済み。
 - Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v7の天井閉塞・
   シャフト短縮後の外観をGUIで再度ご確認いただく)。
+
+### 8.4 Clinical Visual Validation結果(2026-07-30、shoji確認・PASSED)
+
+shojiさんがGUI(TORP case-002/006/009/013)でv7を確認し、**Clinical Visual Validationを正式に
+通過**と判定した。
+
+**✅ 完了項目(shoji確認)**:
+- 外観は円柱形状になった(v4〜v5のベル形状化は解消)
+- 内部の釣り鐘状構造は解消
+- 二重メッシュによる入れ子構造は解消(v5〜v6問題)
+- 下面開口を再現
+- コの字断面構造になった
+- 天井は閉じた(v6の穴は解消)
+- シャフトは天井までで停止し、FlatFoot内部へ侵入しない
+- Anchor / Pose Solver / Safety Engineへの影響なし
+
+**⚠️ 既知の制限(Known Limitation、明示的にスコープ外として記録)**:
+- 肉厚は実測値(外径0.395mm・内径0.295mm・壁厚約0.10mm、Evidence A+)を厳密に再現したもの
+  ではない(v7は内壁を廃止し単純な外壁+天井のみの構造のため、壁厚という概念自体が現行の
+  Visual Meshには存在しない)。
+- **方針決定**: 教育用Visual Geometryとして必要なのは「外観・構造として正しく認識できる
+  こと」(Visual Recognition)であり、これは満たされている。壁厚の数値的精度(Evidence A+
+  実測値の忠実な再現)は現Phaseの目標としない。**将来の「High Precision Geometry Phase」
+  (CAD値・3Dスキャン等より高精度なEvidence取得を伴う改善フェーズ)での改善候補として明示的に
+  先送りする**。
+
+**G3(FlatFoot)クローズ**: 上記judgment(Visual Recognition優先、肉厚精度はHigh Precision
+Geometry Phase送り)をもって、Phase G3のFlatFoot(TORP)部分をCompletedとする。次はSoft Clip
+(PISTON/SOFT_CLIP)へ着手する(`docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` §4 Phase G3参照)。
 
 ## 9. 参照文書
 
