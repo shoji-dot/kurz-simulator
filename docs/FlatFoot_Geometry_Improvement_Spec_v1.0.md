@@ -1,11 +1,11 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented v3(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
-単純な貫通型中空円柱(外殻+内殻、`cylinderGeometry`openEnded)へ実装。v1(外殻が誤って円錐台)
-→v2(LatheGeometryでテーパー・面取り・内部キャップを再現)といずれもshojiさんのGUI確認で
-差し戻しになり、v3で「テーパー・面取りの厳密再現はスコープ外、実物は単純な中空円柱+上面
-中央のシャフト接続」という最終方針に確定(§8.0参照)。Build/TypeCheck/Lint/Review/Clinical
-Validation(Verification Order)完了、GUI再確認待ち。
+**Status**: G3-2 Implemented v4(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
+「円柱壁+緩やかなドーム(ベル)状の閉じた上面」へ実装。v1(外殻が誤って円錐台)→v2(LatheGeometry
+でテーパー・面取り・内部キャップを再現)→v3(貫通型の単純な中空円柱)といずれもshojiさんの
+GUI確認で差し戻しになり、v4で「外形は円柱、底面は開口、上面は緩やかなドーム状に閉じてシャフト
+頂点接続」という最終形状に確定(§8.0参照)。Build/TypeCheck/Lint/Review/Clinical Validation
+(Verification Order)完了、GUI再確認待ち。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -201,7 +201,7 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 
 ## 8. G3-2 Implementation Record
 
-### 8.0 実装の変遷(v1→v2→v3)
+### 8.0 実装の変遷(v1→v2→v3→v4)
 
 | version | 内容 | 結果 |
 |---|---|---|
@@ -211,63 +211,82 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 | v2 | 外殻/内殻を訂正: 外殻=円柱+天井面取りのみ、内殻(中空)側にテーパー・閉塞キャップを
   再現。LatheGeometry継続 | shoji GUI確認で再度差し戻し(「テーパー・面取りの厳密再現は
   スコープ外。実物はもっと単純」) |
-| **v3(最終、採用)** | テーパー・面取り・内部キャップを一切再現せず、**単純な貫通型中空
-  円柱**(外殻+内殻、`cylinderGeometry`、openEnded=true)へ簡略化 | 現行実装。GUI再確認待ち |
+| v3 | テーパー・面取り・内部キャップを一切再現せず、単純な貫通型中空円柱(外殻+内殻、
+  `cylinderGeometry`、openEnded=true)へ簡略化 | shoji GUI確認で三度差し戻し(「上下貫通
+  パイプは実物と異なる。上面は開口ではなく緩やかなドーム状に閉じており、シャフトは
+  その頂点に接合する」) |
+| **v4(最終、採用)** | 円柱壁(y=-0.40〜+0.28)+緩やかな球面キャップ(y=+0.28〜+0.40、
+  頂点で閉じる)。底面は開口のまま。内殻も同じ考え方で壁厚0.10mmを保ちつつ先細り、
+  天井中央に約0.05mmの中実キャップを残す。`BellFoot()`と同じ「円柱壁+球面キャップ」の
+  考え方をスリットなしの単純な全周回転体として流用 | 現行実装。GUI再確認待ち |
 
-**教訓**: 実測メモの数値をどの面(外殻/内殻)へ、どの精度で適用するかは、GUI確認を経て
-初めて確定した。教育用Visual Geometryでは「Evidence A+の主要寸法(全高・開口部外径/内径)を
-正確に反映しつつ、細部形状(テーパー・面取り)は過剰に作り込まない」という原則が今回の
-やり取りで明確になった。
+**教訓**: 実測メモの数値をどの面(外殻/内殻)へ適用するか(v1→v2)、どの精度で再現するか
+(v2→v3)、そして底面/上面どちらが開口でどちらが閉塞かという基本トポロジー(v3→v4)まで、
+複数の観点でGUI確認を経て初めて確定した。教育用Visual Geometryでは「Evidence A+の主要
+寸法(全高・開口部外径/内径)を正確に反映しつつ、大枠のトポロジー(開口/閉塞・凹凸)を
+最優先で正しく捉え、細部の曲率・角度は厳密再現しない」という原則が明確になった。
 
-### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v3)
+### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v4)
 
-```tsx
-function FlatFoot({ ghost }: { ghost?: boolean }) {
-  const OUTER_R = 0.395;  // 開口部外径(Evidence A+)、本体全体で一定
-  const INNER_R = 0.295;  // 開口部内径(Evidence A+、壁厚0.10mmと整合)、本体全体で一定
-  const HEIGHT  = 0.80;   // 全高(Evidence A+)
-
-  return (
-    <group>
-      <mesh>
-        <cylinderGeometry args={[OUTER_R, OUTER_R, HEIGHT, 24, 1, true]} />
-        <TitaniumMatDS ghost={ghost} />
-      </mesh>
-      <mesh>
-        <cylinderGeometry args={[INNER_R, INNER_R, HEIGHT, 24, 1, true]} />
-        <TitaniumMatDS ghost={ghost} />
-      </mesh>
-    </group>
-  );
-}
+外殻プロファイル(開口部→円柱壁→球面キャップ→頂点で閉塞):
+```
+(0.395, -0.40)  開口部外径(Evidence A+)、底面は開口のまま
+(0.395,  0.28)  円柱壁の終端(ドーム開始位置)
+(0.372,  0.295) ドーム(球面キャップ)区間
+(0.346,  0.310)
+(0.318,  0.325)
+(0.286,  0.340)
+(0.249,  0.355)
+(0.204,  0.370)
+(0.145,  0.385)
+(0.000,  0.400) ドーム頂点(シャフト接続点)
 ```
 
-外殻・内殻ともテーパーなしの単純円柱(半径一定)、`openEnded=true`により上下端に蓋を作らず
-貫通させる。シャフトとの接続は`ProsthesisModel`側の既存ロジック(シャフトメッシュを別途
-描画)がそのまま担うため、`FlatFoot()`自身はスリーブ形状のみを担当すればよい(shoji整理:
-「外形：円柱/内部：中空(上下貫通)/シャフト：円柱上面中央に接続」)。
+内殻(中空)プロファイル(壁厚0.10mmを維持しつつ先細り、天井手前で閉じる):
+```
+(0.295, -0.40)  開口部内径(Evidence A+、壁厚0.10mmと整合)
+(0.295,  0.28)
+(0.277,  0.2887)
+(0.257,  0.2974)
+(0.236,  0.3061)
+(0.212,  0.3148)
+(0.184,  0.3235)
+(0.151,  0.3322)
+(0.107,  0.3409)
+(0.000,  0.3496) 中空はここで閉じる(以降y=0.40まで中実キャップ、約0.05mm)
+```
 
-### 8.2 Verification Order結果(v3、最終)
+ドームの曲率は「円柱壁とドームの接続点(半径0.395mm)」「ドーム頂点(半径0、y=0.40)」の
+2点を通る球面として算出(ドーム高さ0.12mm、半径0.395mmに対し十分緩やかな傾斜になるよう
+選定)。内殻は同じ中心を持つ球面のうち、円柱/ドーム接続点で内殻半径0.295mmと連続になる
+ものを採用(壁厚が接続点で不連続にならないよう選定)。厳密な曲率値はEvidence C(推定、
+「緩やかなドーム」という定性的指示に基づく選定)。`BellFoot()`(`:507`)と同じ球面キャップ
+の数式パターンを流用しているが、スリット分割はなく単純な全周`LatheGeometry`。
+
+### 8.2 Verification Order結果(v4、最終)
 
 | ステップ | 結果 |
 |---|---|
-| Build | ✓(`vite build`、790 modules transformed、約26秒、エラーなし) |
+| Build | ✓(`vite build`、790 modules transformed、約23秒、エラーなし) |
 | Type Check | ✓(`tsc --noEmit --project tsconfig.app.json`、エラーなし) |
 | Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
-| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ22行追加・43行削除に限定。他関数への
+| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ50行追加・19行削除に限定。他関数への
   影響なし) |
 | Clinical Validation | ✓(視覚のみの変更。Pose Anchor/Shaft Axis/Safety Engineに
-  該当するコードへの変更なし。Node実行で外殻・内殻ともbounding boxが高さ0.80mm・半径一定
-  (テーパーなし)であること、壁厚が0.10mmであることを数値検証) |
+  該当するコードへの変更なし。Node実行で①外殻の高さ0.80mm・最大半径0.395mmを確認、
+  ②円柱/ドーム接続点で外殻0.395mm・内殻0.295mm(壁厚0.10mm)の連続性を確認、③外殻頂点
+  (y=0.40)で半径0(閉塞)、内殻がy=0.3496で半径0(閉塞、以降中実キャップ約0.05mm)を確認、
+  ④底面(y=-0.40)にはキャップメッシュを追加しておらず開口のままであることをプロファイル
+  構成から確認) |
 
 ### 8.3 Regression確認(§6予定分)
 
 - Anchor位置・Shaft Axis・Pose結果・Safety Score: `computeCurrentAxisAlignmentOrientation()`
   /`computeCurrentAxisAlignmentPose()`/`computeProsthesisModelPose()`および
   `dangerZonePoint`関連コードは一切変更していないため、構造的に不変(コードを直接変更して
-  いないことがdiffで確認済み、v1/v2/v3を通じて一貫)。
-- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v3の単純化後の
-  外観をGUIで再度ご確認いただく)。
+  いないことがdiffで確認済み、v1〜v4を通じて一貫)。
+- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v4のドーム形状を
+  GUIで再度ご確認いただく)。
 
 ## 9. 参照文書
 

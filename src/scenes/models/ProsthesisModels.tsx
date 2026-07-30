@@ -609,37 +609,68 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 //   詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1(開口部寸法)、
 //   docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md(仕様・shoji決定)。
 //
-//   【v3(最終、shoji GUI指摘により簡略化)】v1は内部形状の実測値を誤って外殻に適用し
-//   円錐台になっていた(v2で外殻/内殻を訂正)。v2でもなお「内部テーパー・天井の面取り・
-//   中空を閉じるキャップ」という細部形状を再現していたが、shojiさんから「教育用Visual
-//   Geometryとしてはテーパー・面取りの厳密再現はスコープ外。実物は単純に『中空円柱(上下
-//   貫通)+上面中央にシャフト接続』という構造」と指摘され、単純な貫通型中空円柱へ簡略化した。
-//   シャフト自体は`ProsthesisModel`側で別途描画されるため、FlatFoot()はこの単純な
-//   スリーブ形状のみを担当する。
+//   【v4(最終、shoji GUI指摘により形状修正)】v1(外殻を誤って円錐台化)→v2(外殻/内殻を
+//   訂正しテーパー・面取りを精密再現)→v3(貫通型の単純な中空円柱へ簡略化)といずれも
+//   shojiさんのGUI確認で差し戻しになった。v3の「上下に貫通したパイプ」は実物と異なり、
+//   正しくは「①外形は円柱、②底面(鼓室側)は開口、③上面はゆるやかなドーム状(釣り鐘状)に
+//   閉じており、④シャフトはそのドーム頂点に接合する」という構造(shoji整理)。ドームは
+//   鋭い円錐ではなく、傾斜が緩やかな滑らかな曲面とする(厳密な寸法・曲率の再現は不要、
+//   教育用として自然に見えれば十分)。
+//
+//   実装方式: BellFoot()と同じ「円柱壁 + 球面キャップ」の考え方を流用(BellFoot自体は
+//   スリット付きのカップ形状だが、FlatFootはスリットなしの単純な全周回転体)。外殻は
+//   円柱(y=-0.40〜+0.28)+緩やかな球面キャップ(y=+0.28〜+0.40、頂点で閉じる)。内殻は
+//   同じ考え方だが半径0.295mm(壁厚0.10mm)、頂点付近で先細り閉塞し、天井中央に薄い
+//   中実キャップ(約0.05mm、Evidence A+の実測値と整合)が残る。底面は開口のまま(蓋なし)。
 //
 //   実測値(実寸、÷20換算後、Evidence A+):
-//     全高            : 0.80 mm
-//     開口部 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm、円柱本体全体で一定)
+//     全高                  : 0.80 mm
+//     開口部(底面) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm)
+//     天井中央キャップ厚み    : 約0.04-0.05 mm(ドーム形状のパラメータ選定と整合)
 //
 //   Reference Coordinate(G3-1 §4決定、案A): Anchor(=STAPES_FOOTPLATE)はFoot groupの
 //   ローカル原点(0,0,0)のまま変更しない。「Anchor=foot中央」を維持するため、メッシュは
-//   現状踏襲で原点を中心に対称配置する(下端 y=-0.40 〜 上端 y=+0.40)。
+//   現状踏襲で原点を中心に対称配置する(開口部 y=-0.40 〜 ドーム頂点 y=+0.40)。
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
-  const OUTER_R = 0.395;  // 開口部外径(Evidence A+)、本体全体で一定
-  const INNER_R = 0.295;  // 開口部内径(Evidence A+、壁厚0.10mmと整合)、本体全体で一定
-  const HEIGHT  = 0.80;   // 全高(Evidence A+)
+  // 外殻プロファイル: 開口部(下端、開いたまま)→円柱壁→緩やかな球面キャップ→頂点(閉)。
+  const outerProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.395, -0.40),  // 開口部外径(Evidence A+)、底面は開口のまま
+    new THREE.Vector2(0.395,  0.28),  // 円柱壁の終端(ドーム開始位置)
+    new THREE.Vector2(0.372,  0.295),
+    new THREE.Vector2(0.346,  0.310),
+    new THREE.Vector2(0.318,  0.325),
+    new THREE.Vector2(0.286,  0.340),
+    new THREE.Vector2(0.249,  0.355),
+    new THREE.Vector2(0.204,  0.370),
+    new THREE.Vector2(0.145,  0.385),
+    new THREE.Vector2(0.000,  0.400), // ドーム頂点(シャフト接続点)
+  ], []);
+
+  // 内殻(中空)プロファイル: 円柱状キャビティ→ドーム内面(壁厚0.10mmを維持しつつ先細り、
+  // 天井中央で閉じる。以降y=0.40までは中実キャップ、約0.05mm)。
+  const innerProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.295, -0.40),  // 開口部内径(Evidence A+、壁厚0.10mmと整合)
+    new THREE.Vector2(0.295,  0.28),
+    new THREE.Vector2(0.277,  0.2887),
+    new THREE.Vector2(0.257,  0.2974),
+    new THREE.Vector2(0.236,  0.3061),
+    new THREE.Vector2(0.212,  0.3148),
+    new THREE.Vector2(0.184,  0.3235),
+    new THREE.Vector2(0.151,  0.3322),
+    new THREE.Vector2(0.107,  0.3409),
+    new THREE.Vector2(0.000,  0.3496), // 中空はここで閉じる(以降y=0.40まで中実キャップ)
+  ], []);
+
+  const outerGeo = useMemo(() => new THREE.LatheGeometry(outerProfile, 24), [outerProfile]);
+  const innerGeo = useMemo(() => new THREE.LatheGeometry(innerProfile, 24), [innerProfile]);
 
   return (
     <group>
-      {/* 外殻: 単純な円柱(上下貫通、キャップなし) */}
-      <mesh>
-        <cylinderGeometry args={[OUTER_R, OUTER_R, HEIGHT, 24, 1, true]} />
+      <mesh geometry={outerGeo}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
-      {/* 内殻: 中空(壁厚0.10mm、上下貫通、キャップなし) */}
-      <mesh>
-        <cylinderGeometry args={[INNER_R, INNER_R, HEIGHT, 24, 1, true]} />
+      <mesh geometry={innerGeo}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
     </group>
