@@ -605,23 +605,23 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 //   Catalog: "cannulated distal footing to increase fluid adhesion
 //   force to the stapes footplate" → hollow shaft tip, not a disc.
 //
-//   Phase G3-2改訂(2026-07-30、Evidence A+): 20倍模型ノギス実測に基づく再構築。
-//   詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1(開口部寸法)、
-//   docs/FlatFoot_Measurement_Record_v1.0.md(天井・テーパー・面取り追加実測)、
+//   Phase G3-2改訂(2026-07-30、Evidence A+、2026-07-30 shoji GUI指摘によりv2修正): 20倍模型
+//   ノギス実測に基づく再構築。詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1
+//   (開口部寸法)、docs/FlatFoot_Measurement_Record_v1.0.md(天井・テーパー・面取り追加実測)、
 //   docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md(仕様・shoji決定)。
+//
+//   【v2修正の経緯】v1(初回実装)は「テーパー開始位置: 天井中央半径2mm(実寸0.1mm)」という
+//   実測値を外殻(outerProfile)に適用し、外形が円錐台(cone)になっていた。shojiさんのGUI
+//   確認で、この測定値は外周ではなく「内部(中空)の天井形状」を指すと判明。正しい形状は
+//   ①外殻=円柱(開口部外径0.395mmを全高で維持)+天井外周の小さな面取りのみ、②内殻=中空
+//   キャビティ、天井付近(半径0.1mm相当)から内部が先細りし閉じる、という構造。
 //
 //   実測値(実寸、÷20換算後):
 //     全高                        : 0.80 mm
-//     開口部(底面、アブミ骨底板側) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm)
-//     天井(シャフト接続部側)      外径 : 0.10 mm(既存シャフト半径 r=0.10 と一致、shoji確認)
-//     面取り                      : 天井外周エッジに幅0.065mm・角度5-10°
-//     天井中央キャップ厚み        : 約0.04-0.05mm(中空はシャフト側手前で閉じる)
-//
-//   Evidence Gap(明示): 実測「テーパー角5-10°」は、開口部外径(0.395mm)→天井外径
-//   (0.10mm)の変化を全高0.8mmに単純適用すると幾何学的に両立しない(単純計算では
-//   半頂角約20°相当になる)。そのため本実装では、開口部・天井の両端点(Evidence A+)
-//   を厳密に再現し、実測「5-10°」は天井直下の面取り(chamfer)区間の角度として解釈した。
-//   中間区間のプロファイル点は両端点を滑らかに繋ぐ補間値(Evidence C、推定)。
+//     開口部(底面、アブミ骨底板側) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm、円柱本体全体で維持)
+//     天井外周の面取り             : 幅0.065mm・角度5-10°(外殻top rimのみ、本体径は変えない)
+//     内部天井テーパー開始位置     : 中心軸から半径0.1mm相当(内部キャビティの形状)
+//     天井中央キャップ厚み         : 約0.04-0.05mm(中空はここで閉じ、以降は中実)
 //
 //   Reference Coordinate(G3-1 §4決定、案A): Anchor(=STAPES_FOOTPLATE)はFoot groupの
 //   ローカル原点(0,0,0)のまま変更しない。「Anchor=foot中央」を維持するため、メッシュは
@@ -632,27 +632,24 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 //   実面として描画する(BellFootと同じ考え方)。
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
-  // 外殻プロファイル: 開口部(下端 y=-0.40, Evidence A+) → 天井/シャフト接続部
-  // (上端 y=+0.40, Evidence A+、既存シャフト半径と一致) → 天井付近で面取り。
+  // 外殻プロファイル: 開口部(下端 y=-0.40)から天井近くまで円柱(r=0.395、Evidence A+)を
+  // 維持し、天井外周のみ小さく面取りする。本体外径をシャフト径まで絞り込まない
+  // (v1の誤り: 全体を円錐台化していた点をshoji指摘により修正)。
   const outerProfile = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.395, -0.40),
-    new THREE.Vector2(0.32,  -0.15),
-    new THREE.Vector2(0.24,   0.05),
-    new THREE.Vector2(0.17,   0.24),
-    new THREE.Vector2(0.13,   0.36),
-    new THREE.Vector2(0.11,   0.385),
-    new THREE.Vector2(0.10,   0.40),
+    new THREE.Vector2(0.395, -0.40),  // 開口部外径(Evidence A+)
+    new THREE.Vector2(0.395,  0.34),  // 円柱本体、天井直下まで径を維持
+    new THREE.Vector2(0.35,   0.40),  // 天井外周の面取りのみ(Evidence A+、幅0.065mm相当)
   ], []);
 
-  // 内殻(中空)プロファイル: 開口部(下端、Evidence A+、壁厚0.10mmと整合) → 天井手前で
-  // 半径0へ収束し中空を閉じる(以降y=0.40までは中実キャップ、約0.045mm)。
+  // 内殻(中空キャビティ)プロファイル: 開口部から本体内は円柱状の空洞(壁厚0.10mmを維持)。
+  // 天井付近(内部半径0.1mm相当、Evidence A+)から内部形状が先細りし、y=0.36付近で閉じる
+  // (以降y=0.40までは中実キャップ、約0.04-0.05mm、Evidence A+)。テーパーは内部形状のみで
+  // 外殻には影響しない。
   const innerProfile = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.295, -0.40),
-    new THREE.Vector2(0.22,  -0.15),
-    new THREE.Vector2(0.15,   0.05),
-    new THREE.Vector2(0.09,   0.22),
-    new THREE.Vector2(0.03,   0.32),
-    new THREE.Vector2(0.00,   0.355),
+    new THREE.Vector2(0.295, -0.40),  // 開口部内径(Evidence A+、壁厚0.10mmと整合)
+    new THREE.Vector2(0.295,  0.18),  // 本体内は円柱状キャビティを維持
+    new THREE.Vector2(0.10,   0.30),  // 内部天井テーパー開始(Evidence A+、半径0.1mm相当)
+    new THREE.Vector2(0.00,   0.355), // 中空はここで閉じる(以降y=0.40まで中実キャップ)
   ], []);
 
   const outerGeo = useMemo(() => new THREE.LatheGeometry(outerProfile, 24), [outerProfile]);

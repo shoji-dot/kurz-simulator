@@ -1,8 +1,9 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented(2026-07-30)。追加実測(`docs/FlatFoot_Measurement_Record_v1.0.md`)
-完了を受け、`FlatFoot()`(`ProsthesisModels.tsx:609`)をLatheGeometry方式で再実装した。
-Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了。
+**Status**: G3-2 Implemented v2(2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
+LatheGeometry方式で再実装。v1はshojiさんのGUI確認で「外殻が円錐台になっている」形状解釈
+ミスが発覚(§8.0)し、外殻=円柱+天井面取りのみ・テーパーは内殻(中空)側のみへ修正(v2)。
+Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、GUI再確認待ち。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -196,53 +197,62 @@ G3-1.5 追加実測記録(docs/FlatFoot_Measurement_Record_v1.0.md)   (完了、
 G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 ```
 
-## 8. G3-2 Implementation Record(2026-07-30)
+## 8. G3-2 Implementation Record
 
-### 8.1 最終プロファイル(`ProsthesisModels.tsx`内`FlatFoot()`)
+### 8.0 v2修正(2026-07-30、shoji GUI指摘)
 
-外殻(outerProfile、(半径, y)、開口部→天井):
+v1(初回実装)は「テーパー開始位置: 天井中央半径2mm(実寸0.1mm)」という実測値を**外殻
+(outerProfile)** に適用し、外形が円錐台(cone)になっていた。shojiさんのGUI確認(TORP症例)
+により、この測定値は外周ではなく**内部(中空キャビティ)の天井形状**を指すと判明。
+
+正しい構造:
+- **外殻**: 開口部外径(0.395mm)を全高にわたって維持する円柱。天井外周にのみ小さな面取り。
+- **内殻**: 開口部から円柱状の空洞(壁厚0.10mm維持)、天井付近(内部半径0.1mm相当)から
+  内部形状のみが先細りし閉じる。
+
+この訂正により、FlatFootは「中空円柱+内部形状」という本来の特徴(PORP BellFootの円錐/
+カップ形状とは異なる)を正しく表現する。§8.1以降はv2(訂正後)の内容。
+
+### 8.1 最終プロファイル(`ProsthesisModels.tsx`内`FlatFoot()`、v2)
+
+外殻(outerProfile、(半径, y)、開口部→天井): 円柱本体を維持し、天井外周のみ面取り。
 ```
 (0.395, -0.40)  開口部外径(Evidence A+)
-(0.32,  -0.15)
-(0.24,   0.05)
-(0.17,   0.24)
-(0.13,   0.36)
-(0.11,   0.385) 面取り区間
-(0.10,   0.40)  天井/シャフト接続部(Evidence A+、既存シャフト半径r=0.10と一致)
+(0.395,  0.34)  円柱本体、天井直下まで径を維持
+(0.35,   0.40)  天井外周の面取りのみ(Evidence A+、幅0.065mm相当)
 ```
 
-内殻(innerProfile、中空、開口部→天井手前で閉じる):
+内殻(innerProfile、中空キャビティ、開口部→天井付近で閉じる): 本体内は円柱状の空洞、
+天井付近でのみ内部が先細りする。
 ```
 (0.295, -0.40)  開口部内径(Evidence A+、壁厚0.10mmと整合)
-(0.22,  -0.15)
-(0.15,   0.05)
-(0.09,   0.22)
-(0.03,   0.32)
-(0.00,   0.355) 中空はここで閉じる(以降y=0.40までキャップ、約0.045mm)
+(0.295,  0.18)  本体内は円柱状キャビティを維持
+(0.10,   0.30)  内部天井テーパー開始(Evidence A+、半径0.1mm相当)
+(0.00,   0.355) 中空はここで閉じる(以降y=0.40まで中実キャップ、約0.045mm)
 ```
 
-### 8.2 Evidence Gap解決(テーパー角の解釈)
+### 8.2 Evidence解釈
 
-実測「テーパー角5-10°」を全高0.8mmにわたる単一テーパーとして適用すると、開口部外径
-(0.395mm)→天井外径(0.10mm)の実測値と幾何学的に両立しない(単純計算では半頂角約20°相当
-になる)。本実装では**両端点の実測値(Evidence A+)を厳密に再現することを優先**し、
-「5-10°」は天井直下の面取り区間((0.13,0.36)→(0.11,0.385)→(0.10,0.40))の角度として
-解釈した。中間区間のプロファイル点(-0.15/0.05/0.24の各y)は両端点を滑らかに繋ぐ補間値
-であり、Evidence C(推定)。コード内コメントに同内容を明記済み。
+「内部天井テーパー開始位置: 半径0.1mm相当」「面取り: 幅0.065mm・角度5-10°」はいずれも
+Evidence A+(shoji追加実測)の値をそのまま採用した。中間区間のプロファイル点(y=0.18や
+テーパー・面取りの正確な曲率)は両端点を滑らかに繋ぐ補間値であり、Evidence C(推定)。
+「テーパー角5-10°」は面取り区間の角度として解釈しており、この点はv1から変更していない
+(v1の誤りは適用対象が外殻だった点であり、角度解釈自体の誤りではない)。
 
-### 8.3 Verification Order結果
+### 8.3 Verification Order結果(v2、再検証済み)
 
 | ステップ | 結果 |
 |---|---|
-| Build | ✓(`vite build`、790 modules transformed、25-27秒、エラーなし) |
+| Build | ✓(`vite build`、790 modules transformed、約26秒、エラーなし) |
 | Type Check | ✓(`tsc --noEmit --project tsconfig.app.json`、エラーなし) |
 | Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
-| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ56行追加・9行削除に限定。他関数への
+| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ27行追加・30行削除に限定。他関数への
   影響なし) |
 | Clinical Validation | ✓(視覚のみの変更。Pose Anchor/Shaft Axis/Safety Engineに
-  該当するコードへの変更なし。Node実行でLatheGeometryのbounding boxを検証し、
-  高さ0.80mm・開口部外径0.395mm・開口部内径0.295mm・天井外径0.10mmがEvidence A+と
-  一致することを確認) |
+  該当するコードへの変更なし。Node実行で外殻半径がy=-0.40〜+0.33まで一定0.395mmを維持し
+  (円柱形状を確認)、天井付近のみ0.35mmへ面取りされること、内殻半径は0.295mm一定から
+  y=0.30付近で0.1mm、y=0.355で0(閉塞)へ先細りすることを数値検証(shoji指摘の形状が
+  正しく反映されたことを確認)) |
 
 ### 8.4 Regression確認(§6予定分)
 
@@ -250,8 +260,8 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
   /`computeCurrentAxisAlignmentPose()`/`computeProsthesisModelPose()`および
   `dangerZonePoint`関連コードは一切変更していないため、構造的に不変(コードを直接変更して
   いないことがdiffで確認済み)。
-- Visual確認(TORP case-002/006/009/013での目視確認): **shoji確認待ち**(GUI上での見た目
-  確認は本セッションのツールでは実施不可のため、次回shojiさんによる実機/GUI確認を依頼)。
+- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v2修正後の
+  外観をGUIで再度ご確認いただく)。
 
 ## 9. 参照文書
 
