@@ -1,6 +1,9 @@
 # Prosthesis Geometry Audit Plan v1.0
 
-**Status**: Draft(shoji確認待ち)
+**Status**: Phase G1/G2 Completed(shoji確認 2026-07-30)。Phase G3(製品別改善実装)は
+未着手。詳細成果物は`Prosthesis_Reference_Landmark_Definition_v1.0.md`(G1-1/G1-2)、
+`TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)、`Prosthesis_Reference_Geometry_Definition_v1.0.md`
+(G2、G2-Review含む)を参照。
 **Date**: 2026-07-30
 **位置づけ**: `docs/P4_Transition_Deferred_Management_Plan_v1.0.md` Priority1(プロステーシス
 モデル品質向上)のPhase G1。PORP/TORP/Soft ClipのGeometry実装を評価項目ごとに監査し、
@@ -47,16 +50,17 @@ Head Plate Normal Evidence取得手段が未確定のままでも進められる
 
 ## 4. Phase構成
 
-### Phase G1: 現状Geometry Audit(本文書のスコープ)
+### Phase G1: 現状Geometry Audit **(Completed、2026-07-30)**
 
-上表③〜⑦を実データで確認し、特に④Head Plate Center・⑤Contact Point・⑥TORP/Soft Clip
-Bell/Foot Geometryの「Unknown」を埋める。成果物: 本文書の更新(v1.1)、または
-`docs/Prosthesis_Geometry_Audit_v1.0.md`として結果を分離。
+上表③〜⑦を実データで確認し、④Head Plate Center・⑤Contact Point・⑥TORP/Soft Clip Bell/Foot
+Geometryの「Unknown」を解消した。成果物: `Prosthesis_Reference_Landmark_Definition_v1.0.md`
+(G1-1/G1-2)、`TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)。
 
-### Phase G2: Reference Geometry定義
+### Phase G2: Reference Geometry定義 **(Completed、2026-07-30)**
 
 「現在描画されている形状(Visual Mesh)」と「Solverが必要とする基準(Reference Geometry)」を
-分離して定義する。
+分離して定義した。成果物: `Prosthesis_Reference_Geometry_Definition_v1.0.md`(Pose Anchor/
+Shaft Axis/Head Plate Reference/Contact Landmarkの正式定義、G2-Review含む)。
 
 ```
 Visual Mesh(BellFoot/FlatFoot/ClipArm等の描画ジオメトリ)
@@ -65,6 +69,11 @@ Reference Geometry(Origin/Axis/Contact Pointの正式定義)
     ↓
 Pose Solver Input(PoseInput、bellAdapter.ts経由)
 ```
+
+G2完了時にPose Anchor(§2)がtilt≠0で解剖学的ランドマークから乖離するという新規発見があり、
+Design Decision Pending(Model A=Rigid Body維持)として記録した(詳細は
+`Prosthesis_Reference_Geometry_Definition_v1.0.md` §7-6)。Safety計算には影響しないため
+Phase G3着手の妨げにはならない。
 
 ### Phase G3: 製品別改善実装
 

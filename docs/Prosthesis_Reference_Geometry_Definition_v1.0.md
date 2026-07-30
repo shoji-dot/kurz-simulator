@@ -1,6 +1,7 @@
 # Prosthesis Reference Geometry Definition v1.0
 
-**Status**: Draft(shoji確認待ち)
+**Status**: G1/G2 Completed(shoji確認 2026-07-30)。§7-6のみKnown Limitation / Design
+Decision Pendingとして残り、Phase G3(FlatFoot Geometry改善)着手前に再確認する。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G2。G1-1〜G1-3
 (`Prosthesis_Reference_Landmark_Definition_v1.0.md`、`TORP_SoftClip_Geometry_Audit_v1.0.md`)
@@ -47,8 +48,15 @@ Visual Mesh(BellFoot/FlatFoot/PistonFoot/SoftClipHead等の描画ジオメトリ
 
 ## 2. Pose Anchor Definition(Functional Anchor Point)
 
-**定義**: Foot group(`ProsthesisModel`内`<group position={[0, footOff, 0]}>`)のローカル原点
-(0,0,0)が、world空間で厳密に一致する基準ランドマーク。
+**定義(v1.0訂正版)**: AnchorはProsthesis Local Coordinate系(Foot group、
+`ProsthesisModel`内`<group position={[0, footOff, 0]}>`)上の基準点(0,0,0)として定義する。
+解剖学的ランドマーク`base`とのworld座標一致は、`angleTilt = angleTiltZ = 0`の場合にのみ
+成立する(tilt適用時はオフセットが生じる。根拠は下記)。
+
+> 旧版(shoji確認前の初稿)は「Foot group原点が`base`とworld空間で常に厳密一致する基準
+> ランドマーク」としていたが、これは局所座標上の定義と解剖学的世界座標上の一致条件を混同
+> していた。Anchorはあくまで**Local Coordinate上の基準点**であり、`base`との一致は
+> tilt=0という特定条件下でのみ成立する派生的事実として扱う。
 
 **根拠(数式的に導出 + Node実行で数値検証、G2で再確認)**: `computeProsthesisModelPose()`
 (`:826`)において`footOff = -(len/2)`、`mid = (base+top)/2`(`top = base + dir*shaftLength`)。
@@ -70,9 +78,12 @@ tilt前の`dir`と一致しなくなる(`finalEuler`は`quat0`のEuler分解にt
 | −30° | 15° | 0.634 mm |
 
 ギャップは`footOff`(=shaftLength/2に比例)とtilt角の両方に応じて増大する。したがって
-**「Pose Anchor = `base`」という定義はtilt=0(Ideal Pose)でのみ厳密に成立し、tilt≠0
+**「Pose Anchor = `base`」という一致はtilt=0(Ideal Pose)でのみ厳密に成立し、tilt≠0
 (malposition表現時)では両者が乖離する**。これはFrozen Layer相当のPose Pipelineの既存挙動
-であり、本文書で新たに導入する定義ではない。§7-6にKnown Limitationとして記録する。
+であり、本文書で新たに導入する定義ではない。この挙動自体をどう扱うか(§7-6、Design
+Decision Pending)とは切り分けて理解すること: **G1-2で確認した`Anchor Landmark ≠
+Physical Contact Surface`という整理は本訂正でも維持される**(修正対象はworld座標上の
+「常時一致」という保証部分のみ)。
 
 **製品別のAnchor(= `base`、footTypeで分岐、`:837`)**:
 
@@ -170,31 +181,55 @@ Pose Anchor (§2, Solverが参照)
 5. **Soft Clip Head視覚的質量中心は未算出**: §4で確認したのはOrigin(Pose参照点)のみ。
    Bridge/Wingを含めた視覚的重心の位置は今回のスコープ外(Pose Solverが参照しないため
    Reference Geometryとしては不要と判断)。
-6. **【新規発見・要shoji判断】Pose Anchor(§2)はtilt≠0で`base`から乖離する**: G1-2時点の
-   「Foot group原点は常に`base`と厳密一致」という記述は`angleTilt=angleTiltZ=0`限定の近似
-   だった。Node実行による数値検証で、tilt角に応じてFoot原点が`base`から最大0.6mm程度
-   (検証範囲: tilt 15-30°、shaftLength=3.0mmの場合)乖離することを確認した(§2表参照)。
-   **未判断の論点**: この挙動は「malposition(不正留置)を視覚的に表現する」意味で臨床的に
-   妥当な副産物なのか、それとも「Foot(底板/砧骨側接触点)は解剖学的ソケットに固定されたまま
-   シャフト角度のみが変化する」という物理的に正しいモデルからの計算上の乖離(Frozen Layerの
-   既存挙動だが、意図的設計かどうか未確認)なのか。Safety Score計算(`dangerZonePoint`)は
-   Pose非依存と別途確認済み([[coord_phase_implementation]]系)のため影響しないが、
-   教育的な見た目の正確性には関わり得る。**Phase G3着手前にshojiさんへ確認が必要**。
+6. **【Known Limitation / Design Decision Pending】Pose Anchor(§2)はtilt≠0で`base`から
+   乖離する**: G1-2時点の「Foot group原点は常に`base`と厳密一致」という記述は
+   `angleTilt=angleTiltZ=0`限定の近似だった。Node実行による数値検証で、tilt角に応じて
+   Foot原点が`base`から最大0.6mm程度(検証範囲: tilt 15-30°、shaftLength=3.0mmの場合)
+   乖離することを確認した(§2表参照)。
+
+   **2つのPoseモデル概念**(shoji整理、2026-07-30):
+
+   | | Model A: Rigid Bodyモデル(現行実装) | Model B: Contact固定モデル |
+   |---|---|---|
+   | 構造 | Prosthesis全体を1つの剛体として回転。Footもtiltに伴い移動 | Foot Contact Pointを固定し、Shaftのみ角度変化(Foot pivot + shaft rotation) |
+   | メリット | 数学的に単純、実装整合性が高い、現行Pose Solver(`solvePose()`→`composeTwist()`→`composeTilt()`)と一致 | 手術操作の直感に近い |
+   | デメリット | Stapes側固定点から見ると違和感が出る可能性 | Pose Solver再設計・Product Adapter変更が必要 |
+
+   **決定(shoji、2026-07-30、Design Decision Pending扱い)**: **現時点ではModel A(現行実装)
+   を維持する**。理由: ①P4Bで検証済みのPose Solver設計(`solvePose()`→`composeTwist()`→
+   `composeTilt()`)を崩す必要がない。②Safety Score計算(`dangerZonePoint`)はPose非依存と
+   別途確認済みのため、安全評価基盤への影響がない。③教育Simulatorとしては「理想留置との差
+   (Correct Placement→Foot position aligned / Tilt error→Foot position deviation)」を
+   表現できる可能性があり、単なるバグではなく教育情報になり得る。
+
+   **Pendingとして残す理由**: 上記は「バグと断定せず現状維持する」という暫定判断であり、
+   Model Bへの再設計を将来的に排除するものではない。教育的検証(実際にtilt時のFoot位置
+   ズレが学習者に誤解を与えないか等)を経て、正式なDesign Decisionとして確定させる。
+   Safety Score計算には影響しないため、Phase G3(FlatFoot Geometry改善)の着手を妨げない。
 
 ## 8. Next Step
 
-本文書(v1.0)をshojiさんに確認・承認いただいた後、以下の扱いとする。
+**G2-Review完了(shoji確認 2026-07-30)**: Pose Anchor(§2)の定義文言をLocal Coordinate基準へ
+訂正し、tilt依存の乖離挙動(§7-6)をKnown Limitation / Design Decision Pending(Model A維持)
+として正式に整理した。経緯:
 
-- **§7-6(Pose Anchorのtilt依存乖離)はG3着手前の確認事項として優先度が高い**。malposition
-  表現として意図的か、修正対象かをshojiさんに判断いただく。この判断次第で、本文書§2の
-  Pose Anchor Definitionに追記が必要になる可能性がある(v1.0のまま確定はしない)。
-- 上記以外(§2-6、§7-1〜5)は**Phase G1完了の正式な成果物として扱う**(Reference Geometry
-  層の定義完了)。
-- **Phase G3(製品別Geometry改善実装)**は、本文書§7-1のFlatFoot寸法修正を主対象として
-  別途起票する。本文書のShaft Axis/Head Plate Reference定義は不変のまま、Visual Meshのみを
+```
+G2   Reference Geometry Definition        (完了)
+  ↓
+G2-Review  Pose Anchor behavior clarification  (完了、本節)
+  ↓
+G1/G2 Completed Freeze                    (完了、`docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`側)
+  ↓
+G3   FlatFoot Geometry Improvement        (次工程)
+```
+
+- `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`のPhase G1/G2はCompletedとしてクローズする。
+- **Phase G3(製品別Geometry改善実装)**は、§7-1のFlatFoot寸法修正を主対象として別途起票する。
+  本文書のPose Anchor/Shaft Axis/Head Plate Reference定義は不変のまま、Visual Meshのみを
   更新する(Small Change、Frozen Layer非該当)。
-- §7-6の判断が完了した時点で、`docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`のPhase G1/G2を
-  Completedとしてクローズする。
+- §7-6(Design Decision Pending)は、Model A維持の暫定判断のまま残す。教育的検証を経て
+  正式なDesign Decisionとして確定させるまでは、Pending状態を維持する(Safety計算には影響
+  しないため、この保留自体はG3着手を妨げない)。
 
 ## 9. 参照文書
 
