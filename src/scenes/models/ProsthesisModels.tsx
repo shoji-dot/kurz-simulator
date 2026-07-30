@@ -609,54 +609,44 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 //   詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1(開口部寸法)、
 //   docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md(仕様・shoji決定)。
 //
-//   【v5(最終、shoji GUI指摘により再簡略化)】v1(外殻を誤って円錐台化)→v2(外殻/内殻を
-//   訂正しテーパー・面取りを精密再現)→v3(貫通型の単純な中空円柱)→v4(円柱壁+球面キャップ
-//   のドーム形状)といずれもshojiさんのGUI確認で差し戻しになった。v4は「外側・内側とも
-//   ベル(ドーム)形状になっており、BellFootのような二重ベル構造は不要。シャフトが内部空洞
-//   側へ侵入して見える」と指摘された。正しい構造は「①外形は完全なストレート円柱(テーパー・
-//   ドームなし)、②内部は下面が開口した中空構造で上部はフラットに閉じる(内側ベル・ドーム
-//   不要)、③シャフトは円柱外形上面の接合位置までで内部空洞へは侵入しない」という単純な
-//   「下面開口の中空円柱」(shoji整理)。
+//   【v6(最終、shoji GUI指摘により根本原因を修正)】v1〜v5でも解決しなかった問題:
+//   v5は「外殻用LatheGeometry」と「内殻用LatheGeometry」を**別々のmeshとして重ねて
+//   描画**していたため、それぞれが独立に上下を閉じた形状(=外側の円柱の中に、もう1つ
+//   独立した小さな円柱状の"物体"が浮いているように見える二重構造)になっていた。
+//   shoji指摘: 「内側に独立した円柱構造を作らない。外側円柱を一定厚みでくり抜いた
+//   単一のシェルにする」。
 //
-//   実装方式: LatheGeometryの断面Profileを単純な直線のみで構成(BellFootのような球面
-//   キャップは使わない)。外殻: 側面は真っ直ぐな円柱、天井はフラットな円盤で閉じる。
-//   内殻: 円柱状キャビティが下面から真っ直ぐ伸び、天井手前でフラットに閉じる(以降は
-//   中実、シャフトが実際に接する面はこの中実部分の外側)。
+//   修正方針: **1本の連続したProfile(一筆書き)で1つのLatheGeometryを作る**。
+//   外壁を下から上へ→天井を内側へ(フラットな輪状の蓋)→内壁を上から下へ、という
+//   1本のポリラインを回転させることで、「一定肉厚のシェル」を単一メッシュとして
+//   表現する(底面はポリラインの始点と終点を意図的に繋がないままにすることで、
+//   自然に開口させる。BellFoot()のrimProfileのような別メッシュでの蓋当ても行わない)。
 //
 //   実測値(実寸、÷20換算後、Evidence A+):
 //     全高                  : 0.80 mm
 //     開口部(底面) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm)
-//     天井中央キャップ厚み    : 約0.04-0.05 mm
 //
 //   Reference Coordinate(G3-1 §4決定、案A): Anchor(=STAPES_FOOTPLATE)はFoot groupの
 //   ローカル原点(0,0,0)のまま変更しない。「Anchor=foot中央」を維持するため、メッシュは
 //   現状踏襲で原点を中心に対称配置する(開口部 y=-0.40 〜 天井 y=+0.40)。
 // ================================================================
 function FlatFoot({ ghost }: { ghost?: boolean }) {
-  // 外殻プロファイル: 開口部(下端、開いたまま)→真っ直ぐな円柱側面→天井をフラットに閉じる。
-  const outerProfile = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.395, -0.40),  // 開口部外径(Evidence A+)、底面は開口のまま
-    new THREE.Vector2(0.395,  0.40),  // 円柱側面の終端(天井の外周)
-    new THREE.Vector2(0.000,  0.40),  // 天井をフラットな円盤で閉じる(ドーム・テーパーなし)
+  // 単一の連続Profile(一筆書き): 外壁(下→上)→天井(外周→内周、フラットな蓋)→
+  // 内壁(上→下)。始点(外側底面)と終点(内側底面)はあえて繋がないままにし、
+  // 底面を開口させる(別メッシュでの蓋当てはしない)。
+  const shellProfile = useMemo<THREE.Vector2[]>(() => [
+    new THREE.Vector2(0.395, -0.40),  // 外壁の下端(開口部外径、Evidence A+)
+    new THREE.Vector2(0.395,  0.40),  // 外壁の上端
+    new THREE.Vector2(0.295,  0.40),  // 天井(フラットな輪、壁厚0.10mmぶん内側へ)
+    new THREE.Vector2(0.295, -0.40),  // 内壁の下端(開口部内径、Evidence A+)
+    // ここで終わり = 底面は開口のまま(内壁下端と外壁下端の間を閉じるメッシュを追加しない)
   ], []);
 
-  // 内殻(中空)プロファイル: 円柱状キャビティが下面から真っ直ぐ伸び、天井手前でフラットに
-  // 閉じる(以降y=0.40までは中実、約0.05mm)。ベル・ドーム形状は使わない。
-  const innerProfile = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.295, -0.40),  // 開口部内径(Evidence A+、壁厚0.10mmと整合)
-    new THREE.Vector2(0.295,  0.35),  // 円柱状キャビティの終端
-    new THREE.Vector2(0.000,  0.35),  // キャビティをフラットに閉じる(以降y=0.40まで中実)
-  ], []);
-
-  const outerGeo = useMemo(() => new THREE.LatheGeometry(outerProfile, 24), [outerProfile]);
-  const innerGeo = useMemo(() => new THREE.LatheGeometry(innerProfile, 24), [innerProfile]);
+  const shellGeo = useMemo(() => new THREE.LatheGeometry(shellProfile, 24), [shellProfile]);
 
   return (
     <group>
-      <mesh geometry={outerGeo}>
-        <TitaniumMatDS ghost={ghost} />
-      </mesh>
-      <mesh geometry={innerGeo}>
+      <mesh geometry={shellGeo}>
         <TitaniumMatDS ghost={ghost} />
       </mesh>
     </group>

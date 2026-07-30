@@ -1,13 +1,11 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented v5(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
-「完全なストレート円柱(外殻)+下面開口・上部フラット閉塞の単純キャビティ(内殻)」へ実装。
-v1(外殻が誤って円錐台)→v2(テーパー・面取りを精密再現)→v3(貫通型の単純な中空円柱)→
-v4(円柱壁+球面キャップのドーム形状)といずれもshojiさんのGUI確認で差し戻しになり、v5で
-「BellFootのような二重ベル構造は不要、外形はテーパー・ドームなしの完全な円柱、内部は
-上部がフラットに閉じる単純な空洞、シャフトは内部空洞へ侵入しない」という最終形状に確定
-(§8.0参照)。Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、
-GUI再確認待ち。
+**Status**: G3-2 Implemented v6(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
+「1本の連続Profile(外壁→天井→内壁)による単一LatheGeometry」へ実装。v1〜v5の形状面の問題を
+解決した後もなお、v5は外殻用/内殻用の**別々のLatheGeometry meshを重ねて描画**していたため、
+「外側円柱の中に独立した内側円柱状の物体が浮いている」二重構造に見えるという根本原因が
+shojiさんのGUI確認で判明。単一の連続Profile(一筆書き)による単一メッシュ化で解決(§8.0参照)。
+Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、GUI再確認待ち。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)・`docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`
@@ -203,7 +201,7 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 
 ## 8. G3-2 Implementation Record
 
-### 8.0 実装の変遷(v1→v2→v3→v4→v5)
+### 8.0 実装の変遷(v1→v2→v3→v4→v5→v6)
 
 | version | 内容 | 結果 |
 |---|---|---|
@@ -220,61 +218,57 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 | v4 | 円柱壁+緩やかな球面キャップ(BellFoot同様の球面数式)で外殻・内殻とも「ドーム」形状に。
   底面は開口のまま | shoji GUI確認で四度差し戻し(「外側・内側ともベル形状になっており
   BellFootのような二重ベル構造は不要。シャフトが内部空洞側へ侵入して見える」) |
-| **v5(最終、採用)** | 曲面(球面キャップ)を一切使わず、**直線のみのProfile**へ再簡略化。
-  外殻: 側面は真っ直ぐな円柱、天井はフラットな円盤で閉じる(テーパー・ドームなし)。内殻:
-  円柱状キャビティが下面から真っ直ぐ伸び、天井手前(y=0.35)でフラットに閉じる(以降は
-  中実、約0.05mm)。底面は開口のまま | 現行実装。GUI再確認待ち |
+| v5 | 曲面(球面キャップ)を一切使わず、直線のみのProfileへ再簡略化。ただし**外殻用/内殻用を
+  別々のLatheGeometry meshとして重ねて描画**していた | shoji GUI確認で五度差し戻し
+  (「外側円柱の中に、独立した内側円柱状の構造が浮いているように見える二重構造になっている。
+  内側に別オブジェクトを作らず、外側円柱を一定厚みでくり抜いた単一のシェルにすべき」) |
+| **v6(最終、採用)** | **根本原因を修正**: 外殻/内殻を別メッシュにする発想自体をやめ、
+  1本の連続Profile(一筆書き: 外壁下端→外壁上端→天井(内側へ)→内壁下端)による**単一の
+  LatheGeometry**へ変更。始点(外壁下端)と終点(内壁下端)を意図的に繋がないことで、底面が
+  自然に開口する | 現行実装。GUI再確認待ち |
 
 **教訓の蓄積**: 実測メモの数値をどの面(外殻/内殻)へ適用するか(v1→v2)、どの精度で
-再現するか(v2→v3)、基本トポロジー(開口/閉塞、v3→v4)、そして曲面(ドーム/ベル)を
-一切使わない直線形状であるべきという点(v4→v5)まで、複数の観点でGUI確認を経て初めて
-確定した。教育用Visual Geometryでは「Evidence A+の主要寸法(全高・開口部外径/内径)を
-正確に反映しつつ、形状そのものは可能な限り単純(直線・円柱)に留め、曲面表現は明示的に
-要求されない限り追加しない」という原則が最終的に明確になった。
+再現するか(v2→v3)、基本トポロジー(開口/閉塞、v3→v4)、曲面を使わない直線形状であるべき
+という点(v4→v5)に加え、**「外殻と内殻を別々のメッシュとして重ねる」という実装アプローチ
+自体が二重構造に見える視覚的事故を生みやすい**(v5→v6)ことが判明した。中空のシェル形状は
+可能な限り「1本の連続したProfileを持つ単一のLatheGeometry」として構成し、外殻/内殻を
+独立したオブジェクトとして扱わない方が安全、という設計上の教訓が最終的に得られた。
 
-### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v5)
+### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v6)
 
-外殻プロファイル(開口部→真っ直ぐな円柱側面→天井をフラットに閉じる):
+単一の連続Profile(一筆書き、外壁下→外壁上→天井→内壁下、底面は意図的に未接続=開口):
 ```
-(0.395, -0.40)  開口部外径(Evidence A+)、底面は開口のまま
-(0.395,  0.40)  円柱側面の終端(天井の外周)
-(0.000,  0.40)  天井をフラットな円盤で閉じる(ドーム・テーパーなし)
+(0.395, -0.40)  外壁の下端(開口部外径、Evidence A+)
+(0.395,  0.40)  外壁の上端
+(0.295,  0.40)  天井(フラットな輪、壁厚0.10mmぶん内側へ)
+(0.295, -0.40)  内壁の下端(開口部内径、Evidence A+)
 ```
+この4点を1つの`THREE.LatheGeometry`として回転させることで、「一定肉厚0.10mmのシェル、
+底面開口、天井フラット閉塞」という単一の連結メッシュになる。`<mesh>`は1個のみ(v1〜v5の
+「外殻mesh+内殻mesh」という2mesh構成を廃止)。
 
-内殻(中空)プロファイル(円柱状キャビティが天井手前でフラットに閉じる):
-```
-(0.295, -0.40)  開口部内径(Evidence A+、壁厚0.10mmと整合)
-(0.295,  0.35)  円柱状キャビティの終端
-(0.000,  0.35)  キャビティをフラットに閉じる(以降y=0.40まで中実、約0.05mm)
-```
-
-曲面(球面キャップ等)は一切使用せず、直線のみで構成した`LatheGeometry`。シャフトが実際に
-接する面(天井外周)と、内部空洞(y≤0.35)の間には常に約0.05mmの中実領域があるため、
-シャフトが空洞側へ視覚的に侵入することはない。
-
-### 8.2 Verification Order結果(v5、最終)
+### 8.2 Verification Order結果(v6、最終)
 
 | ステップ | 結果 |
 |---|---|
-| Build | ✓(`vite build`、790 modules transformed、約24秒、エラーなし) |
+| Build | ✓(`vite build`、790 modules transformed、約25秒、エラーなし) |
 | Type Check | ✓(`tsc --noEmit --project tsconfig.app.json`、エラーなし) |
 | Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
-| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ21行追加・35行削除に限定。他関数への
+| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ22行追加・32行削除に限定。他関数への
   影響なし) |
 | Clinical Validation | ✓(視覚のみの変更。Pose Anchor/Shaft Axis/Safety Engineに
-  該当するコードへの変更なし。Node実行で①外殻側面の半径が全高にわたり0.395mmで一定
-  (テーパー・ドームなし)、②外殻天井がy=0.40でフラットな円盤として閉じていること、
-  ③内殻キャビティがy=0.35でフラットに閉じ、以降0.05mmが中実であること、④底面(y=-0.40)
-  にはキャップメッシュがなく開口のままであることを数値検証) |
+  該当するコードへの変更なし。Node実行で①単一メッシュのbounding boxが高さ0.80mm・
+  最大半径0.395mmであること、②壁厚が0.10mmで一定であること、③`<mesh>`が1個のみ
+  (v5の2個から削減)であることを確認) |
 
 ### 8.3 Regression確認(§6予定分)
 
 - Anchor位置・Shaft Axis・Pose結果・Safety Score: `computeCurrentAxisAlignmentOrientation()`
   /`computeCurrentAxisAlignmentPose()`/`computeProsthesisModelPose()`および
   `dangerZonePoint`関連コードは一切変更していないため、構造的に不変(コードを直接変更して
-  いないことがdiffで確認済み、v1〜v5を通じて一貫)。
-- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v5の単純化後の
-  外観をGUIで再度ご確認いただく)。
+  いないことがdiffで確認済み、v1〜v6を通じて一貫)。
+- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v6の単一シェル化
+  後の外観をGUIで再度ご確認いただく)。
 
 ## 9. 参照文書
 
