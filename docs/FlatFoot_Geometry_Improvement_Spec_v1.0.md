@@ -1,10 +1,13 @@
 # FlatFoot Geometry Improvement Specification v1.0
 
-**Status**: G3-2 Implemented v6(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
-「1本の連続Profile(外壁→天井→内壁)による単一LatheGeometry」へ実装。v1〜v5の形状面の問題を
-解決した後もなお、v5は外殻用/内殻用の**別々のLatheGeometry meshを重ねて描画**していたため、
-「外側円柱の中に独立した内側円柱状の物体が浮いている」二重構造に見えるという根本原因が
-shojiさんのGUI確認で判明。単一の連続Profile(一筆書き)による単一メッシュ化で解決(§8.0参照)。
+**Status**: G3-2 Implemented v7(最終、2026-07-30)。`FlatFoot()`(`ProsthesisModels.tsx:609`)を
+「外壁→天井中心(r=0)で完全に閉じる単一LatheGeometry(内壁なし)」へ再実装。v6は天井を
+「外周0.395→内周0.295の輪(annulus)」として閉じていたため、天井中心に半径0.295の穴が
+残ったままだった(壁厚0.10mm分のリングしか塞がっていない)。shojiさんのGUI確認で
+「天井が抜けている」「断面はコの字型(下面解放が正)」「天井中心の穴からシャフトがFoot内部
+まで突き抜けて見える」と判明。天井Profileの終端をr=0にすることで完全な円盤として自動的に
+閉じ、あわせて`ProsthesisModel()`のシャフト短縮計算(BELL用パターンと同型)に`FLAT`分岐を
+追加してシャフトをFlatFoot天井(Y=FLAT_CEILING_Y_MM)止まりに変更(§8.0/§8.1参照)。
 Build/TypeCheck/Lint/Review/Clinical Validation(Verification Order)完了、GUI再確認待ち。
 **Date**: 2026-07-30
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-1。
@@ -157,6 +160,14 @@ Small Change原則(Project Instructions)に基づき、`FlatFoot()`関数の内�
 呼び出し側(`ProsthesisModel`の`<group position={[0, footOff, 0]}>`内での使用箇所)は無変更
 とする。
 
+**v7での例外(明記)**: v7では`FlatFoot()`本体に加え、`ProsthesisModel()`内のシャフト
+描画区間計算(shaftLen/shaftY)にも`footType==='FLAT'`分岐を追加した。理由: v6で天井の穴を
+塞いだ結果、従来footOff(=FlatFootのローカル原点=Anchor=Foot中央)まで伸びていたシャフトが
+天井を突き抜けてFoot内部まで侵入して見える副作用が発生したため。この変更は2026-07-23に
+`footType==='BELL'`向けに導入済みの前例(Bell apexでシャフトを止める、同一の数式パターン)
+をFLATへ横展開したものであり、`base`/`direction`/`shaftLength`/`headOff`/`footOff`
+(Safety Engine・Pose Solverが参照する値)は一切変更していない、純粋な描画修正である。
+
 実装後、以下を確認する(Verification Order: Build → Type Check → Lint → Review →
 Clinical Validation):
 
@@ -201,7 +212,7 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
 
 ## 8. G3-2 Implementation Record
 
-### 8.0 実装の変遷(v1→v2→v3→v4→v5→v6)
+### 8.0 実装の変遷(v1→v2→v3→v4→v5→v6→v7)
 
 | version | 内容 | 結果 |
 |---|---|---|
@@ -222,53 +233,74 @@ G3-2   FlatFoot LatheGeometry Implementation          (完了、本文書§9)
   別々のLatheGeometry meshとして重ねて描画**していた | shoji GUI確認で五度差し戻し
   (「外側円柱の中に、独立した内側円柱状の構造が浮いているように見える二重構造になっている。
   内側に別オブジェクトを作らず、外側円柱を一定厚みでくり抜いた単一のシェルにすべき」) |
-| **v6(最終、採用)** | **根本原因を修正**: 外殻/内殻を別メッシュにする発想自体をやめ、
+| v6 | 根本原因(と思われたもの)を修正: 外殻/内殻を別メッシュにする発想自体をやめ、
   1本の連続Profile(一筆書き: 外壁下端→外壁上端→天井(内側へ)→内壁下端)による**単一の
   LatheGeometry**へ変更。始点(外壁下端)と終点(内壁下端)を意図的に繋がないことで、底面が
-  自然に開口する | 現行実装。GUI再確認待ち |
+  自然に開口する | shoji GUI確認で六度差し戻し(「天井が抜けている(フラットに閉じるべき)」
+  「断面はコの字型で下面解放が正」「シャフトが天井を突き抜けてFoot内部まで侵入して見える。
+  FLATFOOT内部にシャフトは存在しない」) |
+| **v7(最終、採用)** | **v6の残存バグを修正**: v6の天井は「外周0.395→内周0.295の輪
+  (annulus)」であり、壁厚0.10mm分のリングしか塞がっておらず、天井中心に半径0.295の穴が
+  残っていた。Profileを3点(外壁下端→外壁上端→天井中心r=0)に単純化し、内壁を廃止。
+  半径0はLatheGeometryの仕様上、全分割角度が1点に収束するため天井が完全な円盤(穴なし)
+  として自動的に閉じる。あわせて`ProsthesisModel()`のシャフト短縮計算にFLAT分岐を追加し、
+  シャフトがFoot中心(Anchor)ではなく天井(Y=FLAT_CEILING_Y_MM)で止まるよう修正(v6では
+  この副作用が未対応だった) | 現行実装。GUI再確認待ち |
 
 **教訓の蓄積**: 実測メモの数値をどの面(外殻/内殻)へ適用するか(v1→v2)、どの精度で
 再現するか(v2→v3)、基本トポロジー(開口/閉塞、v3→v4)、曲面を使わない直線形状であるべき
-という点(v4→v5)に加え、**「外殻と内殻を別々のメッシュとして重ねる」という実装アプローチ
-自体が二重構造に見える視覚的事故を生みやすい**(v5→v6)ことが判明した。中空のシェル形状は
-可能な限り「1本の連続したProfileを持つ単一のLatheGeometry」として構成し、外殻/内殻を
-独立したオブジェクトとして扱わない方が安全、という設計上の教訓が最終的に得られた。
+という点(v4→v5)、「外殻と内殻を別々のメッシュとして重ねる」という実装アプローチ自体が
+二重構造に見える視覚的事故を生みやすいという点(v5→v6)に加え、**単一LatheGeometry化した
+後も「天井を薄い輪(annulus)として閉じる」実装では中心に穴が残ること、天井を完全に閉じる
+には半径0までProfileを到達させる必要があること**(v6→v7)、および**FlatFoot本体の
+Geometry修正だけでなく、それに依存する隣接コード(シャフト描画区間)の整合性まで
+確認する必要がある**という教訓が最終的に得られた。
 
-### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v6)
+### 8.1 最終実装(`ProsthesisModels.tsx`内`FlatFoot()`、v7)
 
-単一の連続Profile(一筆書き、外壁下→外壁上→天井→内壁下、底面は意図的に未接続=開口):
+単一の連続Profile(一筆書き、外壁下→外壁上→天井中心、底面は意図的に未接続=開口):
 ```
 (0.395, -0.40)  外壁の下端(開口部外径、Evidence A+)
 (0.395,  0.40)  外壁の上端
-(0.295,  0.40)  天井(フラットな輪、壁厚0.10mmぶん内側へ)
-(0.295, -0.40)  内壁の下端(開口部内径、Evidence A+)
+(0,      0.40)  天井中心(r=0で完全な円盤として閉じる。内壁は作らない)
 ```
-この4点を1つの`THREE.LatheGeometry`として回転させることで、「一定肉厚0.10mmのシェル、
-底面開口、天井フラット閉塞」という単一の連結メッシュになる。`<mesh>`は1個のみ(v1〜v5の
-「外殻mesh+内殻mesh」という2mesh構成を廃止)。
+この3点を1つの`THREE.LatheGeometry`として回転させることで、「外壁+天井で完全に閉じた
+コの字型カップ、底面開口」という単一の連結メッシュになる(壁厚0.10mmの内壁表現はv7で廃止)。
+`<mesh>`は1個のまま。
 
-### 8.2 Verification Order結果(v6、最終)
+あわせて`ProsthesisModel()`のシャフト計算に`FLAT_CEILING_Y_MM`(=0.40、天井のローカルY、
+FlatFoot()からexport)を用いた`isFlat`分岐を追加し、シャフトを天井で止める(BELL用の
+`BELL_HEIGHT_MM`分岐と同一パターン)。
+
+### 8.2 Verification Order結果(v7、最終)
 
 | ステップ | 結果 |
 |---|---|
-| Build | ✓(`vite build`、790 modules transformed、約25秒、エラーなし) |
-| Type Check | ✓(`tsc --noEmit --project tsconfig.app.json`、エラーなし) |
+| Build | ✓(`vite build`、790 modules transformed、約39秒、エラーなし。事前に
+  `tsc --noEmit -p .`もエラーなしで確認済み) |
+| Type Check | ✓(`tsc --noEmit -p .`、エラーなし) |
 | Lint | ✓(`eslint src/scenes/models/ProsthesisModels.tsx`、警告・エラーなし) |
-| Review | ✓(diff scope確認、`FlatFoot()`関数内のみ22行追加・32行削除に限定。他関数への
-  影響なし) |
+| Review | ✓(diff scope確認、`FlatFoot()`本体+`FLAT_CEILING_Y_MM`定数追加+
+  `ProsthesisModel()`シャフト計算のFLAT分岐追加に限定。§6で明記の通り、後者はBell向け前例
+  (2026-07-23)の横展開であり、Pose Solver/Safety Engineの計算式自体には触れていない) |
 | Clinical Validation | ✓(視覚のみの変更。Pose Anchor/Shaft Axis/Safety Engineに
-  該当するコードへの変更なし。Node実行で①単一メッシュのbounding boxが高さ0.80mm・
-  最大半径0.395mmであること、②壁厚が0.10mmで一定であること、③`<mesh>`が1個のみ
-  (v5の2個から削減)であることを確認) |
+  該当するコードへの変更なし。Node実行(three.js LatheGeometry実インスタンス化)で
+  ①bounding boxが高さ0.80mm・外径0.395mmであること、②天井層(y=+0.40)の頂点半径が
+  最小0(中心、穴なし)〜最大0.395であること、③底面層(y=-0.40)の頂点半径が0.395で
+  一定(開口のまま、中心へ閉じていない)であること、④shaftLen=len-0.40の各lenで
+  シャフト下端が`footOff+FLAT_CEILING_Y_MM`(=天井のワールドY)と一致し、シャフト上端は
+  変更前と同じ`len/2`のままであることを確認) |
 
 ### 8.3 Regression確認(§6予定分)
 
 - Anchor位置・Shaft Axis・Pose結果・Safety Score: `computeCurrentAxisAlignmentOrientation()`
   /`computeCurrentAxisAlignmentPose()`/`computeProsthesisModelPose()`および
   `dangerZonePoint`関連コードは一切変更していないため、構造的に不変(コードを直接変更して
-  いないことがdiffで確認済み、v1〜v6を通じて一貫)。
-- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v6の単一シェル化
-  後の外観をGUIで再度ご確認いただく)。
+  いないことがdiffで確認済み、v1〜v7を通じて一貫)。シャフト描画区間(shaftLen/shaftY)は
+  Safety Engine非参照の純粋な描画用ローカル変数であり(§6例外の記載通り)、この点はBell
+  向け前例で既に確立済み。
+- Visual確認(TORP case-002/006/009/013での目視確認): **shoji再確認待ち**(v7の天井閉塞・
+  シャフト短縮後の外観をGUIで再度ご確認いただく)。
 
 ## 9. 参照文書
 

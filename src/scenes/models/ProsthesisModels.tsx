@@ -609,37 +609,48 @@ function BellFoot({ ghost }: { ghost?: boolean }) {
 //   詳細出典: docs/TORP_SoftClip_Geometry_Audit_v1.0.md §1.1(開口部寸法)、
 //   docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md(仕様・shoji決定)。
 //
-//   【v6(最終、shoji GUI指摘により根本原因を修正)】v1〜v5でも解決しなかった問題:
-//   v5は「外殻用LatheGeometry」と「内殻用LatheGeometry」を**別々のmeshとして重ねて
-//   描画**していたため、それぞれが独立に上下を閉じた形状(=外側の円柱の中に、もう1つ
-//   独立した小さな円柱状の"物体"が浮いているように見える二重構造)になっていた。
-//   shoji指摘: 「内側に独立した円柱構造を作らない。外側円柱を一定厚みでくり抜いた
-//   単一のシェルにする」。
+//   【v7(最終、shoji GUI指摘によりv6の残存バグを修正)】v6の問題:
+//   v6は天井を「外周(0.395)→内周(0.295)の輪(annulus)」として閉じていたため、
+//   半径0.295の同心円状の穴が天井中心に残ったままだった(壁厚0.10mmぶんの細い
+//   リングしか塞がっていない)。shoji実機確認: 「天井が抜けている」「断面はコの字型
+//   (外壁→天井で完全に閉じる、内壁は存在しない)で下面が解放されているのが正解」。
+//   さらに、天井中心の穴からProsthesisModel()側のシャフトがFoot中心(Anchor)まで
+//   突き抜けて見える副作用も指摘された。
 //
-//   修正方針: **1本の連続したProfile(一筆書き)で1つのLatheGeometryを作る**。
-//   外壁を下から上へ→天井を内側へ(フラットな輪状の蓋)→内壁を上から下へ、という
-//   1本のポリラインを回転させることで、「一定肉厚のシェル」を単一メッシュとして
-//   表現する(底面はポリラインの始点と終点を意図的に繋がないままにすることで、
-//   自然に開口させる。BellFoot()のrimProfileのような別メッシュでの蓋当ても行わない)。
+//   修正方針: Profileを3点(外壁下端→外壁上端→中心r=0)に単純化。半径0が
+//   THREE.LatheGeometryの仕様上、全ての分割角度が1点に収束するため天井が自動的に
+//   完全な円盤(穴なし)として閉じる。内壁は作らない(壁厚0.10mmの表現は廃止、
+//   コの字型カップとして単一の連続Profileで表現)。底面はProfileの始点(外壁下端)を
+//   中心へ戻さないことで開口のまま維持する。
 //
 //   実測値(実寸、÷20換算後、Evidence A+):
-//     全高                  : 0.80 mm
-//     開口部(底面) 外径/内径 : 0.395 / 0.295 mm(壁厚0.10mm)
+//     全高          : 0.80 mm
+//     開口部(底面)外径 : 0.395 mm
 //
 //   Reference Coordinate(G3-1 §4決定、案A): Anchor(=STAPES_FOOTPLATE)はFoot groupの
 //   ローカル原点(0,0,0)のまま変更しない。「Anchor=foot中央」を維持するため、メッシュは
 //   現状踏襲で原点を中心に対称配置する(開口部 y=-0.40 〜 天井 y=+0.40)。
+//   FLAT_CEILING_Y_MM(=0.40)はこの天井のy座標で、ProsthesisModel()のシャフト
+//   短縮計算(BellFoot向けBELL_HEIGHT_MMと同じパターン)から参照する。
 // ================================================================
+/**
+ * FlatFoot天井のローカルY座標(mm)。FlatFoot()のローカル原点(0,0,0、Anchor=
+ * STAPES_FOOTPLATE)を基準に、天井は+0.40、開口部(底面)は-0.40。
+ * v7でシャフトがFoot内部(Anchor)まで突き抜けていた不具合の修正で、
+ * ProsthesisModel()のシャフト短縮計算(isFlat分岐)から参照するため
+ * ローカル定数からexportに昇格。BELL_HEIGHT_MM/BELL_RIM_RADIUS_MMと同じ理由・パターン。
+ */
+export const FLAT_CEILING_Y_MM = 0.40;
+
 function FlatFoot({ ghost }: { ghost?: boolean }) {
-  // 単一の連続Profile(一筆書き): 外壁(下→上)→天井(外周→内周、フラットな蓋)→
-  // 内壁(上→下)。始点(外側底面)と終点(内側底面)はあえて繋がないままにし、
-  // 底面を開口させる(別メッシュでの蓋当てはしない)。
+  // 単一の連続Profile(一筆書き): 外壁(下端の開口→上端)→天井中心(r=0、完全に閉じる)。
+  // 内壁は作らない(v6の「壁厚0.10mmの輪」が天井中心に穴を残していた反省)。
+  // 底面(y=-0.40)は中心へ戻さないため自然に開口したまま。コの字型カップ形状。
   const shellProfile = useMemo<THREE.Vector2[]>(() => [
-    new THREE.Vector2(0.395, -0.40),  // 外壁の下端(開口部外径、Evidence A+)
-    new THREE.Vector2(0.395,  0.40),  // 外壁の上端
-    new THREE.Vector2(0.295,  0.40),  // 天井(フラットな輪、壁厚0.10mmぶん内側へ)
-    new THREE.Vector2(0.295, -0.40),  // 内壁の下端(開口部内径、Evidence A+)
-    // ここで終わり = 底面は開口のまま(内壁下端と外壁下端の間を閉じるメッシュを追加しない)
+    new THREE.Vector2(0.395, -FLAT_CEILING_Y_MM),  // 外壁の下端(開口部外径、Evidence A+)
+    new THREE.Vector2(0.395,  FLAT_CEILING_Y_MM),  // 外壁の上端
+    new THREE.Vector2(0,      FLAT_CEILING_Y_MM),  // 天井中心(r=0で完全な円盤として閉じる)
+    // ここで終わり = 底面は開口のまま(中心へ戻すポリラインを追加しない)
   ], []);
 
   const shellGeo = useMemo(() => new THREE.LatheGeometry(shellProfile, 24), [shellProfile]);
@@ -918,12 +929,23 @@ export function ProsthesisModel({
           なくBell apex(Y=BELL_HEIGHT_MM)起点に変更。実物はBellの閉じた頂点からシャフトが立ち
           上がる構造で、rim起点のままだとBellカップ内部とシャフトが重なって描画されていた
           （shojiさん実機確認・BellDebugMarkersで裏付け済み）。base/dir/shaftLength/headOff/
-          footOff（Safety Engine・スコア計算が参照する値）は一切変更しない、純粋な描画修正。 */}
+          footOff（Safety Engine・スコア計算が参照する値）は一切変更しない、純粋な描画修正。
+          2026-07-30追加: footType==='FLAT'の場合も同じパターンでシャフトをFlatFoot天井
+          (Y=FLAT_CEILING_Y_MM)止まりに短縮。従来はfootOff（=FlatFootのローカル原点=Anchor=
+          Foot中央）まで伸びていたため、v7で天井の穴を塞いだ結果、シャフトが天井を突き抜けて
+          Foot内部（中空カップの中心）まで侵入して見える不具合をshojiさんが指摘
+          （FLATFOOTの内部にシャフトは存在しない）。base/dir/shaftLength/headOff/footOff
+          は一切変更しない、純粋な描画修正。 */}
       {(() => {
         const r        = product.type === 'PISTON' ? 0.20 : 0.10;
         const isBell   = product.footType === 'BELL';
-        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM) : len;
-        const shaftY   = isBell ? BELL_HEIGHT_MM / 2 : 0;
+        const isFlat   = product.footType === 'FLAT';
+        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM)
+                        : isFlat ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
+                        : len;
+        const shaftY   = isBell ? BELL_HEIGHT_MM / 2
+                        : isFlat ? FLAT_CEILING_Y_MM / 2
+                        : 0;
         return (
           <mesh position={[0, shaftY, 0]}>
             <cylinderGeometry args={[r, r, shaftLen, 16]} />
