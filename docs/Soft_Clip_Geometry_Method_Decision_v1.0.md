@@ -1,6 +1,16 @@
 # Soft Clip Geometry Method Decision v1.0
 
 **Status**: Draft(shoji確認待ち)。**コード変更は行っていない(方式の検討・部分決定のみ)**。
+
+> **⚠ 一部内容が古い(2026-07-30追記)**: `Soft_Clip_Geometry_Interpretation_v1.0.md`が
+> v1.4へ改訂され、Band Loop全体形状が「単純なC字リング」から「『つ』字状の開口部を
+> 持つ弾性クリップ」へ訂正された(Interpretation v1.4 §1.3・§1.4)。本文書§3(Band
+> Loop、Centerline/Plate deformationの比較)は旧「C字」前提の記述のままであり、
+> shoji指定により本改訂では**Geometry方式の再検討は行っていない**。②を再訪する際は
+> Interpretation v1.4(特にクリップ機構・4-2/4-3-1/4-3-2)を踏まえて本文書§3を
+> 改訂すること。§1(Shaft Lower/Middle)・§2(Bridge)はBand Loop形状訂正の影響を
+> 受けないため、Decided/Pendingの状態は変更なし。
+
 **Date**: 2026-07-30
 **位置づけ**: shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の
 決定 → ③Improvement Spec作成 → ④実装」の②にあたる。前提文書は
