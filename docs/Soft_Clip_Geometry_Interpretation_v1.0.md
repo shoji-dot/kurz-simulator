@@ -1,6 +1,6 @@
 # Soft Clip Geometry Interpretation v1.0
 
-**Status**: Draft(shoji確認・v1.2訂正済み)。**コード変更は行っていない(形状解釈のみ)**。
+**Status**: Draft(shoji確認・v1.3訂正済み)。**コード変更は行っていない(形状解釈のみ)**。
 shojiさんの訂正(2026-07-30)を反映しv1.1に更新: ①太いクロム円柱は撮影用治具ではなく
 Soft Clip本体の段付きシャフト(Confirmedへ変更、§4-1)。②Wing終端フィーチャー・
 ③曲げの性質はOpen Questionのまま維持(shoji指定)。
@@ -9,7 +9,15 @@ v1.2追加修正(2026-07-30): Shaft Lower/Shaft Middleの径表記で「実寸�
 実測した値、Evidence A+)は Shaft Lower 8.0mm / Shaft Middle 4.0mm。撮影スケール換算
 (20×、実測値÷20による算出値)は Shaft Lower 0.40mm / Shaft Middle 0.20mm**。以降、本文書
 では両者を必ず区別して表記する。
-**Date**: 2026-07-30(v1.2更新)
+v1.3追加修正(2026-07-30、shoji指摘): §4のOpen Questionsを**性質の異なる2カテゴリ**に
+明確に分離した。(A)**臨床形状の不確定点**(4-2 Band Loop終端フィーチャー数、4-3曲げの
+性質) — 実物の形状そのものがまだ確定していない、Interpretation段階の不確定性。
+(B)**Geometry実装方式の検討事項**(4-4 Band Loop Geometry Reference、新規追加) —
+形状は概ね確定した前提で、それをどう実装するか(手法選択)という、Geometry方式決定
+段階の論点。この2カテゴリを混同すると「Evidence→Interpretation→Geometry→
+Implementation」という設計思想の階層が崩れるため、以降は明示的に区別する
+(shoji指摘、2026-07-30)。
+**Date**: 2026-07-30(v1.3更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -31,15 +39,18 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
    §4-1参照。**v1.0で「撮影用治具」と誤認していた太いクロム円柱は、実際にはShaft
    Lowerそのものであった**)。断面が円形ワイヤーではなく帯状(矩形に近い)であること
    もEvidence A(実測)+写真の両方で確認済み。
-3. **要確認、Open Questionsのまま維持(shoji指定)**: (a) Band Loop(1本の帯)の終端
-   フィーチャー(閉じたループ/開いたフック/突起)が何個あり、どう対応しているか。
-   (b) 「8箇所での曲げ」が明確な折れ点(ポリライン的)か、緩やかな連続曲線かは、写真の
-   解像度・反射のため視覚的には判別困難(shojiさんの直接観察・触感による情報を優先する)。
-   いずれも写真だけでは断定せず、Geometry方式決定前の確認事項として保持する。
-4. 上記(a)(b)はGeometry方式の決定([[Soft_Clip_Geometry_Audit_v1.0]]の提案A/B等)に
-   直結するため、**次のGeometry方式決定ステップへ進む前にshojiさんの確認を推奨する**。
-   あわせて、Geometry方式を議論する前に「部品が何個で構成されるか」を定義する
-   `Soft_Clip_Component_Tree_v1.0.md`を作成した(shoji提案、§8参照)。
+3. **臨床形状のOpen Questions(4.A、shoji指定により維持)**: (a) Band Loop(1本の帯)の
+   終端フィーチャー(閉じたループ/開いたフック/突起)が何個あり、どう対応しているか
+   (4-2)。(b) 「8箇所での曲げ」が明確な折れ点(ポリライン的)か、緩やかな連続曲線かは、
+   写真の解像度・反射のため視覚的には判別困難(shojiさんの直接観察・触感による情報を
+   優先する、4-3)。いずれも写真だけでは断定せず、確認事項として保持する。
+4. **Geometry実装方式のOpen Question(4.B、v1.3新規追加)**: (c) Band Loopの形状生成を
+   Centerlineベース(中心曲線+断面Sweep)とPlate deformationベース(平板+曲げ変形)の
+   どちらで扱うか(4-4)。(a)(b)とは性質が異なり実装方式選択の論点であるため、
+   カテゴリを分けて管理する(shoji指摘)。4-4自体は未決定のまま、次のGeometry方式決定
+   ステップ(②)で他の候補とあわせて検討する。あわせて、Geometry方式を議論する前に
+   「部品が何個で構成されるか」を定義する`Soft_Clip_Component_Tree_v1.0.md`を作成した
+   (shoji提案、§8参照)。
 
 ---
 
@@ -168,6 +179,20 @@ Shaft Lower(太径、撮影スケール換算[20×]で長さ2.17mm・径0.40mm[�
 
 ## 4. 要確認事項(Open Questions)
 
+**v1.3でのカテゴリ分離(shoji指摘)**: 以下のOpen Questionsは性質が異なる2カテゴリに
+分かれる。
+
+- **4.A 臨床形状に関するOpen Questions**(4-2、4-3): 実物Soft Clipの形状そのものが
+  まだ確定していない不確定点。Interpretation(①)段階の課題であり、Evidence(shojiの
+  直接観察等)によってのみ解消できる。
+- **4.B Geometry実装方式の検討事項**(4-4): 形状解釈が概ね確定した前提で、それを
+  three.js上でどう実装するか(手法選択)という論点。Geometry方式決定(②)段階の
+  課題であり、技術的なトレードオフ判断で進められる(Evidence待ちではない)。
+
+4.Aが未解消の状態でも4.Bの検討・部分的な決定を進めることは可能だが、4.Aの回答内容
+(特に4-3)は4.Bの最終選択に影響しうるため、4.Bの一部項目は4.Aの解消と連動して
+確定する(詳細は各項目を参照)。
+
 ### 4-1. 太いクロム円柱の正体 — **解消済み(Confirmed、shoji訂正2026-07-30)**
 
 v1.0では、10方向のうち「上斜め」4枚・「下斜め」4枚に写る太いクロム色の円柱
@@ -186,6 +211,8 @@ Band Loop → Bridge → Shaft Middle(径4.0mm、20倍) → Shaft Lower(径8.0mm
 ではない(v1.0での「命名と写真上の位置関係が直感的に一致しない」という懸念は、命名の
 基準を誤解していたことが原因だった)。**本項目はConfirmedとし、§2(部品構成)に反映
 済み**。
+
+### 4.A 臨床形状に関するOpen Questions
 
 ### 4-2. Band Loop終端フィーチャーの数・対応関係(Open Question、維持)
 
@@ -215,6 +242,34 @@ shojiさんの説明「複数箇所で曲げ加工」は、離散的な折れ点
 **確認依頼**: 実物を手に取った際、「明確に角度が変わる折れ点」として感じられますか、
 それとも「なだらかに曲率が変化する曲線」に近いでしょうか(可能な範囲で、既存の
 2026-07-02レポートで報告済みの情報があればそれを優先して構いません)。
+
+### 4.B Geometry実装方式の検討事項
+
+### 4-4. Band Loop Geometry Reference(新規追加、shoji指摘2026-07-30。Open Question、
+現時点では決定しない)
+
+**カテゴリ**: 4.B(実装方式選択の論点)。4-2・4-3(4.A、臨床形状の不確定点)とは性質が
+異なり、「Band Loopが8箇所で曲げられたC字状の帯である」という形状解釈そのものは
+確定している前提で、それをGeometry上どう表現するかという実装アプローチの選択肢。
+
+Band Loopの形状生成基準として、以下の2方式が考えられる。
+
+- **A. Centerlineベース**: 帯の中心を通る曲線(センターライン)をまず定義し、
+  断面(幅0.25mm×厚さ0.10mm、§3参照)をその曲線に沿ってSweep(掃引)することで
+  帯状の立体を生成する。
+- **B. Plate deformationベース**: まず平坦な板状の帯(未変形の直方体・平面)を作成し、
+  その後に曲げ変形(bend deformation)を適用してC字状の最終形状を得る。
+
+**現時点では決定しない(shoji指定)**。ただし、この選択は§5のGeometry方式候補
+(候補A: ExtrudeGeometry+区分的直線パス、候補B: boxGeometryチェーン、候補C: 現行
+TubeGeometry維持)よりも上位の、より根本的なパラダイム選択である。§5の候補A・Bは
+いずれも本質的に「4-4のOption A(Centerlineベース)」に属する具体的な実装技法であり、
+「4-4のOption B(Plate deformationベース)」は§5には含まれていない別パラダイムで
+ある点に注意する。
+
+**Geometry方式決定(②)への引き継ぎ**: 次ステップのGeometry方式決定では、この4-4の
+選択を含めて判断する(shoji指定)。4-4自体の最終確定はshoji確認を待つが、4-4を含めた
+検討・比較・暫定的な方向性の整理は②のステップで進める。
 
 ---
 
@@ -250,15 +305,19 @@ shojiさんの説明「複数箇所で曲げ加工」は、離散的な折れ点
 
 ## 6. Next Step
 
-1. §4の残る要確認事項(4-2、4-3)をshojiさんに確認する(4-1はConfirmed済み)。
-2. `docs/Soft_Clip_Component_Tree_v1.0.md`(§8参照)で部品の個数・階層をあわせて
-   確認する。
-3. 確認結果を踏まえ、必要ならv1.2へ改訂し、部品構成・曲げ位置・断面形状の解釈を
-   確定させる。
-4. 確定後、shoji指定の手順②「Geometry方式の決定」に進む(本文書の候補A/B/Cから
-   選定、または追加候補の検討)。
-5. ②の後、③Soft Clip Geometry Improvement Spec作成 → ④実装、の順で進める。
-6. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
+1. ~~§4の残る要確認事項(4-2、4-3)をshojiさんに確認する(4-1はConfirmed済み)。~~
+   shojiより「Interpretation・Component Treeの整理は問題なし、②Geometry方式決定へ
+   進んでよい」と確認済み(2026-07-30)。ただし4-2・4-3(4.A、臨床形状)は未解消の
+   まま維持。
+2. ~~`docs/Soft_Clip_Component_Tree_v1.0.md`(§8参照)で部品の個数・階層をあわせて
+   確認する。~~ 完了(Component Tree v1.1、Connection=Anchor/Coordinate Definition
+   としてConfirmed、Geometry責務列追加)。
+3. shoji指定の手順②「Geometry方式の決定」に進み、`Soft_Clip_Geometry_Method_Decision_v1.0.md`
+   を作成する(4-4[Centerline vs Plate deformation]を含めて検討。4-2・4-3が未解消の
+   部分はBand Loopの最終手法選択を保留のまま、判断材料・比較表として整理する)。
+4. ②の後、4.A(4-2・4-3)の解消を待って、③Soft Clip Geometry Improvement Spec作成 →
+   ④実装、の順で進める。
+5. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 7. 参照文書
 
@@ -266,6 +325,8 @@ shojiさんの説明「複数箇所で曲げ加工」は、離散的な折れ点
   提案A/B/Cの出典)
 - `docs/Soft_Clip_Component_Tree_v1.0.md`(§8、部品構成・階層の定義。Geometry方式決定
   前の前提として本文書と対で参照する)
+- `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(②Geometry方式決定。Shaft
+  Lower/MiddleはDecided、Bridge・Band LoopはPending。4-4を含む比較の枠組みを整理)
 - `docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md`(§8.0、Frenet frame破綻の経緯・
   過剰なCAD再現の反省点の出典)
 - `src/scenes/models/ProsthesisModels.tsx`(`SoftClipHead`:437、`SoftClipStem`:428、

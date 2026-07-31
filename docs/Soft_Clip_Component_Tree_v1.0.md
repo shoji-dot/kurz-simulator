@@ -112,19 +112,24 @@ Geometry方式決定、または③Improvement Spec)で座標系として扱う�
 
 1. ~~本文書と`Soft_Clip_Geometry_Interpretation_v1.0.md`の両方をshojiさんに確認いただく。~~
    完了。本文書§3(Connectionの扱い)はshoji承認によりConfirmed(v1.1)。
-2. 残るOpen Questionは`Soft_Clip_Geometry_Interpretation_v1.0.md` §4-2(Band Loop終端
-   フィーチャー数)・§4-3(曲げの性質)の2点のみ。これらの確認が得られ次第、
-   Interpretation文書をv1.2以降へ更新する(本文書のGeometry責務列・部品構成には
-   影響しない見込み)。
-3. 部品構成(大分類4部品)とGeometry責務(候補)は確定した。次はshoji指定の手順②
+2. 残る臨床形状のOpen Question(4.A)は`Soft_Clip_Geometry_Interpretation_v1.0.md`
+   §4-2(Band Loop終端フィーチャー数)・§4-3(曲げの性質)の2点のみ(v1.3でカテゴリ
+   整理、4.B=実装方式検討事項の4-4とは区別)。これらの確認が得られ次第、
+   Interpretation文書を改訂する(本文書のGeometry責務列・部品構成には影響しない
+   見込み)。
+3. ~~部品構成(大分類4部品)とGeometry責務(候補)は確定した。次はshoji指定の手順②
    「Geometry方式の決定」(ExtrudeGeometry/boxGeometryチェーン/現行維持のいずれか)に
-   進む。
+   進む。~~ `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`作成済み。Shaft
+   Lower/Middleは責務通りCylinderでDecided、Bridge・Band LoopはEvidence不足・4-4
+   (Centerline vs Plate deformation)未決定のためPending。
 4. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 6. 参照文書
 
 - `docs/Soft_Clip_Geometry_Interpretation_v1.0.md`(①Interpretation、本文書と対で参照)
 - `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On Hold)
+- `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(②Geometry方式決定。Shaft
+  Lower/MiddleはDecided、Bridge・Band LoopはPending)
 - `docs/Prosthesis_Reference_Geometry_Definition_v1.0.md`(Anchor/接続点の既存設計思想)
 - `src/scenes/models/ProsthesisModels.tsx`(`SoftClipHead`:437、`SoftClipStem`:428、
   `SoftClipBridge`:409、`SoftClipWing`:384、`ProsthesisModel`シャフト計算部)
