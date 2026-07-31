@@ -264,9 +264,10 @@ Open Questions)
 3. ~~Band Loop: 4-4(Option A/B)についてshoji確認待ちを継続する。~~ 完了。4-4は
    Option A(Centerline Sweep)に決定した(§3.2)。残るのは4-2・4-3-1・4-3-2
    (4.A、臨床形状の詳細パラメータ)のみで、shoji確認待ちを継続する。
-4. 4-2・4-3-1・4-3-2が解消次第、③Soft Clip Geometry Improvement Spec作成に進み、
-   Shaft Lower/Middle(Decided)・Bridge(Evidence次第)・Band Loop(Option A、
-   具体的な制御点・セグメント数を確定)の最終Geometry仕様をまとめる。
+4. ~~4-2・4-3-1・4-3-2が解消次第、③Soft Clip Geometry Improvement Spec作成に進み、~~
+   `docs/Soft_Clip_Geometry_Improvement_Spec_v1.0.md`作成済み。Confirmed(Geometry方式・
+   Profile定義・構造)とPending(制御点位置・開口寸法・Central Pocket形状・Upper/Lower
+   Arm角度・Rear Flex Region曲率)を分離、Pendingは制御点配置・実装に進んでいない。
 5. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 5. 参照文書
