@@ -220,6 +220,38 @@ Upper Armは「約3回の主要カーブ」を描く、単純な直線→1箇所
 
 ---
 
+## v1.4 Update: 既存Oblique 2枚のSHOT A(90°回転視点)該当確認 + Hook Transition Profile用の再評価（2026-07-31）
+
+**確認結果: 既存4枚の中に、Shaft軸まわり約90°回転視点（SHOT A相当）は存在しない。**
+
+Right_Oblique.jpg / Left_Oblique.jpg のマスク抽出・拡大確認により、それぞれ
+Right.jpg / Left.jpg と**同一方位角(azimuth)**であることを確認した（ループ・
+Hookの左右配置がRight.jpg/Left.jpgとそれぞれ一致、鏡像関係も同じ）。Obliqueは
+方位角ではなく**仰角（カメラを上方から見下ろす角度）のみが異なる**撮影であり、
+SHOT A(方位角90°回転)には該当しない。
+
+**Hook Transition Profile用としての再評価（M2固定点探索としてではなく）**:
+
+| 確認項目 | 判定 | 根拠 |
+|---|---|---|
+| 1. Lower Arm→Hook terminalの3D曲率方向が観察可能か | **部分的に可能** | 仰角視点のためLower Arm帯の上面が写り、Hook接近部でハイライトの位置が
+帯の長手方向に沿ってシフトしている＝ねじれ(torsion)成分が存在する可能性を示唆。ただし方位角回転がないため、曲げ平面の正確な向き(3D法線方向)は未確定 |
+| 2. Transition regionの範囲推定が可能か | **定性的には可能、定量化は不可** | 直線区間から曲がり始める位置は目視で確認できるが、v1.0 Unresolved#3と同じ較正課題（ルーラーがカメラ面と平行でない）が残る。方眼紙が被写体と同一平面にある保証がなくローカル較正の根拠として使えるかは未確認 |
+| 3. Terminal approach angleが取得可能か | **良好に観察可能** | 拡大クロップ(`right_obl_terminal_zoom.png`)でHook terminalの巻き方向・開口向きが明瞭に確認できる。Right.jpg/Left.jpgより近接・高精細で、定性的な形状把握には既存Oblique 2枚で十分 |
+
+**結論**:
+- Right_Oblique.jpg / Left_Oblique.jpgは、**M2固定点探索用としては不採用のまま**
+  だが、**Hook Transition Profileの定性的な形状理解（特にitem 3: Terminal
+  approach angleの向き、item 1: ねじれ成分の存在示唆）には有用**と再評価する。
+- **不足する情報**: item 2(Transition region範囲の定量化)と、item 1の3D曲げ
+  平面の正確な向きは、既存4枚だけでは埋まらない。**Decision v1.3で決定済みの
+  Top-down追加撮影が引き続き必要**（方位角の異なる視点情報が根本的に不足している
+  ため）。
+
+**Centerline Sweep実装はまだ開始しない。**
+
+---
+
 ## Image Evidence
 
 **Used images（定量測定に使用）**:
