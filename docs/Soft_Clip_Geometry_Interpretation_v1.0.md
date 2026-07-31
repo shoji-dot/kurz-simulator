@@ -1,6 +1,6 @@
 # Soft Clip Geometry Interpretation v1.0
 
-**Status**: Draft(shoji確認・v1.5訂正済み)。**コード変更は行っていない(形状解釈・
+**Status**: Draft(shoji確認・v1.6訂正済み)。**コード変更は行っていない(形状解釈・
 用語整理のみ)**。
 shojiさんの訂正(2026-07-30)を反映しv1.1に更新: ①太いクロム円柱は撮影用治具ではなく
 Soft Clip本体の段付きシャフト(Confirmedへ変更、§4-1)。②Wing終端フィーチャー・
@@ -34,7 +34,22 @@ v1.5追加修正(2026-07-30、shoji指摘): §5候補Aの用語を精密化。�
 掃引)を明記した。あわせて、誤解しやすい別解釈(区間ごとに個別Extrude→制御点で配置、
 これは実質的に候補Bと同じ)も明示して区別した。**Geometry方式の決定内容(4-4=Option A
 採用、Method Decision v1.2)自体に変更はない**、用語の精密化のみ(shoji指定)。
-**Date**: 2026-07-30(v1.5更新)
+v1.6追加修正(2026-07-30、shoji追加観察): Band Loop全体形状のInterpretationをさらに
+精密化。v1.4/v1.5の「単純なC字リングではない開放型弾性クリップ」という理解を維持
+しつつ、より正確には**「横から見た基本形状は『つ』字状一筆書きに近い連続形状」**
+として扱う(新設§1.3-A)。単純なC字リングでも蛇行したS字部品でもなく、基本トポロジー
+は「つ」字状の単一連続Centerlineであり、Upper Arm・Lower Arm部分が複数回(約3回)の
+主要カーブを描きながら中央のPocket形成部を構成し、下側先端(Lower Arm側)は反転する
+ような返し曲げ形状に見える、という追加観察(Evidence B)。Interpretationの正式表現を
+**「『つ』字状一筆書きCenterlineを持つ開放型弾性クリップ」**(英: "Open elastic clip
+with a continuous TSU-like centerline geometry")へ更新する。あわせて、Centerline
+Sweepの制御点は固定数(P0〜P3等)ではなく、Shaft接続部・主要曲率変化点・Pocket形成部・
+開口端という**機能的カテゴリを表現できる必要最小限の点数**として扱う方針を明記
+(§5-A)。Pocket最大幅とArm間距離は目的の異なる別パラメータとして分離(§1.3-A)。
+最大開口方向は現時点で数値化不要、Evidence B相当の定性記録(「装着時にUpper/Lower
+Arm間が広がる方向」)とする。**本v1.6はInterpretationの更新のみであり、制御点座標・
+Mesh生成には進まない**(shoji指定)。
+**Date**: 2026-07-30(v1.6更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -52,12 +67,13 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
    Shaft Lower 0.40mm→Shaft Middle 0.20mm、§1.2参照)+**Bridge**(T字接合部)+
    **Band Loop**(1本の帯状部材、実寸
    長さ約6.0〜7.5mm・幅0.25mm・厚さ0.10mm、ねじりなし、長辺方向に8箇所で前後へ波打つ
-   ように成形され、**単純なC字リングではなく「つ」字状の開口部を持つ弾性クリップ形状**
-   を形成、v1.4でshojiが訂正)という構成である(shoji訂正・実測により確定、
-   §4-1参照。**v1.0で「撮影用治具」と誤認していた太いクロム円柱は、実際にはShaft
-   Lowerそのものであった**)。断面が円形ワイヤーではなく帯状(矩形に近い)であること
-   もEvidence A(実測)+写真の両方で確認済み。この「つ」字形状自体がキヌタ骨長脚を
-   保持するクリップ機構を構成している(Confirmed、§1.4参照)。
+   ように成形され、**「『つ』字状一筆書きCenterlineを持つ開放型弾性クリップ」**
+   (単純なC字リングでも蛇行したS字部品でもない、v1.6でshojiが精密化。§1.3-A参照)を
+   形成)という構成である(shoji訂正・実測により確定、§4-1参照。**v1.0で「撮影用
+   治具」と誤認していた太いクロム円柱は、実際にはShaft Lowerそのものであった**)。
+   断面が円形ワイヤーではなく帯状(矩形に近い)であることもEvidence A(実測)+写真の
+   両方で確認済み。この「つ」字形状自体がキヌタ骨長脚を保持するクリップ機構を構成
+   している(Confirmed、§1.4参照)。
 3. **臨床形状のOpen Questions(4.A、shoji指定により維持)**: (a) Band Loop(1本の帯)の
    終端フィーチャー(閉じたループ/開いたフック/突起)が何個あり、どう対応しているか
    (4-2)。(b) 「8箇所での曲げ」が明確な折れ点(ポリライン的)か、緩やかな連続曲線かは、
@@ -147,6 +163,50 @@ Wing」ではなく、**1本の連続した帯が8箇所で成形されて全体
 帯が具体的にどのような経路(何個の終端フィーチャーを持つか等)を辿るかは、shoji指定の
 通りOpen Questionのままとする(§4-2)。
 
+### 1.3-A Centerlineトポロジーの精密化(shoji追加観察、2026-07-30受領、Evidence B、
+新設v1.6)
+
+shojiさんより、Band Loop全体形状についてさらに踏み込んだ観察を受領した(実物の機能を
+改めて考慮した見立て、数値化された直接計測ではないためEvidence B)。
+
+**重要な訂正点(v1.4/v1.5からの精密化、矛盾ではない)**:
+- 単純な**C字リングではない**(v1.4で既出、維持)。
+- **蛇行したS字部品という理解でもない**(新たに否定、v1.6)。
+- 基本トポロジーは**「つ」字状の単一連続Centerline**(一筆書き)である。
+- その腕部分(Upper Arm・Lower Arm)が、日光いろは坂のように**複数回(約3回)の
+  主要カーブ**を描いている。
+- Upper Arm・Lower Armが中央のPocket形成部を構成する(Component Tree v1.2 §2.1の
+  区分と整合)。
+- **下側先端(Lower Arm側)は、反転するような返し曲げ形状**に見える。
+
+**正式なInterpretation表現(v1.6)**: **「『つ』字状一筆書きCenterlineを持つ開放型
+弾性クリップ」**(英: *"Open elastic clip with a continuous TSU-like centerline
+geometry"*)。
+
+**旧表現との関係**: v1.4/v1.5で確立した「単純なC字リングではなく『つ』字状の開口部を
+持つ弾性クリップ」という理解自体は誤りではないが、上記の観察はそのトポロジー(一筆書き
+の単一連続曲線であること、腕部分に約3回の主要カーブがあること、下側先端に返し曲げ
+形状があること)をより具体的に記述するものであり、v1.6として本文書の正式な表現とする。
+
+**§1.2の「約8箇所の成形」との関係(要整理、未解消)**: §1.2・§1.3で記録済みの
+「長辺方向に約8箇所で前後へ波打つように成形」という見立てと、本節の「約3回の主要
+カーブ」という見立ての関係は、本文書内では確定的に整理できていない(細かい波打ち
+8箇所のうち、大きな主要カーブが3回という粒度の違いである可能性が高いが、断定は
+しない)。この点は4-3-1(正確な曲率)の確認時にあわせて確認することとする。
+
+**Geometry設計への示唆(参考、④実装では未反映)**: Centerline Sweepの制御点は、
+固定数(例: P0〜P3の4点)ではなく、以下の**機能的カテゴリを表現できる必要最小限の
+点数**として扱う方針とする(§5-A参照)。
+
+- Shaft接続部(Bridge側の起点)
+- 主要曲率変化点(複数、当初の見立てでは約3回のカーブに対応)
+- Pocket形成部
+- 開口端(Upper Arm・Lower Armそれぞれの自由端)
+
+**推測による制御点座標の入力は禁止**(shoji指定)。各点の正確な座標・曲率は未測定
+(Unknown)であり、§4.Aの既存Open Question(4-2、4-3-1、4-3-2)の解消と合わせて
+`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`での追加実測を待つ。
+
 ### 1.4 クリップ機構(Confirmed、shoji説明2026-07-30、Evidence B — 実物操作に基づく
 機能説明。新設v1.4)
 
@@ -183,8 +243,10 @@ Band Loopは単なる静的な装飾形状ではなく、(a)開口部・中央�
 
 ```
 Band Loop(1本の連続した帯状部材、実寸長さ約6.0〜7.5mm、幅0.25mm×厚さ0.10mm、
-          ねじりなし、8箇所で前後に波打つように成形され、単純なC字リングではなく
-          「つ」字状の開口部を持つ弾性クリップ形状を形成。v1.4訂正、§1.3/§1.4参照)
+          ねじりなし、8箇所で前後に波打つように成形され、「『つ』字状一筆書き
+          Centerlineを持つ開放型弾性クリップ」を形成[単純なC字リングでも蛇行した
+          S字部品でもない]。腕部分は約3回の主要カーブ、下側先端は返し曲げ形状。
+          v1.6精密化、§1.3/§1.3-A/§1.4参照)
   ↓
 Bridge(T字接合部、Band LoopとShaftを接合する起点)
   ↓
@@ -288,6 +350,12 @@ Band Loopは「つ」字状の開口部を持つ1本の帯であり、機能的�
 - **突起形状**: 端に短い突起(プロング)が付加されている。
 - **その他局所加工**: 上記以外の局所的な加工(面取り、丸め等)。
 
+**追加観察(v1.6、shoji、Evidence B)**: 下側先端(Lower Arm側)は、上記のいずれかに
+分類される前段階の情報として、「反転するような返し曲げ形状」に見えるとの観察を受領
+した(§1.3-A)。これは上記4分類のうち「フック形状」に近い可能性を示唆するが、
+「返し曲げ」と「フック形状」が同一を指すか、より詳細な区別が必要かは未確定であり、
+本Open Questionは引き続きOpenのまま維持する。
+
 **確認依頼**: Band Loop(1本の帯)は、どちらの端も終端(閉じるか開くかは別として)で、
 途中に分岐はないという理解で合っていますか。また終端の形状(単純端面/フック形状/
 突起形状/その他局所加工のいずれか、それぞれ帯のどちら側の端か)を教えていただけると、
@@ -374,6 +442,21 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
   実質的に同じ**であり、候補Aの主要な利点(継ぎ目のない単一メッシュ、Frenetフレーム
   破綻の回避)を持たない。実装時にこの2つを混同しないこと。
 
+### 5-A センターライン制御点数の扱い(v1.6追加、shoji指定)
+
+§1.3-Aの追加観察(Centerlineは「つ」字状の一筆書き、腕部分に約3回の主要カーブ)を
+踏まえ、候補A(Centerline Sweep)で使用する制御点は**固定数(例: P0〜P3の4点)として
+扱わない**。代わりに、以下の機能的カテゴリを表現できる**必要最小限の点数**として
+扱う方針とする。
+
+- Shaft接続部(Bridge側の起点)
+- 主要曲率変化点(複数、当初の見立てでは約3回のカーブに対応。正確な数は未確定)
+- Pocket形成部
+- 開口端(Upper Arm・Lower Armそれぞれの自由端)
+
+制御点の実際の座標・個数は`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`での
+追加実測を待つ(推測による座標入力は禁止、shoji指定)。
+
 | 候補 | 概要 | 長所 | 短所・リスク |
 |---|---|---|---|
 | A. Centerline Sweep(ExtrudeGeometry+extrudePath、単一の連続Curveに沿った断面
@@ -409,16 +492,18 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
 2. ~~`docs/Soft_Clip_Component_Tree_v1.0.md`(§8参照)で部品の個数・階層をあわせて
    確認する。~~ 完了(Component Tree v1.1、Connection=Anchor/Coordinate Definition
    としてConfirmed、Geometry責務列追加)。
-3. ~~shoji指定の手順②「Geometry方式の決定」に進み、`Soft_Clip_Geometry_Method_Decision_v1.0.md`
-   を作成する。~~ 完了(Shaft Lower/MiddleはDecided、Bridge・Band LoopはPending)。
-   **v1.4の形状訂正(C字リング→「つ」字状クリップ)はMethod Decision文書には未反映**
-   (shoji指定によりv1.4ではInterpretation修正のみ実施、②の再検討は行っていない)。
-   Method Decision文書のBand Loop比較(§3、Centerline/Plate deformation)は「C字」
-   前提の記述が残っているため、②を再訪する際に本v1.4の内容(§1.4クリップ機構、
-   4-2/4-3-1/4-3-2)を踏まえて改訂する必要がある。
-4. 4.A(4-2・4-3-1・4-3-2)の解消、および②Method Decisionの再訪を経て、③Soft Clip
-   Geometry Improvement Spec作成 → ④実装、の順で進める。
-5. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
+3. ~~shoji指定の手順②「Geometry方式の決定」に進む。~~ 完了(Method Decision v1.3、
+   4-4=Centerline Sweep採用)。v1.6の追加観察はshoji確認済みで「現在のCenterline
+   Sweep採用判断はこの『つ』字状一筆書き形状Interpretationと整合している」ため、
+   Method Decision文書の決定内容自体の再検討は不要(shoji明言)。
+4. ~~③Soft Clip Geometry Improvement Spec作成に進む。~~ 完了
+   (`Soft_Clip_Geometry_Improvement_Spec_v1.0.md`)。v1.6の追加観察を反映して
+   Confirmed/Pendingの記述を更新する(制御点数の柔軟化、Pocket最大幅/Arm間距離/
+   Pocket深さの分離、最大開口方向のEvidence B定性記録化)。**制御点座標・Mesh生成には
+   進まない**(shoji指定)。
+5. `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`もv1.6の観察(機能的
+   カテゴリベースの制御点、Pocket深さ追加等)にあわせて更新し、shoji記入待ち。
+6. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 7. 参照文書
 
@@ -426,8 +511,12 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
   提案A/B/Cの出典)
 - `docs/Soft_Clip_Component_Tree_v1.0.md`(§8、部品構成・階層の定義。Geometry方式決定
   前の前提として本文書と対で参照する)
-- `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(②Geometry方式決定。Shaft
-  Lower/MiddleはDecided、Bridge・Band LoopはPending。4-4を含む比較の枠組みを整理)
+- `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(②Geometry方式決定。4-4=
+  Centerline Sweep採用、v1.6のトポロジー精密化と整合済み)
+- `docs/Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(③、Confirmed/Pendingの分離。
+  v1.6反映後もPendingのまま維持される項目を管理)
+- `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`(追加実測依頼テンプレート、
+  §5-Aの機能的カテゴリに沿った制御点取得を依頼)
 - `docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md`(§8.0、Frenet frame破綻の経緯・
   過剰なCAD再現の反省点の出典)
 - `src/scenes/models/ProsthesisModels.tsx`(`SoftClipHead`:437、`SoftClipStem`:428、

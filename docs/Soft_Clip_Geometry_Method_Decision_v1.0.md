@@ -2,7 +2,15 @@
 
 **Status**: Draft(shoji確認待ち)。**コード変更は行っていない(方式の決定まで完了、
 Mesh分割の具体的パラメータ・実装コードは未着手)**。
-**Date**: 2026-07-30(v1.3更新)
+**Date**: 2026-07-30(v1.4更新)
+**v1.4での変更点(shoji確認、2026-07-30)**: Interpretation v1.6でBand Loop全体形状の
+トポロジーがさらに精密化された(「『つ』字状一筆書きCenterlineを持つ開放型弾性
+クリップ」、腕部分に約3回の主要カーブ、下側先端に返し曲げ形状)。shojiより**「現在の
+Centerline Sweep採用判断は、この『つ』字状一筆書き形状Interpretationと整合している」**
+と確認済みであり、**本文書の決定内容(4-4=Option A採用)自体の変更はない**。センター
+ラインの制御点は固定数(P0〜P3等)ではなく機能的カテゴリ(Shaft接続部・主要曲率変化点・
+Pocket形成部・開口端)で表現する方針をInterpretation v1.6 §5-Aで整理済み、本文書§3.3
+「Option A内の具体技法」もこの方針と整合する(修正不要)。
 **v1.3での変更点(shoji指摘、2026-07-30)**: Option Aの名称・技術的定義を精密化。
 旧v1.2までの「Centerlineベース」「ExtrudeGeometry+区分的直線パス」という表現が一般的な
 「Centerline Sweep」と意味がずれる可能性があるため、正式名称を**「Centerline Sweep」**
@@ -31,7 +39,7 @@ Arm/Central Pocket/Rear Flex Regionという論理的サブ構造、Mesh分割�
 受けないため変更なし。
 **位置づけ**: shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の
 決定 → ③Improvement Spec作成 → ④実装」の②にあたる。前提文書は
-`Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.5)・`Soft_Clip_Component_Tree_v1.0.md`
+`Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.6)・`Soft_Clip_Component_Tree_v1.0.md`
 (v1.2)。両文書の内容はshoji確認済みのため再掲しない(差分のみ扱う、Token Efficiency
 方針)。
 
@@ -272,7 +280,7 @@ Open Questions)
 
 ## 5. 参照文書
 
-- `docs/Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.5、①Interpretation。4.A/4.Bの
+- `docs/Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.6、①Interpretation。4.A/4.Bの
   カテゴリ区分・4-2/4-3-1/4-3-2/4-4・§1.4クリップ機構の出典)
 - `docs/Soft_Clip_Component_Tree_v1.0.md`(v1.2、Geometry責務[候補]列・Connection=
   Anchor/Coordinate Definition確定・§2.1論理的サブ構造の出典)
