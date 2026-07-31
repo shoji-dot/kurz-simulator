@@ -1,10 +1,15 @@
 # Soft Clip Geometry Interpretation v1.0
 
-**Status**: Draft(shoji確認・v1.1訂正済み)。**コード変更は行っていない(形状解釈のみ)**。
+**Status**: Draft(shoji確認・v1.2訂正済み)。**コード変更は行っていない(形状解釈のみ)**。
 shojiさんの訂正(2026-07-30)を反映しv1.1に更新: ①太いクロム円柱は撮影用治具ではなく
 Soft Clip本体の段付きシャフト(Confirmedへ変更、§4-1)。②Wing終端フィーチャー・
 ③曲げの性質はOpen Questionのまま維持(shoji指定)。
-**Date**: 2026-07-30(v1.1更新)
+v1.2追加修正(2026-07-30): Shaft Lower/Shaft Middleの径表記で「実寸」と「撮影スケール
+換算値」が混在していた点をshoji指摘により分離(§1.2参照)。**実寸径(20倍模型を直接
+実測した値、Evidence A+)は Shaft Lower 8.0mm / Shaft Middle 4.0mm。撮影スケール換算
+(20×、実測値÷20による算出値)は Shaft Lower 0.40mm / Shaft Middle 0.20mm**。以降、本文書
+では両者を必ず区別して表記する。
+**Date**: 2026-07-30(v1.2更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -17,8 +22,10 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
 
 1. shoji提供の**10方向画像**(真横・真上・前方/後方×左/右×上/下の斜め8方向)と**実測値**
    (Shaft下端・Shaft中腹・Band Loop断面)をすべて確認した。
-2. **確信度が高い(Confirmed)**: Soft Clipは**段付きシャフト**(Shaft Lower径0.40mm→
-   Shaft Middle径0.20mm)+**Bridge**(T字接合部)+**Band Loop**(1本の帯状部材、実寸
+2. **確信度が高い(Confirmed)**: Soft Clipは**段付きシャフト**(Shaft Lower実寸径8.0mm→
+   Shaft Middle実寸径4.0mm、いずれも20倍模型の直接実測値。撮影スケール換算[÷20]では
+   Shaft Lower 0.40mm→Shaft Middle 0.20mm、§1.2参照)+**Bridge**(T字接合部)+
+   **Band Loop**(1本の帯状部材、実寸
    長さ約6.0〜7.5mm・幅0.25mm・厚さ0.10mm、ねじりなし、長辺方向に8箇所で前後へ波打つ
    ように曲げられ全体でC字状を形成)という構成である(shoji訂正・実測により確定、
    §4-1参照。**v1.0で「撮影用治具」と誤認していた太いクロム円柱は、実際にはShaft
@@ -63,16 +70,28 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
 
 ### 1.2 実測値(20倍模型、shoji、2026-07-30受領、`Soft_Clip_Geometry_Audit_v1.0.md` §10.1と同一)
 
-| 部位 | 項目 | 20倍模型実測値 | 実寸換算(÷20) |
+**用語の分離(v1.2、shoji指摘)**: 以下の表の左列は20倍模型そのものを直接計測した
+「実寸」であり、右列はそこから20倍の撮影・模型スケールで割り戻して算出した「換算値」
+である。両者は性質が異なる(左=直接実測 Evidence A+、右=算出値)ため、本文書内では
+必ず列名を明記して区別する。「実寸換算」のような直接実測値と換算値を同じ語に混在させる
+表記は用いない。
+
+| 部位 | 項目 | 実寸径・実寸長(20倍模型を直接実測、Evidence A+) | 撮影スケール換算(20×、実測値÷20の算出値) |
 |---|---|---|---|
 | Shaft 下端(Band Loop接合側) | 長さ | 43.4 mm | 2.17 mm |
-| 〃 | 径 | 8 mm | 0.40 mm(半径0.20mm) |
+| 〃 | 径 | 8.0 mm | 0.40 mm(半径0.20mm) |
 | Shaft 中腹 | 長さ | 26.6 mm | 1.33 mm |
 | 〃 | 径 | 4.0 mm | 0.20 mm(半径0.10mm) |
 | Band Loop | 幅(断面長辺) | 5 mm | 0.25 mm |
 | Band Loop | 厚さ(断面短辺) | 2.0 mm | 0.10 mm |
 
 補足: 実物はShaft中腹の長さのみ8種類のラインナップがあり、Band Loop形状は共通(shoji確認済み)。
+
+**Geometry設計への注記**: アプリ内3DモデルはKURZ座標系上で実寸(臨床スケール、mm)を
+直接扱うため、Geometry実装で使用すべき数値は右列の「撮影スケール換算(20×)」値
+(Shaft Lower径0.40mm・Shaft Middle径0.20mm等)である。左列の「実寸径・実寸長」
+(8.0mm・4.0mm等)は20倍模型という物理サンプル自体の寸法であり、そのままGeometry
+実装に用いてはならない(次工程②Geometry方式決定・③Improvement Specで再度明記する)。
 
 ### 1.3 Band Loop全体形状の見立て(shoji、2026-07-30受領、Evidence B)
 
@@ -103,12 +122,19 @@ Band Loop(1本の連続した帯状部材、実寸長さ約6.0〜7.5mm、幅0.25
   ↓
 Bridge(T字接合部、Band LoopとShaftを接合する起点)
   ↓
-Shaft Middle(細径、実寸長さ1.33mm・径0.20mm、製品長により長さが変化する区間)
+Shaft Middle(細径、撮影スケール換算[20×]で長さ1.33mm・径0.20mm[半径0.10mm]、
+             実寸[20倍模型直接実測]は長さ26.6mm・径4.0mm。製品長により長さが変化する区間)
   ↓
-Shaft Lower(太径、実寸長さ2.17mm・径0.40mm、Band Loop接合側の呼称だがBridgeから見て
-             遠位側に位置する。v1.0で「撮影用治具」と誤認していたが、Soft Clip本体の
-             一部と訂正済み)
+Shaft Lower(太径、撮影スケール換算[20×]で長さ2.17mm・径0.40mm[半径0.20mm]、
+             実寸[20倍模型直接実測]は長さ43.4mm・径8.0mm。Band Loop接合側の呼称だが
+             Bridgeから見て遠位側に位置する。v1.0で「撮影用治具」と誤認していたが、
+             Soft Clip本体の一部と訂正済み)
 ```
+
+**寸法表記の注意(v1.2)**: 上記の「実寸長さ○○mm」という表記はv1.1まで撮影スケール
+換算後の値(0.40mm等)を指していたが、これは§1.2の用語整理により「撮影スケール換算
+(20×)」と呼ぶべき算出値であり、「実寸」ではない。20倍模型そのものの直接実測値
+(8.0mm等)と区別するため、v1.2以降は「撮影スケール換算[20×]」と明記する。
 
 **v1.0からの訂正点(重要)**: v1.0では写真に写る太いクロム円柱を「撮影・保持用の治具」
 として要確認事項にしていたが、shojiさんより「これはSoft Clip本体の一部であり、
