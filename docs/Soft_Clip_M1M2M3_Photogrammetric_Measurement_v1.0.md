@@ -1,6 +1,6 @@
 # Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.0）
 
-**Status**: **shoji判断済み(2026-07-31)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用、M2=Pending(正式採用せず)。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
+**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
 **Date**: 2026-07-31
 **Method**: 手動マーキングではなく、写真EvidenceからOpenCVによる幾何学的抽出（エッジ検出→直線フィット→交点計算）。M3は「Shaft外径左右端→中心軸算出」「Lower Arm構造中心線フィット」の2本の直線の交点として計算。
 
@@ -178,6 +178,45 @@ Upper Armは「約3回の主要カーブ」を描く、単純な直線→1箇所
 **次工程（提案、shoji判断待ち）**: 上記1〜3のどの組み合わせで進めるか
 （例: 案B(Top-down追加撮影) + 案3(Spline parameter化)を先に試す、等）を
 決定してから着手する。**Centerline Sweep実装はまだ開始しない**。
+
+---
+
+## Decision v1.3（shoji、2026-07-31）
+
+1. **追加撮影は案B(Top-down視点)を優先**。
+   **目的**: Lower Arm〜Hookの曲げ主平面を取得し、M2の3D曲率遷移理解に利用する。
+   **撮影条件**:
+   - 被写体とルーラーを同一平面に配置する（v1.0/v1.1で判明した奥行きズレによる
+     較正誤差を再発させないため）。
+   - Shaft軸方向から垂直視（真上からのTop-down、斜めのObliqueではない）。
+   - 定量解析可能な解像度（既存Right/Left.jpg相当以上を想定）。
+   → **撮影待ち**（次回shoji撮影後、本ファイルの解析パイプラインを再適用する）。
+
+2. **M2は固定座標点としての正式採用を行わない**。
+   **理由**: Right/Leftで2.1倍乖離し（v1.0参照）、既存Interpretation文書の
+   「複数主要カーブ」（約3回の主要カーブ、単純な直線→1箇所の鋭い曲げではない）
+   という記述と整合しないため。
+
+3. **M2をCenterline Sweep用Parameterとして再定義する方向で検討**（旧称→新称）:
+
+   | 旧 | 新案 |
+   |---|---|
+   | Hook-like Bend Start Point（固定座標点） | **Hook Transition Profile**（遷移領域のParameter群） |
+
+   検討項目（v1.2の「Spline transition parameter」案を具体化）:
+   - **Transition length**: 直線区間からHook形状へ移行する区間の長さ
+     （Right/Leftそれぞれで観測された「見かけの直線区間長」2.99mm/7.68mmを、
+     視点依存性を踏まえてどう統合するかが論点）。
+   - **Curvature profile**: 遷移区間内での曲率の変化のしかた（一定曲率の円弧
+     近似か、なだらかに増加するプロファイルか）。
+   - **Terminal approach angle**: Hook-like terminal（既にEvidence A確定済み、
+     Terminal Length約2.40mm）へ接続する際の角度。
+   - **注**: これは名称・方針の検討であり、上記3項目の具体的な値決定はまだ
+     行っていない。Top-down撮影のEvidenceを得てから着手する。
+
+4. **M1/M3のDefinitionは現状維持**（v1.0〜v1.1のまま変更なし）。
+
+**Centerline Sweep実装はまだ開始しない。**
 
 ---
 
