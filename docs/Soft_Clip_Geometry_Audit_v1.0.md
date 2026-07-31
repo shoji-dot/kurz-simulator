@@ -1,8 +1,11 @@
 # Soft Clip Geometry Audit v1.0
 
-**Status**: Audit確認済み(shoji、2026-07-30)、**提案A採用・G3-3 Phase 1実装完了**
-(§10参照)。Phase 2(SoftClipHead形状改善)はEvidence取得待ちで保留。
-**Date**: 2026-07-30
+**Status**: **G3-3 Phase 1 Completed & Clinical Visual Validation PASSED**(shoji確認、
+2026-07-30、case-010/014/015、§9.2参照)。**Phase 2は明示的にOn Hold**(shoji指定)。
+Phase 2着手に必要なEvidence(横/上方向実画像・Wing曲率画像・全体寸法・PistonFoot寸法)の
+うち、Shaft(下端/中腹)・Band Loop断面の実測値を2026-07-30に受領し§11に記録した
+(**Geometry方式・実装への反映はまだ行っていない**)。
+**Date**: 2026-07-30(最終更新)
 **位置づけ**: `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md` Phase G3-3(Soft Clip改善、
 FlatFoot(G3-2、Completed & Clinical Visual Validation PASSED)の次)。既存の
 `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)が既にSoft Clipの一部(Head Center/Contact
@@ -229,24 +232,96 @@ BELL(2026-07-23)・FLAT(v7、本日)と完全に同一のパターン。
 | Review | ✓(`git diff`でdiff scopeが`PistonFoot()`+`ProsthesisModel()`シャフト計算
   ブロックのみに限定されていることを確認。SoftClipHead系・Anchor/Pose/Safety関連コードへの
   変更が0行であることを確認) |
-| Clinical Validation | GUI目視確認(case-010/014/015)は**shoji確認待ち** |
+| Clinical Validation | **✓ PASSED**(shoji、2026-07-30、GUI case-010/014/015確認。
+  **G3-3 Phase 1はこれをもってクローズ**) |
 
-### 9.3 Phase 2(保留)
+### 9.3 Phase 2の位置づけ(明示的にOn Hold)
 
-以下のEvidence取得後に再評価する(shoji指定):
-- 横方向実画像(ASCIIアートの元画像)
+**shoji方針(2026-07-30)**: Phase 2(SoftClipHead形状改善)は現時点では実装を開始しない。
+理由: Soft Clip本体の形状についてEvidenceがまだ揃っていない。FlatFootでは推測による
+形状解釈の違いで複数回の手戻り(v1〜v7)が発生しており、同じ轍を避けるためEvidenceを
+優先する。
+
+Phase 2開始条件(shoji指定、すべて揃うまで着手しない):
+- 横方向実画像
 - 上方向実画像
 - Wing曲率が確認できる画像
 - 全体寸法
 - PistonFoot寸法
 
-Evidence取得後、`Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(FlatFootの
-`FlatFoot_Geometry_Improvement_Spec_v1.0.md`と同型)を作成し、必要であればGeometry方式
-変更を検討する。矩形断面の忠実再現(提案B)は、Soft Clipが「ワイヤー+板+曲線」で構成される
-特性上、角が立ち工業部品的に見えるリスクがあるためshoji自身も現時点では非推奨と判断して
-いる(§6参照)。現行のTubeGeometry方式は教育用Visual Geometryとして合理的な暫定解と評価。
+条件が揃った時点で、①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
+③Soft Clip Geometry Improvement Spec作成 → ④実装、の順で進める(shoji指定の手順)。
+**現段階ではGeometry方式を推測して変更しない**。2026-07-30時点で条件の一部
+(Shaft/Band Loop寸法)を受領したが、画像Evidence(横/上/Wing曲率)は未受領のため
+Phase 2は引き続きOn Hold(§11参照)。
 
-## 10. 参照文書
+矩形断面の忠実再現(提案B)は、Soft Clipが「ワイヤー+板+曲線」で構成される特性上、角が
+立ち工業部品的に見えるリスクがあるためshoji自身も現時点では非推奨と判断している(§6参照)。
+現行のTubeGeometry方式は教育用Visual Geometryとして合理的な暫定解と評価されている。
+
+## 10. Phase 2 Evidence追加受領(2026-07-30、Geometry変更なし)
+
+**重要な形状認識の訂正(shoji、2026-07-30)**: 本Audit(§2)ではSoft Clip Headを
+「ワイヤー状の自由曲線」(TubeGeometryでの近似)として記述したが、shojiさんの実物認識は
+異なる。「Soft Clipは『曲がったワイヤー』ではなく、シャフト先端に接合されたバー状部材が
+複数箇所で曲げ加工され、大まかな外観として"C字状"を形成している部品」との訂正があった。
+現行コードのTubeGeometry(CatmullRomCurve3による滑らかな連続曲線)は、実物の「複数箇所で
+折り曲げられた棒状部材」という構造とは形状解釈が異なる可能性がある。**ただしこの説明のみ
+では形状を正確に再現するには不十分であり、画像Evidence(横/上/Wing曲率)を待ってから
+Geometry Interpretationを確定する(shoji指定)**。本項目はPhase 2着手時の重要な出発点
+として記録するのみで、現時点でのコード変更は行わない。
+
+### 10.1 実測値(20倍模型、shoji、2026-07-30受領)
+
+| 部位 | 項目 | 20倍模型実測値 | 実寸換算(÷20) |
+|---|---|---|---|
+| Shaft 下端(Band Loop接合側) | 長さ | 43.4 mm | 2.17 mm |
+| 〃 | 径 | 8 mm | 0.40 mm(半径0.20mm) |
+| Shaft 中腹 | 長さ | 26.6 mm | 1.33 mm |
+| 〃 | 径 | 4.0 mm | 0.20 mm(半径0.10mm) |
+| Band Loop | 幅(断面長辺) | 5 mm | 0.25 mm |
+| Band Loop | 厚さ(断面短辺) | 2.0 mm | 0.10 mm |
+
+補足(shoji): 中腹部分は実物8種類の長さラインナップに対応して5mm刻み(20x)=0.25mm刻み
+(実寸)で変化する(`products.ts`の`soft-clip-stapes.shaftLengths`の刻み幅0.25mmと整合)。
+Band Loopは円形ワイヤーではなく矩形(またはそれに近い帯状)断面として扱う前提、との
+明示的な指定あり。
+
+### 10.2 現行コードとの数値比較(新規発見、対応は未着手)
+
+| 部位 | 現行コード値 | 新Evidence(実寸) | 乖離 |
+|---|---|---|---|
+| Shaft(PISTON時、全長一律) | 半径0.20mm(直径0.40mm)、`ProsthesisModel()`
+  `r = product.type === 'PISTON' ? 0.20 : 0.10`(全長共通) | 中腹(主要部分、製品長で
+  変化する区間): 直径0.20mm(半径0.10mm) | **現行コードは中腹部の実測値の2倍の太さ**。
+  下端(Band Loop接合側、長さ2.17mm)のみ直径0.40mmで現行値と一致する可能性 |
+| SoftClipStem(`CLIP_STEM_H`等) | `cylinderGeometry(0.06, 0.07, 0.20)`(半径0.06-0.07mm、
+  高さ0.20mm) | Shaft下端(Band Loop接合側)相当: 長さ2.17mm・半径0.20mm | 対応関係・
+  数値とも要再整理(SoftClipStemが「Shaft下端」に相当するか、シャフト本体側の描画区間が
+  相当するかは未確定) |
+| Band Loop(Wing/Bridgeのワイヤー半径) | `CLIP_WIRE_R = 0.10`(円形近似、半径0.10mm→
+  直径0.20mm相当) | 幅0.25mm(長辺)・厚さ0.10mm(短辺)の矩形断面 | 円形近似の直径
+  (0.20mm)は矩形の短辺(厚さ0.10mm)の2倍、長辺(0.25mm)とはさらに乖離。円形近似の
+  半径をどちらの辺に合わせるべきかも含めPhase 2で再検討 |
+
+**評価**: 現行コードの寸法とPISTON/SoftClipStemまわりの実測値には無視できない乖離が
+複数箇所で新たに判明した。ただし①シャフトの区間分け(下端/中腹)とコード内のどの変数が
+対応するかの整理②Band Loopの断面表現方針(矩形かTubeGeometry近似の継続か)は、
+画像Evidence(§9.3の未受領項目)による形状確定が先決であり、**寸法の数値だけを先行して
+コードへ反映することはしない**(shoji指示: 「まだGeometry変更は行わず、Evidenceのみ
+更新してください」)。
+
+### 10.3 画像Evidence(shoji提供、2026-07-30)
+
+横方向・複数角度からの実物写真(20倍模型)を受領した。Band Loop状の閉じたループが複数
+(両側)存在すること、シャフト上端で棒状部材が分岐し複数箇所で折れ曲がった形状になって
+いることが視覚的に確認できるが、**曲線の正確な経路・分岐順序・个々のセグメント長といった
+定量的な形状情報は、この段階では確定的に読み取らない**(過去の教訓「写真からの3D姿勢推定
+でも外形の見え方だけで法線を断定しない」、[[feedback]]参照)。正式なGeometry Interpretation
+は、shoji指定の手順(①Interpretation→②方式決定→③Spec作成→④実装)の①で、上方向画像・
+Wing曲率画像とあわせて確定する。
+
+## 11. 参照文書
 
 - `docs/Prosthesis_Geometry_Audit_Plan_v1.0.md`(Phase G1-G3全体位置づけ)
 - `docs/TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3、Head Center/Contact Landmark確認の前提)

@@ -3,12 +3,16 @@
 **Status**: Phase G1/G2 Completed(shoji確認 2026-07-30)。Phase G3はFlatFoot(TORP)が
 **Completed & Clinical Visual Validation PASSED**(v7、shoji確認2026-07-30、
 `FlatFoot_Geometry_Improvement_Spec_v1.0.md` §8.4。壁厚精度はHigh Precision Geometry Phase
-送りのKnown Limitationとして明示)。Soft Clipは**Geometry Audit着手**(実装はまだ未着手)、
+送りのKnown Limitationとして明示)。Soft Clipは**G3-3 Phase 1(PistonFoot collar/shaft重複
+解消) Completed & Clinical Visual Validation PASSED**(shoji確認2026-07-30、
+`Soft_Clip_Geometry_Audit_v1.0.md` §9)、**Phase 2(SoftClipHead形状改善)はEvidence不足の
+ためshoji指定でOn Hold**(横/上方向実画像・Wing曲率画像・全体寸法・PistonFoot寸法が
+Phase 2開始条件。Shaft/Band Loop寸法は受領済み、画像Evidenceは未受領、§10参照)。
 PORP Bell微調整は未着手。詳細成果物は`Prosthesis_Reference_Landmark_Definition_v1.0.md`
 (G1-1/G1-2)、`TORP_SoftClip_Geometry_Audit_v1.0.md`(G1-3)、
 `Prosthesis_Reference_Geometry_Definition_v1.0.md`(G2、G2-Review含む)、
 `FlatFoot_Geometry_Improvement_Spec_v1.0.md`(G3-1/G3-2、Completed)、
-`Soft_Clip_Geometry_Audit_v1.0.md`(G3-3 Audit)を参照。
+`Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On Hold)を参照。
 **Date**: 2026-07-30
 **位置づけ**: `docs/P4_Transition_Deferred_Management_Plan_v1.0.md` Priority1(プロステーシス
 モデル品質向上)のPhase G1。PORP/TORP/Soft ClipのGeometry実装を評価項目ごとに監査し、
@@ -88,8 +92,11 @@ Phase G1/G2の結果を踏まえ、PORP→TORP→Soft Clipの順で個別に改�
 Clinical Visual Validation PASSED(`FlatFoot_Geometry_Improvement_Spec_v1.0.md` §8.4)。壁厚
 精度はKnown LimitationとしてHigh Precision Geometry Phase送り。
 
-**G3-3(Soft Clip) Audit着手(2026-07-30)**: 実装前にGeometry Audit(コード調査のみ、変更なし)を
-実施。詳細は`Soft_Clip_Geometry_Audit_v1.0.md`。
+**G3-3(Soft Clip) Phase 1 Completed(2026-07-30)**: Geometry Audit(コード調査のみ)で
+PistonFoot collar/shaft座標重複を新規発見。shoji方針(提案A採用)によりPhase 1(重複バグ
+除去のみ)を実装、Clinical Visual Validation PASSED(case-010/014/015)。**Phase 2
+(SoftClipHead形状改善)はEvidence不足のためOn Hold**(shoji指定、詳細は
+`Soft_Clip_Geometry_Audit_v1.0.md` §9.3/§10)。
 
 ## 5. 除外事項(今回着手しないもの、明記)
 
