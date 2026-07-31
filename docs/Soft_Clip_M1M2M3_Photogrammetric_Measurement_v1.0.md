@@ -252,6 +252,107 @@ SHOT A(方位角90°回転)には該当しない。
 
 ---
 
+## v1.5 Update: Azimuth Ring追加撮影4枚の整理（Geometry Evidence整理のみ、2026-07-31）
+
+**前提の訂正**: 今回の4枚は「Top-down(真上視点)」ではなく、**Soft Clip本体をルーラーと
+同一平面上に寝かせ、被写体を回転させずカメラをShaft軸まわりに約45°刻みで移動**させた
+撮影(Azimuth Ring)。以前v1.3で決定した「Top-down追加撮影」とは別の取得方法である
+（本セクションはこのAzimuth Ring 4枚の整理、Top-downの要否は下記v1.5結論参照）。
+
+### 1. 既存Right.jpg/Left.jpgとの対応関係
+
+Right.jpg(直立撮影・Azimuth基準0°)/Left.jpg(直立撮影・Azimuth基準180°)とは、
+**被写体の置き方(直立 vs 寝かせ)が異なるため撮影セットアップ自体は別物**。
+ただし被写体は同一個体であり、Shaft軸まわりの回転角という意味では同一の連続的な
+座標系として扱える(Shaft軸を回転軸とする点は共通)。
+
+### 2. 方位角の判定
+
+ファイル名(`SoftClip_Azimuth_Right45/Right135/Left45/Left135`)は撮影時のshoji整理
+ラベルであり、命名規則から以下の対応が最も整合的と判断した:
+
+| 撮影ファイル名 | 対応Azimuth(判定) | 判断根拠 |
+|---|---:|---|
+| SoftClip_Azimuth_Right45.jpg.jpg | **45°** | "Right(0°)から45°"という命名と、Right.jpgに近い(ただしHook-like terminalが遮蔽されて見えないなど明確な差もある)シルエット傾向から整合 |
+| SoftClip_Azimuth_Right135.jpg | **135°** | "Right(0°)から135°"、Hook-like terminalが明瞭に見え始める |
+| SoftClip_Azimuth_Left45.jpg | **225°**(=180°+45°) | "Left(180°)から45°"はRight45(45°)との重複を避けるため180°を跨いだ側と判断 |
+| SoftClip_Azimuth_Left135.jpg | **315°**(=180°+135°) | 同上、Left135はLeft45よりさらに0°/360°側へ回転した位置 |
+
+**確信度: Medium**。0°→45°→135°→180°→225°→315°→(360°=0°)という並びで、Hook-like
+terminalの遮蔽/可視のパターンがなだらかに変化しており(下記参照)、大きな矛盾はない。
+ただし正確な角度値(45°刻みが本当に等間隔だったか)はshoji撮影時の位置決めに依存し、
+写真のみからの独立検証はできていない(**確認済みなのは相対的な並び順のみ**)。
+
+**ファイル名の提案(採用)**:
+- `SoftClip_Azimuth_045.jpg`(旧Right45)
+- `SoftClip_Azimuth_135.jpg`(旧Right135)
+- `SoftClip_Azimuth_225.jpg`(旧Left45)
+- `SoftClip_Azimuth_315.jpg`(旧Left135)
+
+`docs/assets/soft-clip-m1m2m3/azimuth-ring/`に上記名称でコピー済み。
+
+### 3. 評価項目A/B/C
+
+**重要な観察: Hook-like terminalの可視性がAzimuthによって変化する（自己遮蔽）**。
+これはM2/Transition理解にとって新規かつ重要な情報。
+
+| Azimuth | Hook-like terminal | 備考 |
+|---|---|---|
+| 0°(Right.jpg) | 可視 | 直立撮影 |
+| **45°** | **不可視(Upper Arm/ループ構造に隠れる)** | `azimuth045_pocket_zoom_hook_occluded.png`参照。この角度から見えるのはUpper Arm自由端(単純な丸め形状、Hookなし)のみ |
+| **135°** | **明瞭に可視** | `azimuth135_hook_visible_zoom.png`参照、J字型のHook形状がはっきり確認できる |
+| 180°(Left.jpg) | 可視 | 直立撮影 |
+| 225° | 可視 | |
+| 315° | 可視 | |
+
+**A. Lower Arm→Hook terminalの3D曲率方向**: **135°/225°/315°(Hookが可視な角度)で
+観察可能**。これらの視点でHookは一貫して「Shaft/Pocket側へ巻き込むように」湾曲しており、
+定性的な巻き方向は3視点で矛盾しない。ただし曲げ平面の正確な法線方向(定量値)は、
+本解析(較正未確認)からは求めていない。**45°でHookが遮蔽される**という事実は、
+Hookが Upper Arm/ループ構造の「陰」に入る3D配置であることを示す新しい間接証拠。
+
+**B. Transition region**: 各Azimuthでの直線→Hook遷移の見かけ位置は、Right/Left
+(0°/180°)間で既に2.1倍の乖離が確認済み(v1.0)。今回の4枚についても同様の視点
+依存的なシフトが予想されるが、**本セクションでは較正・px計測は行っていない**
+(目的はGeometry Evidence整理、Centerline Sweep実装や数値確定はまだ行わない
+というshoji指示のため)。定性的には、Hookが可視な135°/225°/315°の3枚を比較する
+ことで、視点依存性の傾向をより詳しく把握できる可能性がある(次工程候補)。
+
+**C. Terminal approach angle**: **135°/225°/315°で良好に観察可能**。3視点とも
+Hook終端の巻き込み方向・開口方向は定性的に一致しており(Shaft/Pocket側を向く)、
+Right_Oblique/Left_Obliqueで得た所見(v1.0 Unresolved item3相当)と整合的。
+
+### v1.5 結論（3つの判断事項）
+
+**1. 今回4枚によりTop-down追加撮影は不要になるか**: **不要にはならない、ただし
+優先度は下がる**。今回のAzimuth Ring 4枚はいずれも「机上に寝かせた状態を横から
+見る」撮影であり、被写体の**上面**を見る視点(v1.3で意図したTop-down相当)は
+まだ得られていない。一方、Azimuth Ring自体は0°/45°/135°/180°/225°/315°の6方位
+まで揃い、**90°/270°(Hookの湾曲平面に最も正対すると予想される方位)のみが
+欠落**している。**費用対効果としては、Top-downより先に90°/270°の追加撮影の
+方が優先度が高いと判断する**(Ring方式を継続する方が撮影セットアップの
+一貫性が保てるため)。Top-downは依然として補完的に有用(上面からしか見えない
+情報があるため)だが、必須のブロッカーではなくなった。
+
+**2. 6方位ViewでCenterline Sweep用Transition Profileを設計可能か**: **定性的
+設計(形状の全体像・Hookの巻き方向・遮蔽パターン)には十分**。**定量的パラメータ
+(Transition length・Curvature profileの数値・Terminal approach angleの角度値)
+の確定には、まだ不十分**——理由: ①今回4枚の較正(ルーラーと被写体の同一平面性)
+は撮影条件として申告されているが、v1.0/v1.1で判明した奥行きズレの再発有無を
+まだ検証していない、②本セクションではM1/M3で行ったような直線フィット・交点
+計算をこの4枚に適用していない(Evidence整理のみに留めるというshoji指示のため)。
+
+**3. 追加で必要なEvidence**:
+- **90°/270°のAzimuth Ring撮影**(最優先候補、Hookの湾曲平面に正対すると
+  期待される角度)。
+- 較正検証: 今回4枚でルーラー目盛間隔の較正値を算出し、Right/Left(15.09/15.34
+  px/mm)と比較整合するか確認(Neck径既知値4.0mmとの整合確認も含めうる)。
+- (補完・低優先)Top-down 1枚: 上面情報の取得。
+
+**Centerline Sweep実装はまだ開始しない。**
+
+---
+
 ## Image Evidence
 
 **Used images（定量測定に使用）**:
