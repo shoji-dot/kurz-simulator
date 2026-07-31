@@ -507,8 +507,10 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
 
 **確認依頼**: Lower Armの根元(Pocket形成部側の起点)から数えて、Shaftが接続する
 位置はどのあたりか(実測距離、またはLower Arm全長に対するおおよその比率)。返し曲げ
-終端(自由端)との位置関係もあわせて確認したい。詳細な依頼内容は
-`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aを参照。
+終端(自由端)との位置関係もあわせて確認したい。詳細な依頼内容(M1〜M3のマーキング、
+M3=「Shaft中心軸[外径左右端から算出]とLower Arm構造中心線の幾何学的交点」という
+定義を含む)は`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`(v1.4)§1-1-Aを
+参照。
 
 **Geometry設計への影響(参考、④実装では未反映)**: 本項目が未解消の間は、§5-Aの
 制御点カテゴリのうち「Shaft接続部」を、Lower Armの端点として単純に扱ってよいのか、

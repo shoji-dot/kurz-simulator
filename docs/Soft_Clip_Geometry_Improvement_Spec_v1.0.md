@@ -71,7 +71,10 @@ Centerline Sweep実装(④)に向けて、現時点でのEvidence充足状況を
    終端・Shaft中心接続位置の位置関係(§2.1参照)。写真からShaftはLower Arm根元では
    なく途中位置に接続しているため、Centerline Sweep**開始点**の決定に影響する。
    推奨マーキング3点(M1 Lower ArmのCenterline開始点/M2 Hook-like曲げ開始点/
-   M3 Shaft中心軸との交点)による測定を依頼済み(Measurement Record v1.3 §1-1-A)。
+   M3 Shaft中心軸との交点)による測定を依頼済み(Measurement Record v1.4 §1-1-A)。
+   **M3は見た目の接触点ではなく「Shaft中心軸(外径左右端から算出)とLower Arm構造
+   中心線の幾何学的交点」として定義**(shoji明確化2026-07-31、Measurement Record
+   v1.4参照)。
 2. **Centerline制御点定義**: Measurementではなく設計パラメータとして、Centerline
    開始点・Arm方向・Pocket形成部の曲率制御点・Hook-like terminalへの遷移点を定義する
    必要がある。**これは次のステップ(Centerline Parameter Definition)で扱う内容で
