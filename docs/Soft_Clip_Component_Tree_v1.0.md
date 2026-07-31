@@ -1,8 +1,14 @@
-# Soft Clip Component Tree v1.1
+# Soft Clip Component Tree v1.2
 
-**Status**: Draft(shoji確認・v1.1反映済み)。**コード変更は行っていない(部品構成の定義
+**Status**: Draft(shoji確認・v1.2反映済み)。**コード変更は行っていない(部品構成の定義
 とGeometry責務候補の整理のみ、Geometry方式そのものは未決定)**。
-**Date**: 2026-07-30(v1.1更新)
+**Date**: 2026-07-30(v1.2更新)
+**v1.2での変更点(shoji指示、2026-07-30)**:
+Band Loopの内部に、**Geometry実装用のMesh分割を意味しない、形状理解・機能理解のための
+論理的サブ構造**を追加(新設§2.1)。Upper Arm / Lower Arm / Central Pocket / Rear Flex
+Regionの4区分。Interpretation v1.4のクリップ機構(§1.4)を踏まえ、どの部分が保持機能を
+担うか・どの部分が弾性変形するか・Geometry方式決定時にどの領域を別扱いする可能性が
+あるかを整理する目的。Mesh分割方式・実装方法の確定は本改訂の対象外(shoji指定)。
 **v1.1での変更点(shoji指示、2026-07-30)**:
 1. §3 Connectionの扱いを確定: 独立したMesh Componentとして列挙しない方針をshojiが承認。
    Connectionは今後Anchor / Coordinate Definitionとして扱う(Open Questionから
@@ -33,14 +39,22 @@ Soft Clip
      クリップ形状(2026-07-30訂正、[[Soft_Clip_Geometry_Interpretation_v1.0]] v1.4
      §1.3・§1.4参照)。
      │
-     ├─ 終端フィーチャー A  [Open] 種別未確定(ループ/フック/突起)
-     ├─ 終端フィーチャー B  [Open] 種別未確定(ループ/フック/突起)
-     └─ (中間フィーチャー?) [Open] 経路途中に追加の突起等があるかも未確定
+     ├─ [Mesh分割の観点、Open] 終端フィーチャー A  種別未確定(ループ/フック/突起)
+     ├─ [Mesh分割の観点、Open] 終端フィーチャー B  種別未確定(ループ/フック/突起)
+     ├─ [Mesh分割の観点、Open] (中間フィーチャー?) 経路途中に追加の突起等があるかも未確定
+     │
+     └─ [論理的サブ構造、v1.2新設、詳細は§2.1] Mesh分割ではなく機能理解のための区分
+          ├─ Upper Arm          開口部の上側の腕
+          ├─ Lower Arm          開口部の下側の腕
+          ├─ Central Pocket     Upper/Lower Armに囲まれた中央の窪み(長脚の収納空間)
+          └─ Rear Flex Region   後方の弯曲部(SOFTCLIPフック接触点)
 ```
 
 **部品点数(現時点の回答)**: 大分類では**4部品**(Shaft Lower / Shaft Middle / Bridge /
 Band Loop)がConfirmed。ただしBand Loop内部の終端フィーチャー数(2個か3個か)は
 Open Questionのため、Geometry上の最終的なメッシュ分割数はこれに依存し確定していない。
+なお、上記の論理的サブ構造(Upper Arm等)はこの「終端フィーチャー」のOpen Questionとは
+別軸の整理であり、Mesh分割数を先取りして決定するものではない(§2.1参照)。
 
 ## 2. 各部品の定義(現時点でConfirmedな範囲)
 
@@ -69,6 +83,28 @@ Open Questionのため、Geometry上の最終的なメッシュ分割数はこ�
 属するか」という分類の整理であり、具体的な実装方式(three.jsのどのGeometryクラスを
 使うか、断面をどうスイープするか等)を決定するものではない。方式決定は次ステップ②
 (`Soft_Clip_Geometry_Interpretation_v1.0.md` §5の候補A/B/C)で改めて行う。
+
+## 2.1 Band Loopの論理的サブ構造(v1.2新設、Mesh分割ではない)
+
+**目的(shoji指示、2026-07-30)**: Band Loopは§1・§2ではConfirmedな1部品として扱って
+いるが、Geometry実装用のMesh分割を先取りするのではなく、**形状理解・機能理解のための
+論理的サブ構造**として以下の4区分を導入する。目的は(a)どの部分が保持機能を担うか、
+(b)どの部分が弾性変形するか、(c)Geometry方式決定時にどの領域を別扱いする可能性が
+あるか、を明確にすること。**本節はMesh分割方式・実装方法を確定するものではない**
+(shoji指定)。
+
+| 論理区分 | 機能理解(Interpretation v1.4 §1.4クリップ機構との対応) | 状態 | 関連Open Question |
+|---|---|---|---|
+| Upper Arm | 「つ」の開口部の上側の腕。静止時に中央へすぼまり保持力の一部を担う。shojiの説明では「上部が弾性変形して広がる」とされており、Rear Flex Regionと連続する領域である可能性がある | Confirmed(機能区分として存在)、正確な範囲・先端形状はOpen | 先端形状は4-2、弾性変形の有無・範囲は4-3-2 |
+| Lower Arm | 「つ」の開口部の下側の腕。静止時に中央へすぼまり保持力の一部を担う。shojiの説明は「上部」の弾性変形に言及しているため、Lower Armは相対的に剛性が高い(変形しない)側である可能性があるが未確認 | Confirmed(機能区分として存在)、正確な範囲・先端形状・弾性変形の有無はOpen | 先端形状は4-2、弾性変形の有無は4-3-2(Upper/Lower間で非対称かどうかも含め未確認) |
+| Central Pocket | Upper Arm・Lower Armに囲まれた中央の窪み。キヌタ骨長脚が収納される空間そのものであり、Band Loopの物理的な帯の一部というより、帯に囲まれた領域(座標・空間)として理解する方が近い | Confirmed(機能的空間として存在)、正確な形状・寸法はOpen | 直接対応するOpen Questionはないが、将来Anchor/Coordinate Definitionの対象になりうる([[Prosthesis_Reference_Geometry_Definition_v1.0]]と同様の扱い、§3参照) |
+| Rear Flex Region | 「つ」の後方にある弯曲部。SOFTCLIPフックが接触し、前方へ押されることで力が伝達される起点 | Confirmed(機能区分として存在)、正確な曲率・弾性変形領域との境界はOpen | 正確な曲率は4-3-1、弾性変形領域の境界は4-3-2 |
+
+**注記**: 上記4区分は`SoftClipBridge()`/`SoftClipWing({side:1})`/`SoftClipWing({side:-1})`
+という現行コードの3mesh構成(§4参照)とは意図的に対応付けていない。現行コードのmesh
+境界と、Interpretation由来の機能境界(Upper Arm/Lower Arm/Central Pocket/Rear Flex
+Region)が一致するかどうかは、②Geometry方式決定・③Improvement Specの段階で改めて
+検討する。
 
 ## 3. Connection(接続点)の扱いについて — **Confirmed(shoji承認、2026-07-30)**
 
@@ -124,7 +160,14 @@ Geometry方式決定、または③Improvement Spec)で座標系として扱う�
    進む。~~ `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`作成済み。Shaft
    Lower/Middleは責務通りCylinderでDecided、Bridge・Band LoopはEvidence不足・4-4
    (Centerline vs Plate deformation)未決定のためPending。
-4. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
+4. ~~Band Loopの論理的サブ構造(Upper Arm/Lower Arm/Central Pocket/Rear Flex Region)を
+   追加する。~~ 完了(v1.2、§2.1)。shoji承認済み。Mesh分割方式・実装方法の確定は
+   引き続き未着手。
+5. 本文書の更新(v1.2)を踏まえ、`docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`の
+   Band Loopに関する検討(§3)を、Interpretation v1.4のクリップ機構および本文書§2.1の
+   論理的サブ構造を反映して更新する。ただしMesh分割方式・実装方法自体は確定しない
+   (shoji指定)。
+6. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 6. 参照文書
 
