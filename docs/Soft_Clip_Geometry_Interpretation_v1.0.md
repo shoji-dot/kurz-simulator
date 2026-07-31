@@ -63,7 +63,13 @@ ShaftがLower Arm根元でなく途中位置に接続しているように見え
 開始点の決定に直接影響する。**本v1.7も実測値の反映・形状分類の確定までであり、制御点
 座標・Mesh生成には進まない**(shoji指定、`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`
 での追加実測待ち)。
-**Date**: 2026-07-31(v1.7更新)
+v1.8追加修正(2026-07-31、shoji確認): §1.5のPocket Geometryに正式な英語表現
+**"Funnel-like internal expanded pocket geometry"**を採用。Pocket Maximum Widthと
+Arm Gapは引き続き別Parameterとして維持することを再確認。あわせて
+`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-A(Shaft接続位置)を、
+shoji提案によりマーキング3点(M1 Lower ArmのCenterline開始点/M2 Hook-like曲げ開始点/
+M3 Shaft中心軸との交点)として再整理(v1.3、本文書へは直接反映しない差分)。
+**Date**: 2026-07-31(v1.8更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -287,6 +293,11 @@ Band Loopは単なる静的な装飾形状ではなく、(a)開口部・中央�
 という**ファンネル状(内部拡大型)**のGeometryとして扱う。§1.4「開口部が狭く、
 長脚が容易には入らない構造」というクリップ機構の説明、および§1.3-A「Pocket形成部」
 という区分と整合する(「凹み空間」というInterpretationと一致)。
+
+**正式なInterpretation表現(v1.8、shoji確認2026-07-31)**: **"Funnel-like internal
+expanded pocket geometry"**を正式な英語表現として採用する。Pocket Maximum Width
+とArm Gapは(§1.3-Aの「つ」字状一筆書きCenterline表現と同様に)引き続き**別
+Parameterとして維持**する(混同・単一パラメータへの統合は行わない)。
 
 **Pocket Depth Definition(固定)**: 後から同じ測定が再現可能となるよう、以下に定義を
 固定する。

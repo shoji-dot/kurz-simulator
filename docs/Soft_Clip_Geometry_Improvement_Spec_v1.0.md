@@ -2,7 +2,7 @@
 
 **Status**: Draft(shoji確認待ち)。**Confirmed事項の整理のみ、コード変更・制御点配置・
 Mesh実装は行っていない**(shoji指定)。
-**Date**: 2026-07-31(v1.2更新)
+**Date**: 2026-07-31(v1.3更新)
 **v1.2での変更点(shoji実測値受領、2026-07-31)**: Pocket Maximum Width(1.40mm)・
 Arm Gap/Opening(0.75mm)・Pocket Depth(3.30mm)・Terminal Shape(Hook-like)・
 Terminal Length(約2.40mm)がEvidence A/A+として確定(Interpretation v1.7 §1.5・
@@ -16,9 +16,17 @@ Centerline Parameter Definition(制御点の具体的な座標定義)・Mesh実�
 (shoji指定の作業フロー「Measurement Record → Centerline Parameter Definition →
 Improvement Spec最終版 → Centerline Sweep実装」のうち、本文書は最初のステップの
 反映にとどまる)。
+v1.3での変更点(shoji確認・提案、2026-07-31): §1.4のPocket Geometryに正式英語表現
+**"Funnel-like internal expanded pocket geometry"**を追加。§0で言及する残存
+Blockerの測定方法を、shoji提案のマーキング3点(M1 Lower ArmのCenterline開始点/
+M2 Hook-like曲げ開始点/M3 Shaft中心軸との交点、詳細はMeasurement Record v1.3
+§1-1-A参照)で更新予定であることを明記。**実装不能な曖昧さがShaft接続位置1点に
+収束した**ことをshojiが確認(この止め方が正しいという評価を受領。基準点がずれると
+後から全Geometryを作り直すリスクがあるSoft Clipにおいて、Mesh先行実装を避けた判断
+が有効だったと整理)。
 **位置づけ**: shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の
 決定 → ③Improvement Spec作成 → ④実装」の③にあたる。前提文書は
-`Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.7)・`Soft_Clip_Component_Tree_v1.0.md`
+`Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.8)・`Soft_Clip_Component_Tree_v1.0.md`
 (v1.2)・`Soft_Clip_Geometry_Method_Decision_v1.0.md`(v1.4)。三文書の内容はshoji確認済み
 のため再掲しない(差分のみ扱う、Token Efficiency方針)。
 
@@ -59,9 +67,11 @@ Centerline Sweep実装(④)に向けて、現時点でのEvidence充足状況を
 
 **実装前に残る確認事項(2点)**:
 
-1. **Shaft接続位置(最重要・未確定)**: Lower Arm開始点・返し曲げ終端・Shaft中心接続
-   位置の位置関係(§2.1参照)。写真からShaftはLower Arm根元ではなく途中位置に接続
-   しているため、Centerline Sweep**開始点**の決定に影響する。
+1. **Shaft接続位置(最重要・未確定・唯一の実装Blocker)**: Lower Arm開始点・返し曲げ
+   終端・Shaft中心接続位置の位置関係(§2.1参照)。写真からShaftはLower Arm根元では
+   なく途中位置に接続しているため、Centerline Sweep**開始点**の決定に影響する。
+   推奨マーキング3点(M1 Lower ArmのCenterline開始点/M2 Hook-like曲げ開始点/
+   M3 Shaft中心軸との交点)による測定を依頼済み(Measurement Record v1.3 §1-1-A)。
 2. **Centerline制御点定義**: Measurementではなく設計パラメータとして、Centerline
    開始点・Arm方向・Pocket形成部の曲率制御点・Hook-like terminalへの遷移点を定義する
    必要がある。**これは次のステップ(Centerline Parameter Definition)で扱う内容で
@@ -140,7 +150,9 @@ Band Loopの断面が矩形(帯状)であり円形ワイヤーでないことは
 Pocket Maximum Width(1.40mm)≠Arm Gap(0.75mm)であるため、Pocketは単純な平行隙間
 ではなく、**入口(狭い開口)→内部で広がる空間→最深部**という**ファンネル状(内部
 拡大型)**のGeometryとして確定(Confirmed)。「凹み空間」というInterpretation(§1.3)
-と一致する。
+と一致する。**正式な英語表現(v1.3、shoji確認2026-07-31)**: **"Funnel-like internal
+expanded pocket geometry"**を正式採用。Pocket Maximum WidthとArm Gapは引き続き
+別Parameterとして維持する(混同・単一パラメータへの統合は行わない)。
 
 ### 1.5 Terminal Shape(Hook-like terminal、v1.2新規、Evidence A)
 
