@@ -251,9 +251,10 @@ Phase 2開始条件(shoji指定、すべて揃うまで着手しない):
 
 条件が揃った時点で、①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Soft Clip Geometry Improvement Spec作成 → ④実装、の順で進める(shoji指定の手順)。
-**現段階ではGeometry方式を推測して変更しない**。2026-07-30時点で条件の一部
-(Shaft/Band Loop寸法)を受領したが、画像Evidence(横/上/Wing曲率)は未受領のため
-Phase 2は引き続きOn Hold(§11参照)。
+**現段階ではGeometry方式を推測して変更しない**。2026-07-30時点で条件が全て揃い
+(Shaft/Band Loop寸法+10方向画像)、①Interpretationを`Soft_Clip_Geometry_Interpretation_v1.0.md`
+として作成した(部品構成・断面形状はConfirmed、太いクロム円柱の正体等はshoji確認待ちの
+Open Questionsとして分離)。②Geometry方式の決定はOpen Questions解消後。
 
 矩形断面の忠実再現(提案B)は、Soft Clipが「ワイヤー+板+曲線」で構成される特性上、角が
 立ち工業部品的に見えるリスクがあるためshoji自身も現時点では非推奨と判断している(§6参照)。
