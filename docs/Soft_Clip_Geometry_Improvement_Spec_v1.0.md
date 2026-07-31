@@ -161,6 +161,23 @@ Evidence階層は本プロジェクトの標準(`[[feedback]]`): **A+(実物直�
 | Upper Arm/Lower Armの具体的角度 | B(示唆のみ、非対称性は未確認) | shoji確認(4-3-2と連動) |
 | Rear Flex Regionの曲率 | B(既存Open Question) | Interpretation §4-3-1/4-3-2の確認待ち(重複依頼なし) |
 
+### 2.7 優先順位(shoji整理、2026-07-30)
+
+Pending5項目は重要度が異なるため、追加実測・確認は以下の優先順位で進める。
+
+| 優先度 | 項目 | 理由 |
+|---|---|---|
+| ★★★★★ | Band Loop制御点位置(§2.1) | Centerline Sweepの場合、ここが決まらないとMeshそのものが生成できない。完全なCADデータは不要で、開始点・終了点・曲率変化点・Pocket中心・Arm分岐位置程度の粗いCenterlineで十分 |
+| ★★★★★ | 「つ」字開口寸法(§2.2) | Soft Clipの特徴(閉じたリングでなく挿入時に開いて保持する弾性機構)を理解するうえで臨床的意味がある。最低限、開口幅・Pocket入口幅・最大開口方向が必要 |
+| ★★★★☆ | Central Pocket形状(§2.3) | 初期モデルでは複雑な凹形状は不要。Upper Arm・Lower Armに挟まれた窪みとしての最低限の輪郭で教育用形状として成立する |
+| ★★★☆☆ | Upper Arm/Lower Armの具体的角度(§2.4) | 制御点(§2.1)が決まれば後から調整可能 |
+| ★★☆☆☆ | Rear Flex Regionの曲率(§2.5) | 現在のSimulatorの目的は静的教育モデル・配置理解が主であり、物理的な弾性変形の再現は行わない方針(§1.1、Method Decision v1.3 §3.3)のため後回し可 |
+
+追加実測依頼テンプレートは`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`として
+作成した(§4参照)。「全項目を測る」ことを目的とせず、Centerline Sweep生成に必要な
+最小限のParameter取得(必須: 制御点位置・開口寸法・Pocket形状の一部/可能であれば:
+板厚分布・端部形状・Flex領域推定用写真)に絞っている。
+
 ---
 
 ## 3. Non-goals(本文書で行わないこと、明記)
@@ -178,12 +195,15 @@ Evidence階層は本プロジェクトの標準(`[[feedback]]`): **A+(実物直�
 
 ## 4. Next Step
 
-1. §2.6のPending項目について、shojiに確認を依頼する(Interpretation §4-3-1/4-3-2は
-   既存の依頼を継続、§2.1/2.2/2.3/2.4は新規に整理した確認事項)。
-2. 追加実測が必要と判断された場合、FlatFootのG3-1.5(`FlatFoot_Measurement_Record_v1.0.md`)
-   と同様の測定依頼テンプレートの作成を検討する。
-3. Pending項目が解消次第、本文書を改訂して制御点座標・Profile配置の具体的な数値を
-   追加し、④実装へ進む。
+1. ~~§2.6のPending項目について、shojiに確認を依頼する。~~ shoji優先順位付け(§2.7)を
+   反映。
+2. ~~追加実測が必要と判断された場合、FlatFootのG3-1.5と同様の測定依頼テンプレートの
+   作成を検討する。~~ 完了。`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`を
+   作成した。「全項目を測る」ことを目的とせず、Centerline Sweep生成に必要な最小限の
+   Parameter(§2.7の優先度★★★★★の2項目を中心)に絞った依頼内容。
+3. shojiの記入完了後、Evidence A(またはA+)として本文書§2へ反映し、制御点座標・
+   Profile配置の具体的な数値を追加して④実装へ進む。必須項目(測定Record §1)のみ
+   揃った時点で、粗いCenterlineでの実装着手可否をshojiと協議することも可能。
 4. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
 
 ## 5. 参照文書
@@ -194,7 +214,9 @@ Evidence階層は本プロジェクトの標準(`[[feedback]]`): **A+(実物直�
 - `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(v1.3、②4-4決定[Centerline Sweep]・
   Central Pocket分類の出典)
 - `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On Hold)
-- `docs/FlatFoot_Measurement_Record_v1.0.md`(追加実測依頼テンプレートの参考様式)
+- `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`(§2.7優先順位に基づく追加実測
+  依頼テンプレート、shoji記入待ち)
+- `docs/FlatFoot_Measurement_Record_v1.0.md`(テンプレート形式の参考元)
 - `src/scenes/models/ProsthesisModels.tsx`(`SoftClipHead`:437、`SoftClipStem`:428、
   `SoftClipBridge`:409、`SoftClipWing`:384、`ProsthesisModel`シャフト計算部 — 現行
   コードとの対応はComponent Tree v1.2 §4参照)
