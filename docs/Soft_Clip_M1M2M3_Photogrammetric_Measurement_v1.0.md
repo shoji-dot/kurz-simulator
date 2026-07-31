@@ -28,6 +28,35 @@
 
 ---
 
+## v1.1 Update: Shaft Main Body / Shaft Connection Neck 分離 + 再較正試行（shoji実物確認、2026-07-31）
+
+**shoji実物確認結果**:
+- A. 既存Measurement Record記載の **"Shaft Lower Diameter 8.0mm"** は太い **Shaft Main Body**（写真下部のポリッシュ仕上げ円柱、ボール継手より下）を測定した値であり、細い接続部ではない。
+- B. 今回の写真解析で抽出した部位（T字接合部直下の細い棒）は **Band LoopとShaft Main Bodyを接続する Shaft Connection Neck** であり、その実測値は **約4.0mm**。
+
+**Parameter名称を分離（正式採用）**:
+- **Shaft Main Body Diameter = 8.0mm**
+- **Shaft Connection Neck Diameter = 4.0mm**
+- M3で使用するShaft center axisは **Shaft Connection Neck center axis** として扱う（今回の対象部位選択は正しかったとshoji確認済み）。
+
+**Neck Diameter 4.0mm基準での再較正**:
+
+| 画像 | Neck幅(px、中央値) | 再較正スケール(px/mm) | 参考: ルーラー較正 |
+|---|---:|---:|---:|
+| Right.jpg | 40px | **10.00 px/mm** | 15.09 px/mm |
+| Left.jpg | 33px | **8.25 px/mm** | 15.34 px/mm |
+
+再較正後のM1/M3距離（同じpx距離を新スケールで再計算）:
+
+| 距離 | Right.jpg | Left.jpg | ルーラー較正時の値（参考） |
+|---|---:|---:|---:|
+| M3→M1 | 2.27mm | 3.21mm | 1.50mm / 1.73mm |
+| M3→M2(参考、Pending) | 6.78mm | 17.49mm | 4.49mm / 9.40mm |
+
+**新たな不整合（Unresolved §4に追記）**: Neck基準で再較正すると、Right/Left間のM3→M1のクロスビュー差が **13%→42%に悪化**する（1.50/1.73mm→2.27/3.21mm）。また、Right.jpgでMain Body幅を独立に画素計測すると約114px、Neck幅40pxとの比は **114/40=2.85**であり、shoji申告の8.0/4.0=**2.0**という比と一致しない（43%の乖離）。これは、Neck1本の画素幅（30〜40px程度の細い特徴）はルーラーの目盛間隔（600px超にわたる基準）に比べて測定誤差の影響を受けやすいこと、または撮影時のNeck測定位置（Band Loop側/Main Body側のどちら寄りか、テーパーの有無）が、shojiのノギス測定位置と一致していない可能性を示唆する。**結論として、ルーラー較正とNeck較正はどちらも単独では確定的な決め手にならず、Neck基準mm値は参考値（Provisional以下の暫定値）として扱う**。
+
+---
+
 ## Image Evidence
 
 **Used images（定量測定に使用）**:
@@ -116,12 +145,8 @@ Grid（方眼紙）ではなく、写真に写る**mm刻みルーラー**のテ�
 
 ## Unresolved points（要shoji確認）
 
-1. **【最重要】Shaft径がこれまでの記録値と一致しない**
-   本写真から実測したShaft径: Right.jpg 約2.65mm、Left.jpg 約2.28mm（写真内mm、平均約2.5mm）。
-   一方 `Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §0記載の20倍模型実測値は
-   **Shaft Lower 径0.40mm(20倍模型で8.0mm)**。この写真のShaftはBand Loop直下（Shaft Lower相当の位置）にもかかわらず、実測値がその1/3程度しかない。
-   考えられる原因: ①今回の4枚は以前ノギス実測した「20倍模型」とは別個体・別スケールの現物/レプリカである、②以前の8.0mm記録に誤りがある、③斜め視点による見かけの縮小（ただしRight/Left.jpgは正面に近い側面視のため影響は小さいはず）。
-   **この写真をもとにしたM1/M2/M3のmm値を、既存のSoft Clip設計文書（20倍模型基準）にそのまま統合してよいか、shojiの判断が必要**。
+1. **【解決済み・部位識別】Shaft径不一致の原因はMain Body/Neckの取り違えと判明（v1.1）**。
+   写真解析で抽出したのはShaft Main Body(8.0mm)ではなく**Shaft Connection Neck(4.0mm)**だったことがshoji実物確認で判明。ただし、Neck Diameter基準で再較正すると①Right/LeftのM3→M1クロスビュー差が13%→42%に悪化、②同一写真内でのMain Body/Neck画素幅比(2.85)がshoji申告の実寸比(2.0)と一致しない、という**新たな不整合**が発生（v1.1参照）。ルーラー較正・Neck較正のいずれもmm絶対値の確定的根拠にはならず、**mm値は当面Provisional以下の参考値**として扱う。
 
 2. **M2（直線→Hook遷移点）は視点依存性が大きく、単一2D写真解析では確定困難**。
    物理的な返し曲げが緩やかであるほど、真上から見るか横から見るかで「曲がり始め」に見える位置がずれる。より確実な決定には、①現物への直接マーキング（shoji当初案）、②Lower Armの局所曲げ平面にほぼ正対する追加アングル写真、のいずれかが必要。
@@ -132,5 +157,5 @@ Grid（方眼紙）ではなく、写真に写る**mm刻みルーラー**のテ�
 
 ## Files
 
-- `docs/assets/soft-clip-m1m2m3/right_annotated.png`: Right.jpg上にShaft軸(青)・Lower Arm直線(緑)・M1(赤)/M2(橙)/M3(マゼンタ)をオーバーレイ
-- `docs/assets/soft-clip-m1m2m3/left_annotated.png`: 同上（Left.jpg）
+- `right_annotated.png` / `right_annotated_crop.png`: Right.jpg上にShaft軸(青)・Lower Arm直線(緑)・M1(赤)/M2(橙)/M3(マゼンタ)をオーバーレイ
+- `left_annotated.png` / `left_annotated_crop.png`: 同上（Left.jpg）
