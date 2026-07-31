@@ -2,6 +2,12 @@
 
 **Status**: Draft(shoji確認待ち)。**コード変更は行っていない(方式の決定まで完了、
 Mesh分割の具体的パラメータ・実装コードは未着手)**。
+**参照先バージョン更新(2026-07-31)**: Interpretation v1.7(Pocket Geometry[Funnel状]・
+Terminal Shape[Hook-like terminal]確定、Shaft接続位置[§4-5]新規追加)・Improvement
+Spec v1.2(Pending4項目に縮小、§0 Geometry実装条件確認新設)を反映して参照文書(§5)の
+バージョン番号のみ更新。**本文書の決定内容(4-4=Option A採用)自体に変更はない**
+(Pocket Geometry確定はCentral Pocketの形状分類[§3.3、穴でなく凹み]と矛盾せず、
+むしろFunnel状という具体化はOption Aの制御点ベース表現と親和性が高い)。
 **Date**: 2026-07-30(v1.4更新)
 **v1.4での変更点(shoji確認、2026-07-30)**: Interpretation v1.6でBand Loop全体形状の
 トポロジーがさらに精密化された(「『つ』字状一筆書きCenterlineを持つ開放型弾性
@@ -280,8 +286,9 @@ Open Questions)
 
 ## 5. 参照文書
 
-- `docs/Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.6、①Interpretation。4.A/4.Bの
-  カテゴリ区分・4-2/4-3-1/4-3-2/4-4・§1.4クリップ機構の出典)
+- `docs/Soft_Clip_Geometry_Interpretation_v1.0.md`(v1.7、①Interpretation。4.A/4.Bの
+  カテゴリ区分・4-3-1/4-3-2/4-4・4-5[Shaft接続位置、新規]・§1.4クリップ機構・
+  §1.5[Pocket Geometry確定]の出典)
 - `docs/Soft_Clip_Component_Tree_v1.0.md`(v1.2、Geometry責務[候補]列・Connection=
   Anchor/Coordinate Definition確定・§2.1論理的サブ構造の出典)
 - `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On Hold、

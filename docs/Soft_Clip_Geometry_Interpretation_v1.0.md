@@ -49,7 +49,21 @@ Sweepの制御点は固定数(P0〜P3等)ではなく、Shaft接続部・主要�
 最大開口方向は現時点で数値化不要、Evidence B相当の定性記録(「装着時にUpper/Lower
 Arm間が広がる方向」)とする。**本v1.6はInterpretationの更新のみであり、制御点座標・
 Mesh生成には進まない**(shoji指定)。
-**Date**: 2026-07-30(v1.6更新)
+v1.7追加修正(2026-07-31、shoji実測値受領): Pocket Maximum Width(1.40mm)・Arm Gap
+/Opening(0.75mm)・Pocket Depth(3.30mm)・Terminal Shape(Hook-like)・Terminal
+Length(約2.40mm)をEvidence A/A+として受領し反映。**新設§1.5**: Pocket Maximum
+Width(1.40mm)≠Arm Gap(0.75mm)であることから、PocketはFunnel状(内部拡大型、
+入口→狭い開口→内部で広がる空間→最深部)のGeometryとして確定(Confirmed)。Pocket
+Depthの定義を"Distance from the underside of the Upper Arm tip (Pocket entrance
+reference plane) to the deepest point of the Pocket"に固定。**§4-2(終端部の正確な
+形状)を更新**: Terminal ShapeはHook-like terminal(Evidence A、完全なHook形状では
+ない)として確定、Terminal Length約2.40mm。**新設§4-5(4.A、最重要未確定項目)**:
+Shaft接続位置(Lower Arm開始点・返し曲げ終端・Shaft中心接続位置の位置関係)。写真では
+ShaftがLower Arm根元でなく途中位置に接続しているように見えるため、Centerline Sweep
+開始点の決定に直接影響する。**本v1.7も実測値の反映・形状分類の確定までであり、制御点
+座標・Mesh生成には進まない**(shoji指定、`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`
+での追加実測待ち)。
+**Date**: 2026-07-31(v1.7更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -74,18 +88,23 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
    断面が円形ワイヤーではなく帯状(矩形に近い)であることもEvidence A(実測)+写真の
    両方で確認済み。この「つ」字形状自体がキヌタ骨長脚を保持するクリップ機構を構成
    している(Confirmed、§1.4参照)。
-3. **臨床形状のOpen Questions(4.A、shoji指定により維持)**: (a) Band Loop(1本の帯)の
-   終端フィーチャー(閉じたループ/開いたフック/突起)が何個あり、どう対応しているか
-   (4-2)。(b) 「8箇所での曲げ」が明確な折れ点(ポリライン的)か、緩やかな連続曲線かは、
-   写真の解像度・反射のため視覚的には判別困難(shojiさんの直接観察・触感による情報を
-   優先する、4-3)。いずれも写真だけでは断定せず、確認事項として保持する。
-4. **Geometry実装方式のOpen Question(4.B、v1.3新規追加)**: (c) Band Loopの形状生成を
+3. **臨床形状のOpen Questions(4.A)**: (a) Band Loop終端形状は**2026-07-31に
+   Hook-like terminal(Evidence A、長さ約2.40mm)として確定**(4-2、旧Open Question
+   から更新)。(b) 「8箇所での曲げ」が明確な折れ点(ポリライン的)か、緩やかな連続曲線
+   かは、写真の解像度・反射のため視覚的には判別困難(shojiさんの直接観察・触感による
+   情報を優先する、4-3)、Openのまま維持。(c) **新規・最重要**: Shaft接続位置
+   (Lower Arm開始点・返し曲げ終端・Shaft中心接続位置の関係)がOpen(4-5、v1.7新規)。
+   写真ではShaftがLower Arm根元でなく途中位置に接続しているように見え、Centerline
+   Sweep開始点の決定に直接影響するため最優先で確認が必要。
+4. **Pocket Geometry(Confirmed、v1.7新規、§1.5)**: Pocket Maximum Width(1.40mm)
+   ≠ Arm Gap(0.75mm、Evidence A+)であることから、PocketはFunnel状(内部拡大型)の
+   Geometryとして確定。Pocket Depth(3.30mm、Evidence A+)の定義も固定した。
+5. **Geometry実装方式のOpen Question(4.B、v1.3新規追加)**: (d) Band Loopの形状生成を
    Centerlineベース(中心曲線+断面Sweep)とPlate deformationベース(平板+曲げ変形)の
-   どちらで扱うか(4-4)。(a)(b)とは性質が異なり実装方式選択の論点であるため、
-   カテゴリを分けて管理する(shoji指摘)。4-4自体は未決定のまま、次のGeometry方式決定
-   ステップ(②)で他の候補とあわせて検討する。あわせて、Geometry方式を議論する前に
-   「部品が何個で構成されるか」を定義する`Soft_Clip_Component_Tree_v1.0.md`を作成した
-   (shoji提案、§8参照)。
+   どちらで扱うか(4-4)。**4-4=Option A(Centerline Sweep)採用が決定済み**
+   (Method Decision v1.4)。あわせて、Geometry方式を議論する前に「部品が何個で
+   構成されるか」を定義する`Soft_Clip_Component_Tree_v1.0.md`を作成した(shoji提案、
+   §8参照)。
 
 ---
 
@@ -237,6 +256,50 @@ Band Loopは単なる静的な装飾形状ではなく、(a)開口部・中央�
 ことを前提とした形状であることが分かる。これらの機能的区分と、正確な曲率・弾性変形
 領域の境界は、§4.Aの新しいOpen Question(4-2、4-3)として維持する。
 
+### 1.5 Pocket Geometry(Funnel状、Confirmed、Evidence A+。新設v1.7)
+
+2026-07-31、shojiより以下の実測値を受領した(20倍模型、Evidence A+)。
+
+| Parameter | 値 | Evidence | 定義/備考 |
+|---|---:|:---:|---|
+| Pocket Maximum Width | 1.40 mm | A+ | Pocket内部空間の最大幅 |
+| Arm Gap(Opening) | 0.75 mm | A+ | Upper Arm–Lower Arm入口ギャップ |
+| Pocket Depth | 3.30 mm | A+ | Upper Arm先端下面(Pocket入口の基準面)→Pocket最深部 |
+
+**Pocket Maximum WidthとArm Gapは別Parameter(Confirmed)**: 1.40mm ≠ 0.75mmである
+ため、両者を明確に分離する。
+- **Pocket Maximum Width**: Upper Arm/Lower Armで囲まれた中央Pocket内部空間の最大幅。
+- **Arm Gap**: Pocket入口の開口幅。
+
+**Pocket形状の解釈(Confirmed)**: 入口幅(0.75mm)に対して内部最大幅(1.40mm)の方が
+大きいため、Pocketは単純な平行隙間ではなく、
+
+```
+入口
+ ↓
+狭い開口(Arm Gap 0.75mm)
+ ↓
+内部で広がる空間
+ ↓
+最深部(Pocket Depth 3.30mm)
+```
+
+という**ファンネル状(内部拡大型)**のGeometryとして扱う。§1.4「開口部が狭く、
+長脚が容易には入らない構造」というクリップ機構の説明、および§1.3-A「Pocket形成部」
+という区分と整合する(「凹み空間」というInterpretationと一致)。
+
+**Pocket Depth Definition(固定)**: 後から同じ測定が再現可能となるよう、以下に定義を
+固定する。
+
+> Distance from the underside of the Upper Arm tip (Pocket entrance reference
+> plane) to the deepest point of the Pocket.
+
+**Geometry設計への示唆(参考、④実装では未反映)**: Funnel状という形状特性上、
+Centerline Sweepの断面Profile(§5参照)は開口部からPocket最深部にかけて一定ではなく、
+Pocket形成部の制御点付近で断面(または周辺の壁面形状)が変化する可能性がある。ただし
+具体的な制御点座標・断面変化の実装方法は本文書では確定しない(shoji指定、Measurement
+Recordでの追加実測・Improvement Specでの整理を待つ)。
+
 ---
 
 ## 2. 部品構成(v1.1、shoji訂正を反映)
@@ -245,8 +308,11 @@ Band Loopは単なる静的な装飾形状ではなく、(a)開口部・中央�
 Band Loop(1本の連続した帯状部材、実寸長さ約6.0〜7.5mm、幅0.25mm×厚さ0.10mm、
           ねじりなし、8箇所で前後に波打つように成形され、「『つ』字状一筆書き
           Centerlineを持つ開放型弾性クリップ」を形成[単純なC字リングでも蛇行した
-          S字部品でもない]。腕部分は約3回の主要カーブ、下側先端は返し曲げ形状。
-          v1.6精密化、§1.3/§1.3-A/§1.4参照)
+          S字部品でもない]。腕部分は約3回の主要カーブ、終端はHook-like terminal
+          (約2.40mm、Evidence A、§4-2)。Upper Arm・Lower Armで囲まれるPocketは
+          Arm Gap(入口0.75mm)≠Pocket Maximum Width(内部1.40mm)によりFunnel状
+          [内部拡大型]、Pocket Depth 3.30mm(いずれもEvidence A+、§1.5)。
+          v1.7精密化、§1.3/§1.3-A/§1.4/§1.5参照。**Shaft接続位置は未確定**[§4-5])
   ↓
 Bridge(T字接合部、Band LoopとShaftを接合する起点)
   ↓
@@ -331,35 +397,29 @@ Band Loop → Bridge → Shaft Middle(径4.0mm、20倍) → Shaft Lower(径8.0mm
 
 ### 4.A 臨床形状に関するOpen Questions
 
-### 4-2. Band Loop終端部の正確な形状(Open Question、v1.4で観点を更新)
+### 4-2. Band Loop終端部の正確な形状 — **Terminal Shape確定(Confirmed、Evidence A、
+v1.7更新)**
 
 v1.3までは「終端フィーチャーの数・対応関係」として、閉じたループ/開いたフックが
 それぞれ何個あるかという観点で整理していた。v1.4のクリップ機構訂正(§1.4)を踏まえると、
 Band Loopは「つ」字状の開口部を持つ1本の帯であり、機能的には開口部側の2つの先端
-(自由端)の形状が特に重要になる。写真の角度により、閉じたループが1〜2個、開いた
-フックが1〜2個、それぞれ異なる位置に見えるが、重なり合う帯状部材が複数写真間で
-異なる見え方をするため、確定的な対応付けができていない。
+(自由端)の形状が特に重要になる。
 
-- **単純端面**: 帯がそのまま切断・研磨された端で終わる。
-- **フック形状**: 端が鉤状に曲げ加工されている(SOFTCLIPフックが当たる「後方の
-  弯曲部」[§1.4]とは別に、開口部側の端にもフック状の加工があるかは未確認)。
-  - **仮説2(旧)**: 帯の両端がそれぞれループとして閉じ、フック状に見える部分は経路の
-    途中にある突起(プロング)である可能性。
-  - **仮説1(旧)**: 帯の一方の端がループとして閉じ、もう一方の端は開いたフックの
-    まま終端する(非対称な1本の帯)可能性。
-- **突起形状**: 端に短い突起(プロング)が付加されている。
-- **その他局所加工**: 上記以外の局所的な加工(面取り、丸め等)。
+**2026-07-31確定(shoji実測値受領)**: 候補(Simple Radius / Hook / Flat)のうち、
+**Terminal Shape = Hook-like**として確定(Evidence A)。Terminal Length(フック部
+長さ)は約2.40mm(Evidence A)。ただし完全なHook形状(閉じた鉤形状)ではないため、
+Geometry分類上は**"Hook-like terminal"**という表現を維持する(単純な円弧フック関数
+への安易な当てはめはしない)。
 
-**追加観察(v1.6、shoji、Evidence B)**: 下側先端(Lower Arm側)は、上記のいずれかに
-分類される前段階の情報として、「反転するような返し曲げ形状」に見えるとの観察を受領
-した(§1.3-A)。これは上記4分類のうち「フック形状」に近い可能性を示唆するが、
-「返し曲げ」と「フック形状」が同一を指すか、より詳細な区別が必要かは未確定であり、
-本Open Questionは引き続きOpenのまま維持する。
+**追加観察(v1.6、shoji、Evidence B)との関係**: 下側先端(Lower Arm側)の「反転する
+ような返し曲げ形状」という観察(§1.3-A)は、このHook-like terminalという分類と整合
+する。ただし、この返し曲げ形状がShaft接続位置(§4-5、新規)とどう関係するか
+(Lower Armの経路上のどこで返し曲げが起き、どこでShaftに接続するか)は、引き続き
+Open Questionとして§4-5で扱う。
 
-**確認依頼**: Band Loop(1本の帯)は、どちらの端も終端(閉じるか開くかは別として)で、
-途中に分岐はないという理解で合っていますか。また終端の形状(単純端面/フック形状/
-突起形状/その他局所加工のいずれか、それぞれ帯のどちら側の端か)を教えていただけると、
-Interpretationとして確定できます。
+**残る確認事項(縮小)**: Terminal Shapeの大分類(Hook-like)は確定したが、フック部の
+正確な曲率・開口方向はEvidence Bレベルにとどまる(4-3-1と関連)。座標配置には
+`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`での追加実測を要する場合がある。
 
 ### 4-3. 曲げ・弾性変形に関する不確定点(v1.4で「弾性変形領域の境界」を追加)
 
@@ -414,6 +474,37 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
 選択を含めて判断する(shoji指定)。4-4自体の最終確定はshoji確認を待つが、4-4を含めた
 検討・比較・暫定的な方向性の整理は②のステップで進める。
 
+**決定済み(参考)**: 4-4は`Soft_Clip_Geometry_Method_Decision_v1.0.md`(v1.2以降)で
+**Option A(Centerline Sweep)採用**として確定済み。
+
+### 4-5. Shaft接続位置(新規、v1.7、4.A・現時点で残る最重要未確定項目)
+
+**カテゴリ**: 4.A(臨床形状に関する不確定点)。Terminal Shape(4-2)がConfirmedへ
+移行したことで、4.A(臨床形状)に残る主要な不確定点は本項目と4-3(曲げ・弾性変形)の
+みとなった。
+
+**内容**: Lower Arm**全長**に対して、以下3点の位置関係が未確定。
+
+- Lower Arm開始点(Pocket形成部側の起点)
+- 返し曲げ終端(Lower Arm自由端、Hook-like terminalの先端、§4-2参照)
+- Shaft中心接続位置
+
+**確認が必要な理由**: 10方向画像を確認する限り、Shaftは**Lower Arm根元ではなく途中
+位置**に接続しているように見える。これは§5-A「Shaft接続部(Bridge側の起点)」という
+制御点カテゴリの前提(Shaft接続部=Lower Armの端点の一つ、という暗黙の想定)を覆す
+可能性があり、**Centerline Sweepの開始点(起点)そのものの決定に直接影響する**。
+
+**確認依頼**: Lower Armの根元(Pocket形成部側の起点)から数えて、Shaftが接続する
+位置はどのあたりか(実測距離、またはLower Arm全長に対するおおよその比率)。返し曲げ
+終端(自由端)との位置関係もあわせて確認したい。詳細な依頼内容は
+`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aを参照。
+
+**Geometry設計への影響(参考、④実装では未反映)**: 本項目が未解消の間は、§5-Aの
+制御点カテゴリのうち「Shaft接続部」を、Lower Armの端点として単純に扱ってよいのか、
+Lower Arm経路の途中の分岐点として扱うべきかが確定しない。Improvement Spec
+(`Soft_Clip_Geometry_Improvement_Spec_v1.0.md`)では、本項目を制御点定義における
+最優先のPending項目として扱う。
+
 ---
 
 ## 5. Geometry方式候補(未決定、次ステップ「②Geometry方式の決定」で確定)
@@ -449,13 +540,16 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
 扱わない**。代わりに、以下の機能的カテゴリを表現できる**必要最小限の点数**として
 扱う方針とする。
 
-- Shaft接続部(Bridge側の起点)
+- Shaft接続部(Bridge側の起点。**§4-5[Shaft接続位置]が未解消のため、この点をLower
+  Armの端点として扱ってよいか、経路途中の分岐点として扱うべきかは未確定、v1.7**)
 - 主要曲率変化点(複数、当初の見立てでは約3回のカーブに対応。正確な数は未確定)
-- Pocket形成部
-- 開口端(Upper Arm・Lower Armそれぞれの自由端)
+- Pocket形成部(§1.5のFunnel状Geometryとして確定、v1.7)
+- 開口端(Upper Arm・Lower Armそれぞれの自由端。Hook-like terminalとしてConfirmed、
+  §4-2・v1.7)
 
 制御点の実際の座標・個数は`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`での
-追加実測を待つ(推測による座標入力は禁止、shoji指定)。
+追加実測を待つ(推測による座標入力は禁止、shoji指定)。**特にShaft接続部の座標は
+§4-5の確認が前提条件となる。**
 
 | 候補 | 概要 | 長所 | 短所・リスク |
 |---|---|---|---|
@@ -501,9 +595,14 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
    Confirmed/Pendingの記述を更新する(制御点数の柔軟化、Pocket最大幅/Arm間距離/
    Pocket深さの分離、最大開口方向のEvidence B定性記録化)。**制御点座標・Mesh生成には
    進まない**(shoji指定)。
-5. `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`もv1.6の観察(機能的
-   カテゴリベースの制御点、Pocket深さ追加等)にあわせて更新し、shoji記入待ち。
-6. **現時点ではコード変更を行わない**(Phase 2は引き続きOn Hold)。
+5. ~~`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`もv1.6の観察にあわせて
+   更新し、shoji記入待ち。~~ 完了。2026-07-31、Pocket Maximum Width・Arm Gap・
+   Pocket Depth・Terminal Shape・Terminal Lengthの実測値を受領しv1.7へ反映
+   (§1.5・§4-2)。**現時点で残る最重要未確定項目はShaft接続位置(§4-5、新規)**。
+6. 次はshojiによる`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-A
+   (Shaft接続位置)の記入待ち。解消後、Improvement Spec上でCenterline Parameter
+   Definition(制御点の具体的な座標定義)へ進む。
+7. **現時点ではコード変更を行わない**(制御点座標設定・Mesh実装は未着手のまま)。
 
 ## 7. 参照文書
 
@@ -513,10 +612,10 @@ TubeGeometry維持)よりも上位の、より根本的なパラダイム選択�
   前の前提として本文書と対で参照する)
 - `docs/Soft_Clip_Geometry_Method_Decision_v1.0.md`(②Geometry方式決定。4-4=
   Centerline Sweep採用、v1.6のトポロジー精密化と整合済み)
-- `docs/Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(③、Confirmed/Pendingの分離。
-  v1.6反映後もPendingのまま維持される項目を管理)
-- `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`(追加実測依頼テンプレート、
-  §5-Aの機能的カテゴリに沿った制御点取得を依頼)
+- `docs/Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(v1.2、③、Confirmed/Pendingの
+  分離。v1.7[Pocket Geometry確定・Terminal Shape確定・Shaft接続位置]を反映)
+- `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`(v1.2、追加実測依頼テンプレート。
+  §1-1-A[Shaft接続位置]が現時点の最優先依頼事項)
 - `docs/FlatFoot_Geometry_Improvement_Spec_v1.0.md`(§8.0、Frenet frame破綻の経緯・
   過剰なCAD再現の反省点の出典)
 - `src/scenes/models/ProsthesisModels.tsx`(`SoftClipHead`:437、`SoftClipStem`:428、
