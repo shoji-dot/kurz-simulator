@@ -1,7 +1,7 @@
-# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.0）
+# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.7）
 
-**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
-**Date**: 2026-07-31
+**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)。v1.7でレビュー反映(2026-08-04、Centerline Sweep実装状況・優先順位・座標系記述の整合修正のみ、Decision内容に変更なし)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
+**Date**: 2026-07-31（v1.7更新: 2026-08-04）
 **Method**: 手動マーキングではなく、写真EvidenceからOpenCVによる幾何学的抽出（エッジ検出→直線フィット→交点計算）。M3は「Shaft外径左右端→中心軸算出」「Lower Arm構造中心線フィット」の2本の直線の交点として計算。
 
 ---
@@ -455,6 +455,86 @@ Shaft軸まわり水平方向に約45°刻みで移動、カメラ高さは不�
   M3=Definition採用/数値パラメータ確定前に実装しない)は**妥当であり変更不要**。
 
 **Centerline Sweep実装はまだ開始しない。**
+
+---
+
+## v1.7 Update: 座標系記述の訂正 + 優先順位の整合修正（2026-08-04）
+
+外部レビューを受けての差分確認。**以下はv1.6で既に対応済みのため変更なし**:
+Azimuth命名のNominal Relative Azimuth化（§1）、Evidence Level A/B/B−相当の区分（§3）、
+Centerline Sweep実装未開始の判断（§5、方針自体は不変）。
+
+実質的な差分は以下3点。
+
+### 1. v1.5記載「同一の連続的な座標系として扱える」の訂正
+
+v1.5 §1に以下の記載がある:
+
+> ただし被写体は同一個体であり、Shaft軸まわりの回転角という意味では同一の連続的な
+> 座標系として扱える(Shaft軸を回転軸とする点は共通)。
+
+この表現は誤解を招く。正確には「同一個体のため形状対応は推定できる」というだけで、
+「座標系が連続」とまでは言えない。直立撮影(Right/Left)とAzimuth Ring撮影(寝かせ)は
+物理セットアップ・カメラ高さ・較正基準が異なり、両セッション間のオフセット（回転
+原点のズレ、上下方向の対応関係）は未定義のまま。
+
+**訂正後の正式な扱い（v1.5本文より本節を優先）**:
+「同一個体であるため形状対応関係は推定可能。ただし、直立撮影セッションとAzimuth
+Ring撮影セッション間の座標変換は未定義であり、正式な統合座標系はまだ構築していない。」
+
+これはv1.6 §2表の「座標系統合方法が未検討」という指摘と矛盾しない（新規課題では
+なく、その根拠を明記したもの）。
+
+### 2. 追加撮影優先順位の整合修正
+
+v1.6 §4の番号付きリスト（1.候補C→2.候補A→3.候補B→4.候補D）と、同節末尾の
+「推奨順序」（候補A→候補C→候補D→候補B）が不一致だった。**推奨順序を正とし、
+番号付きリストを以下に修正する**:
+
+1. **候補A: 90°/270° Azimuth Ring追加撮影**（最優先）。低コストで既存Ring撮影の
+   延長、Hook遮蔽境界の特定と候補Cの位置決め補助を兼ねる。
+2. **候補C: 現物マーキング + 複数Azimuth撮影**（候補Aの結果を撮影角度・位置決めの
+   参考にする）。**目的の明確化**: M2を固定座標点として決定するためではなく（v1.3で
+   既に不採用と決定済み）、**Hook Transition Profile（Transition length /
+   Curvature profile / Terminal approach angle）のParameter抽出のための現物対応
+   付け**が目的。
+3. **候補D: 動画による連続Azimuthスイープ**（候補A/Cの結果を見てから要否判断）。
+4. **候補B: 完全なTop-down撮影**（低優先、補完的価値のみ）。
+
+### 3. Centerline Sweep実装判断（内容はv1.6§5と同一、構造化して再掲）
+
+```
+Centerline Sweep implementation status: NOT STARTED
+Current phase: Geometry Evidence Acquisition Phase
+
+Reason:
+- Hook Transition Profile has no quantitative parameters yet.
+- M1/M3 absolute mm values remain Provisional or below.
+- Coordinate relationship between the upright session (Right/Left) and
+  the Azimuth Ring session is not yet defined (see §1 correction above).
+- Transition region cannot yet be represented by stable procedural parameters.
+
+Implementation may begin only after:
+1. Transition Profile parameter definition
+2. Coordinate system integration strategy
+3. Minimum sufficient geometry specification
+are completed.
+```
+
+### v1.7 Status サマリ
+
+| 項目 | Status |
+|---|:---:|
+| M3 Definition | Adopted |
+| M1 Definition | Provisional |
+| M2固定点 | Reject |
+| Hook Transition Profile | Concept adopted（Parameter未定） |
+| Azimuth Naming | Nominal Relative Azimuth（v1.6で確定、変更なし） |
+| Hook遮蔽Evidence | A/B/B−（v1.6で確定、変更なし） |
+| 座標系統合（直立⇔Azimuth Ring） | 未着手。**v1.5の誤解を招く表現をv1.7で訂正** |
+| 追加撮影優先順位 | **v1.7で整合修正（候補A→C→D→B）** |
+| Geometry Parameter | 未確定 |
+| Centerline Sweep | NOT STARTED |
 
 ---
 
