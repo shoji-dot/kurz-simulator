@@ -1,7 +1,7 @@
-# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.7）
+# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.8）
 
-**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)。v1.7でレビュー反映(2026-08-04、Centerline Sweep実装状況・優先順位・座標系記述の整合修正のみ、Decision内容に変更なし)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
-**Date**: 2026-07-31（v1.7更新: 2026-08-04）
+**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)。v1.7でレビュー反映(2026-08-04、Centerline Sweep実装状況・優先順位・座標系記述の整合修正のみ、Decision内容に変更なし)。v1.8でTurntable撮影セッションをGeometry Evidenceとして追加(2026-08-05、Decision内容に変更なし)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
+**Date**: 2026-07-31（v1.7更新: 2026-08-04、v1.8更新: 2026-08-05）
 **Method**: 手動マーキングではなく、写真EvidenceからOpenCVによる幾何学的抽出（エッジ検出→直線フィット→交点計算）。M3は「Shaft外径左右端→中心軸算出」「Lower Arm構造中心線フィット」の2本の直線の交点として計算。
 
 ---
@@ -535,6 +535,21 @@ are completed.
 | 追加撮影優先順位 | **v1.7で整合修正（候補A→C→D→B）** |
 | Geometry Parameter | 未確定 |
 | Centerline Sweep | NOT STARTED |
+
+---
+
+## v1.8 Update: Turntable撮影セッション追加（Geometry Evidence、2026-08-05）
+
+**前提**: 本セッションはRight/Left（直立撮影）およびAzimuth Ring（v1.5/v1.6、カメラ手持ち移動）とは別の新規データセット。ターンテーブル固定回転・カメラ固定・被写体固定という撮影条件（約90°刻み4カット）。座標系統合はv1.7までの方針通り未着手・本セクションでも行わない。
+
+**用語訂正**: 撮影物の金属シャフト部分は独立した器具ではなく、Soft Clip自体のShaft（金属製）。グレー/タン色のHook・Band Loop部分と合わせて一体の医療機器である。
+
+差分は以下4点のみ。
+
+- 新ターンテーブル撮影セッションをGeometry Evidenceとして追加。
+- 4方向すべてでSoft Clip本体は確認できた。ただし、一部画像ではピント・フレーミングの影響によりHook Transition Profile評価可能な情報量に差があった。
+- 今回のデータセットには、前回確認された自己遮蔽パターンを再確認または反証できるEvidenceは含まれていなかった。
+- Centerline Sweep開始判断は変更せず、Evidence取得フェーズ継続とする。
 
 ---
 
