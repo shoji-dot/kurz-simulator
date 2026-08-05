@@ -1,8 +1,17 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.1反映済み)。**コード変更・Mesh実装は行っていない**
+**Status**: Draft(shoji確認・v1.2反映済み)。**コード変更・Mesh実装は行っていない**
 (本文書はPhase1着手前の仕様定義のみ)。
-**Date**: 2026-08-05(v1.1更新)
+**Date**: 2026-08-05(v1.2更新)
+**v1.2での変更点(shoji指摘、2026-08-05、実装依頼の明文化)**: Claude Codeへの実装
+依頼で解釈の余地を残さないため4点追加。①**§4.2新設**: Curve実装方式を
+`THREE.CatmullRomCurve3`+Centerline Sweep(ExtrudeGeometry/extrudePath、Method
+Decision v1.4 4-4=Option A)に固定、変更は別レビュー対象と明記。②**§8.1新設**:
+GUIレビュー項目(Centerline/Control Points/Sweep Meshの最低3項目)を明示。
+③**§8.2新設**: コミット単位をCenterline Construction/Constant Section Sweep/
+Variable Width Profile/Orientation Validationの4段階に命名。④**§8.3新設**:
+完了条件に「Geometry生成は決定論的であること」を追加(将来Safety Engine/Ground
+Truthとの比較対象になりうるため)。
 **v1.1での変更点(shoji指摘、2026-08-05)**: §5を5.1 Evidence-derived Design
 Decisions(Pocket Maximum Widthの到達位置=t1採用。既存Confirmed Evidenceの論理的
 帰結であり新形状の創作ではないため、Known LimitationからDesign Decisionへ格上げ)と
@@ -23,7 +32,7 @@ Evidenceのみ)を満たす範囲でのみ制御点を定義する。**推測に
 Funnel-like internal expanded pocket geometryに対応する。
 
 対象外の区間(Shaft〜Bridge〜Lower Arm開始点、Pocket〜Hook遷移〜Terminal終端)は
-§6 Explicit Non-goalsで扱う。
+§7 Explicit Non-goalsで扱う。
 
 ---
 
@@ -82,6 +91,19 @@ G3-2で確立した「主要寸法は正確に、形状は単純に留める」�
 | t = 0(入口) | 0.75 mm(Arm Gap) | Evidence A+ |
 | t = 1(最深部) | 1.40 mm(Pocket Maximum Width) | Evidence A+ + Evidence-derived Design Decision(§5.1参照) |
 | 0 < t < 1 | 0.75mm→1.40mmへ単調増加(線形またはsmoothstep) | Evidence-derived Design Decision(§5.1参照) |
+
+### 4.2 Curve実装方式の固定(新設v1.2、shoji指摘)
+
+CenterlineはCenterline Parameter Definition(本節のParameterization)に対応する
+Three.js Curveクラスとして**`THREE.CatmullRomCurve3`**を使用し、Mesh生成は
+`Soft_Clip_Geometry_Method_Decision_v1.0.md`(v1.4、4-4=Option A)で既に決定済みの
+**Centerline Sweep(ExtrudeGeometry+`extrudePath`による単一Curveの一括掃引)**に
+従う。t=0/t=1の2点をCatmullRomCurve3の制御点として渡す(将来Phase2/3で中間制御点が
+追加された場合も同じ手法をそのまま拡張できる)。
+
+**Curve種別(CatmullRomCurve3以外への変更、Cubic/Quadratic Bézier・NURBS・独自
+Splineの採用等)、およびMesh生成方式(ExtrudeGeometry+extrudePath以外への変更)は
+本文書のスコープ外であり、変更する場合は別レビュー対象とする**(shoji指定)。
 
 ---
 
@@ -166,10 +188,37 @@ CatmullRomCurve3(またはLatheGeometry、断面が概ね回転対称に扱え�
    帰結として採用済み。§5.2(N軸=Band厚さ参考値)はEvidence不足のReference only
    のため、実装時の扱い(暫定値として使うか、N軸寸法自体を省略した簡易形状にするか)
    についてshoji確認が必要。
-2. 承認後、Mesh実装(LatheGeometryまたはCatmullRomCurve3+押し出し)へ進む。
+2. 承認後、Mesh実装(§4.2で固定したCatmullRomCurve3+ExtrudeGeometry/extrudePath)へ
+   進む。
 3. Verification Order(Build→TypeCheck→Lint→Review→Clinical Validation)を実施。
 4. Pocket-local座標系のまま(Shaft/Global座標系に未接続の状態)でGUIレビューを行う。
    Anchor/Pose Solver/Safety Engineへの影響がないことをdiffで確認する。
+
+### 8.1 GUIレビュー項目(新設v1.2、shoji指摘)
+
+Phase1実装のGUIレビューでは、最低限以下3項目を個別に表示切替できること。
+
+- **Centerline**: t=0→t=1の補間曲線(§4.2のCatmullRomCurve3)
+- **Control Points**: Anchor Points(§2)に対応する制御点マーカー
+- **Sweep Mesh**: 幅プロファイル(§4.1)を適用した最終Mesh
+
+### 8.2 コミット単位(v1.2、shoji命名案を採用)
+
+| Commit | 内容 | 対応するNext Step |
+|---|---|---|
+| 1. Centerline Construction | Anchor Points・Curve(§4.2)・Debug表示(§8.1のCenterline/Control Points) | §4・§8.1 |
+| 2. Constant Section Sweep | Sweep・幅一定(幅プロファイル未適用、経路のみ検証) | §4.2 |
+| 3. Variable Width Profile | 幅プロファイル(§4.1)・Pocket Maximum Width反映 | §4.1・§5.1 |
+| 4. Orientation Validation | Frenet Frame・Twist確認 | §6 Tangent Rule |
+
+### 8.3 完了条件への追加(v1.2、shoji指摘)
+
+Node実行での座標・幅プロファイル数値検証(既存)に加え、以下を完了条件へ追加する。
+
+- **Geometry生成は決定論的であること**(同一入力[Anchor Points・Parameterization]に
+  対して常に同一の頂点列を生成する。乱数要素・フレーム依存[前フレームの状態に依存する
+  処理]を含まない)。将来Safety EngineやGround Truthとの比較対象になりうるため、
+  Phase1の時点でこの性質を確認しておく。
 
 ## 9. 参照文書
 
