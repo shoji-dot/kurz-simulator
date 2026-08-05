@@ -1,6 +1,6 @@
 # Soft Clip Geometry Interpretation v1.0
 
-**Status**: Draft(shoji確認・v1.6訂正済み)。**コード変更は行っていない(形状解釈・
+**Status**: Draft(shoji確認・v1.9反映済み)。**コード変更は行っていない(形状解釈・
 用語整理のみ)**。
 shojiさんの訂正(2026-07-30)を反映しv1.1に更新: ①太いクロム円柱は撮影用治具ではなく
 Soft Clip本体の段付きシャフト(Confirmedへ変更、§4-1)。②Wing終端フィーチャー・
@@ -69,7 +69,18 @@ Arm Gapは引き続き別Parameterとして維持することを再確認。あ�
 `docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-A(Shaft接続位置)を、
 shoji提案によりマーキング3点(M1 Lower ArmのCenterline開始点/M2 Hook-like曲げ開始点/
 M3 Shaft中心軸との交点)として再整理(v1.3、本文書へは直接反映しない差分)。
-**Date**: 2026-07-31(v1.8更新)
+v1.9追加修正(2026-08-05、コード変更なし): §4-5(Shaft接続位置)にTopology Candidate
+Evaluationを新設(§4-5-A)。**This evaluation is based solely on previously acquired
+evidence. No additional measurements, photography, or physical inspection were
+performed.** 既存Evidence(§2部品構成・Photo#1・`Soft_Clip_M1M2M3_Photogrammetric_
+Measurement_v1.8.md`のM1/M3相対距離)を再解釈・統合した結果、Topology候補A(単一連続鎖、
+Bridgeは端点)がStrongly supported、候補B(途中分岐)はWeakly supported(根拠はEvidence B
+1件のみ)と判定。**候補Aが最も支持されるという結論であり、候補BをConfirmedに否定する
+ものではない**。この評価を受け§5-Aの制御点カテゴリ名を「Shaft接続部/開口端」から
+「Bridge側端/Hook側端」へ更新(候補Aの単一連続鎖モデルとの整合)。Component Tree・
+Measurement Record・Method Decision・Improvement Specへの反映は最小限の注釈追加に
+留め、Confirmed区分の書き換えは行わない(shoji指定、Evidence階層の考え方に忠実であるため)。
+**Date**: 2026-08-05(v1.9更新)
 **位置づけ**: `docs/Soft_Clip_Geometry_Audit_v1.0.md`(G3-3、Phase 1 Completed・Phase 2 On
 Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation → ②Geometry方式の決定 →
 ③Improvement Spec作成 → ④実装」の①にあたる。**本文書ではGeometry方式を決定しない**
@@ -101,7 +112,10 @@ Hold)の後続。shoji指定の手順「①Soft Clip Geometry Interpretation →
    情報を優先する、4-3)、Openのまま維持。(c) **新規・最重要**: Shaft接続位置
    (Lower Arm開始点・返し曲げ終端・Shaft中心接続位置の関係)がOpen(4-5、v1.7新規)。
    写真ではShaftがLower Arm根元でなく途中位置に接続しているように見え、Centerline
-   Sweep開始点の決定に直接影響するため最優先で確認が必要。
+   Sweep開始点の決定に直接影響するため最優先で確認が必要。**v1.9追記**: 既存Evidenceの
+   再評価(§4-5-A Topology Candidate Evaluation)により、単一連続鎖(候補A)が
+   Strongly supported・途中分岐(候補B)はWeakly supportedと判定。ただしConfirmedでは
+   ないため、実物確認が必要になった場合に再検討する前提は維持する。
 4. **Pocket Geometry(Confirmed、v1.7新規、§1.5)**: Pocket Maximum Width(1.40mm)
    ≠ Arm Gap(0.75mm、Evidence A+)であることから、PocketはFunnel状(内部拡大型)の
    Geometryとして確定。Pocket Depth(3.30mm、Evidence A+)の定義も固定した。
@@ -518,6 +532,64 @@ Lower Arm経路の途中の分岐点として扱うべきかが確定しない�
 (`Soft_Clip_Geometry_Improvement_Spec_v1.0.md`)では、本項目を制御点定義における
 最優先のPending項目として扱う。
 
+### 4-5-A Topology Candidate Evaluation(新設、v1.9、2026-08-05)
+
+**本評価の位置づけ**: This evaluation is based solely on previously acquired
+evidence. No additional measurements, photography, or physical inspection were
+performed. 新しいEvidenceを追加した調査ではなく、既存Evidence(10方向画像・
+`Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.8.md`)の再解釈・統合による整理である。
+
+**Observation(観察)**:
+
+- §2(部品構成)は、Bridgeを「Band LoopとShaftを接合する起点」と記述し、Photo#1
+  (クリップ横２.jpg、§1.1)はBand Loopの両端がそれぞれ「ループ端」「フック端」に
+  見えると記録している(→単一連続構造を示唆)。
+- 本節§4-5(v1.7)は、10方向画像からShaftがLower Arm根元でなく途中位置に接続して
+  いるように見える、という視覚的印象を記録している(Evidence B、単一の観察)。
+- `Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.8.md`は、M1(Lower Armが単独の帯
+  として分離し始める点)とM3(Shaft中心軸とLower Arm構造中心線の幾何学的交点)の間に、
+  Right/Left両視点で近い相対距離(1.50mm/1.73mm、Confidence Medium-High)が存在する
+  と記録している。
+
+**Topology候補**:
+
+```
+候補A: 単一連続鎖(Bridgeは端点)          候補B: 途中分岐
+
+  Hook側端(Terminal)                        Hook側端(Terminal)
+     │                                          │
+   Lower Arm                                  Lower Arm
+     │                                          │
+   Pocket                                     Pocket ── Shaft
+     │                                          │        (経路途中の分岐点で接続)
+   Upper Arm                                  Upper Arm
+     │
+  Bridge側端(=Shaft接続、経路の終端)
+     │
+   Shaft
+```
+
+**Candidate Evaluation**:
+
+| 候補 | 支持Evidence | Evidence Level | 判定 |
+|---|---|---|---|
+| A. 単一連続鎖(Bridge=端点) | §2部品構成の記述・Photo#1の両端記述・M3→M1間の非ゼロ距離(Bridge融合域と整合) | 複数、うちM1/M3はMedium-High | Strongly supported |
+| B. 途中分岐 | §4-5の視覚的印象のみ | 単一、Evidence B | Weakly supported |
+
+**M3→M1距離についての注記**: この距離の存在自体は候補Aを積極的に支持するEvidenceで
+あるが、候補Bを論理的に否定するものではない(分岐構造であってもM3-M1間に距離が生じる
+可能性は理論上排除できない)。
+
+**Current Interpretation(現時点の解釈)**: 既存Evidenceでは候補Aが最も支持される
+Topologyである。候補Bを積極的に支持する独立Evidenceは現時点では確認されない。§4-5の
+「途中接続に見える」という視覚的印象は、Bridge融合域(M3-M1間の遷移区間)を誤認した
+可能性が高いという解釈が、既存Evidenceとの整合性が最も高い。**ただしこれは
+Interpretation(解釈)であり、Confirmedな構造決定ではない**。
+
+**次工程への影響**: 本評価により、追加撮影・実物確認を行わなくても、Centerline Sweep
+の制御点定義(§5-A)を候補Aの単一連続鎖モデルに基づいて更新できると判断する。候補Bが
+否定されたわけではないため、将来矛盾するEvidenceが得られた場合は本評価を再検討する。
+
 ---
 
 ## 5. Geometry方式候補(未決定、次ステップ「②Geometry方式の決定」で確定)
@@ -553,12 +625,16 @@ Lower Arm経路の途中の分岐点として扱うべきかが確定しない�
 扱わない**。代わりに、以下の機能的カテゴリを表現できる**必要最小限の点数**として
 扱う方針とする。
 
-- Shaft接続部(Bridge側の起点。**§4-5[Shaft接続位置]が未解消のため、この点をLower
-  Armの端点として扱ってよいか、経路途中の分岐点として扱うべきかは未確定、v1.7**)
+- Bridge側端(Shaft接続部。**v1.9更新**: §4-5-A Topology Candidate Evaluationにより
+  候補A[単一連続鎖]がStrongly supportedと判定されたため、Lower Armの端点として扱う。
+  ただしこれはInterpretationレベルの判断でありConfirmedではない[候補Bを積極的に
+  支持するEvidenceがないことに基づく暫定扱い、§4-5-A参照])
 - 主要曲率変化点(複数、当初の見立てでは約3回のカーブに対応。正確な数は未確定)
 - Pocket形成部(§1.5のFunnel状Geometryとして確定、v1.7)
-- 開口端(Upper Arm・Lower Armそれぞれの自由端。Hook-like terminalとしてConfirmed、
-  §4-2・v1.7)
+- Hook側端(**v1.9更新**: 旧「開口端[Upper Arm・Lower Armそれぞれの自由端]」から名称
+  変更。候補A[単一連続鎖]では、Band Loopのもう一方の端点はUpper Arm・Lower Armそれぞれ
+  の独立した自由端ではなく、単一のHook-like terminal 1箇所であると解釈される。
+  Hook-like terminal自体はConfirmed、§4-2・v1.7)
 
 制御点の実際の座標・個数は`docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`での
 追加実測を待つ(推測による座標入力は禁止、shoji指定)。**特にShaft接続部の座標は

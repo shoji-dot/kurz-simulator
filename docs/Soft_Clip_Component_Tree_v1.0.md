@@ -1,8 +1,16 @@
-# Soft Clip Component Tree v1.2
+# Soft Clip Component Tree v1.3
 
-**Status**: Draft(shoji確認・v1.2反映済み)。**コード変更は行っていない(部品構成の定義
+**Status**: Draft(shoji確認・v1.3反映済み)。**コード変更は行っていない(部品構成の定義
 とGeometry責務候補の整理のみ、Geometry方式そのものは未決定)**。
-**Date**: 2026-07-30(v1.2更新)
+**Date**: 2026-08-05(v1.3更新)
+**v1.3での変更点(2026-08-05、コード変更なし)**: Bridgeの接続構造について、
+`Soft_Clip_Geometry_Interpretation_v1.0.md` §4-5-A(Topology Candidate Evaluation、
+既存Evidenceのみに基づく再評価、新規測定・撮影・実物確認なし)で「単一連続鎖(候補A)
+がStrongly supported、途中分岐(候補B)はWeakly supported」と判定された。**本文書では
+これを注釈として追記するのみに留め、Bridge/Band Loopの状態表記(Confirmed区分)は
+変更しない**(候補Aは最も支持される解釈であってConfirmedな構造決定ではないため、
+Interpretationより一段「確定寄り」の性格を持つComponent Treeの本文を書き換えるのは
+時期尚早、shoji指定)。
 **v1.2での変更点(shoji指示、2026-07-30)**:
 Band Loopの内部に、**Geometry実装用のMesh分割を意味しない、形状理解・機能理解のための
 論理的サブ構造**を追加(新設§2.1)。Upper Arm / Lower Arm / Central Pocket / Rear Flex
@@ -72,7 +80,10 @@ Open Questionのため、Geometry上の最終的なメッシュ分割数はこ�
 | Bridge | Confirmed(存在は確実、詳細形状はOpen) | 未計測 | Transition Surface
   (Shaft MiddleとBand Loopの径・断面形状[円形→矩形]をつなぐ遷移面) | Shaft MiddleとBand Loopを
   接合するT字の分岐点。具体的な形状(単純な直線的T字か、丸みを帯びた接合部か)は10方向
-  画像からの視認のみで、寸法計測はまだない |
+  画像からの視認のみで、寸法計測はまだない。**注釈(v1.3)**: 接続構造については
+  `Soft_Clip_Geometry_Interpretation_v1.0.md` §4-5-Aで単一連続鎖(候補A)が
+  Strongly supportedと評価されているが、Confirmedではないため本表の状態区分は
+  変更していない |
 | Band Loop | Confirmed(1部品として)、内部の経路はOpen | 全長約6.0〜7.5mm・断面
   幅0.25mm×厚さ0.10mm | 曲線/板形状候補(矩形断面[0.25×0.10mm]を曲げ経路に沿って
   掃引する形状。具体的な生成方式[Extrude/box連結等]は未決定) | 帯状部材1本。ねじりなし、8箇所で前後に成形、単純なC字リングではなく
