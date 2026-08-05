@@ -1,8 +1,18 @@
 # Soft Clip Geometry Improvement Specification v1.0
 
-**Status**: Draft(shoji確認待ち)。**Confirmed事項の整理のみ、コード変更・制御点配置・
-Mesh実装は行っていない**(shoji指定)。
-**Date**: 2026-07-31(v1.3更新)
+**Status**: Draft(shoji確認・v1.4反映済み)。**Confirmed事項の整理のみ、Phase1(Pocket
+区間)以外はコード変更・制御点配置・Mesh実装を行っていない**(shoji指定)。
+**Date**: 2026-08-05(v1.4更新)
+**v1.4での変更点(2026-08-05、コード変更なし)**: Interpretation v1.9のTopology
+Candidate Evaluation(§4-5-A、既存Evidenceのみに基づく再評価)を受け、以下2点を追加。
+①**Layer Status(新設§0-A)**: Component Topology(Strongly supported、Freeze)/
+Measurement Definitions(Frozen)/Geometry Parameters(一部Pending)/Centerline Sweep
+Method(Frozen)/Three.js実装(部分実装可能)の5層構成でプロジェクト状態を整理。
+②**Phase Gate(新設§0-B)**: Phase1(Pocket区間のみ、既存A+/A Evidenceで実装可能)/
+Phase2(Lower Arm、Position Evidence取得待ち)/Phase3(Hook/Terminal、起点・方向Evidence
+取得待ち)にEntry/Exit条件を明示。§2.1のShaft接続部記述もInterpretation v1.9(Bridge側端/
+Hook側端への名称変更)にあわせて更新。**Topologyの決着とPosition Blockerの解消は別問題
+であることを明記**(Topology=どこにつながるか、Position=どこにあるか)。
 **v1.2での変更点(shoji実測値受領、2026-07-31)**: Pocket Maximum Width(1.40mm)・
 Arm Gap/Opening(0.75mm)・Pocket Depth(3.30mm)・Terminal Shape(Hook-like)・
 Terminal Length(約2.40mm)がEvidence A/A+として確定(Interpretation v1.7 §1.5・
@@ -44,9 +54,49 @@ Evidence整理が必要な事項)を明確に分離する。**Pending項目に�
 | **Confirmed** | Geometry方式(Centerline Sweep)/ Profile定義(幅・厚さ)/ Shaft・Bridge・Band Loopの構造 / **Pocket Geometry(Funnel状、Arm Gap 0.75mm・Pocket Maximum Width 1.40mm・Pocket Depth 3.30mm、v1.2)** / **Terminal Shape(Hook-like terminal、約2.40mm、v1.2)** |
 | **Pending** | **Shaft接続位置(v1.2新規・最重要)** / Band Loop制御点位置(主要曲率変化点等、機能的カテゴリで表現) / Upper Arm・Lower Armの具体的角度 / Rear Flex Regionの曲率 |
 
-v1.2でPending項目数は7項目から4項目へ縮小した。残るPendingのうち**Shaft接続位置が
-唯一の最優先ブロッカー**であり、これが解消すればCenterline Sweepの制御点定義
-(Centerline Parameter Definition)に着手できる見込み(§0参照)。
+v1.2でPending項目数は7項目から4項目へ縮小した。残るPendingのうち**Shaft接続位置
+(Position)が唯一の最優先ブロッカー**であり、これが解消すればCenterline Sweepの制御点
+定義(Centerline Parameter Definition)に着手できる見込み(§0参照)。**v1.4追記**:
+Shaft接続部の**Topology(どこにつながるか)**はInterpretation v1.9で決着した
+(Bridge側端、Strongly supported)。残るブロッカーは**Position(どこにあるか)**の
+みであり、性質が異なる問題として扱う(§0-A・§0-B参照)。
+
+---
+
+## 0-A. Layer Status(新設v1.4、2026-08-05)
+
+Interpretation v1.9のTopology Candidate Evaluationを受け、プロジェクト状態を5層に
+分けて整理する。
+
+| Layer | 状態 | 次工程 |
+|---|---|---|
+| Component Topology | Strongly supported(実質収束、Interpretation §4-5-A) | **Freeze**(新Evidenceが出るまで維持) |
+| Measurement Definitions | Frozen(M1/M2/M3定義、Pocket Depth定義等) | 維持 |
+| Geometry Parameters(Position) | 一部Pending(下表§0-B参照) | Evidence取得継続 |
+| Centerline Sweep Method | Frozen(Method Decision v1.4、4-4=Option A) | 維持 |
+| Three.js実装 | 部分実装可能 | **Pocket区間から開始**(§0-B Phase1) |
+
+**Topology(Candidate A)を"Freeze"とする意味**: Confirmedへの格上げではなく、
+「新たに矛盾するEvidenceが得られるまでは作業上の前提として固定する」という運用上の
+凍結。Interpretation §4-5-Aの評価(Strongly supported/Weakly supported)自体は
+書き換えない。
+
+## 0-B. Phase Gate(新設v1.4、2026-08-05)
+
+Geometry Parameters(Position)のPendingを区間ごとに分割し、実装をPhase単位で
+段階的に進める。Small Change / Strangler Patternの原則に沿い、Evidenceが揃った
+区間から先行実装する。
+
+| Phase | Scope | Entry条件 | Exit条件 | 現在の状態 |
+|---|---|---|---|---|
+| Phase 1 | Pocket区間(入口→最深部) | 既存A+/A Evidenceのみ(Pocket Depth 3.30mm・Arm Gap 0.75mm・Pocket Maximum Width 1.40mm、いずれも取得済み) | Pocketレビュー完了(Verification Order・Clinical Visual Validation PASS) | **Entry条件充足、着手可能** |
+| Phase 2 | Lower Arm(Shaft接続部〜Pocket入口) | Position Evidence取得(M1/M3のmm絶対値較正・Lower Arm開始点〜Pocket入口間の距離実測) | Position拘束確定(始点・終点の3D座標が取得できる) | Entry条件未充足(mmスケール較正がProvisional以下、§0参照) |
+| Phase 3 | Hook/Terminal(Pocket出口〜Hook遷移〜Terminal終端) | 起点・方向Evidence取得(旧M2に代わるHook Transition Profileの起点位置・Terminal approach angleの定量値) | 全Centerline完成 | Entry条件未充足(Terminal Length[2.40mm、A]はあるが起点・方向が未定義) |
+
+**Phase間の依存関係**: Phase1はPhase2/3の完了を待たずに独立して実装・レビュー可能
+(Pocketの位置・方向は他区間のPosition未確定に影響されない、2026-08-05Evidence充足度
+レビューで確認済み)。Phase2・3は互いに独立したEvidence取得作業であり、どちらを先に
+進めるかは今後の実測状況次第(優先順位は本文書§2.7を維持)。
 
 ---
 
@@ -190,12 +240,16 @@ Evidence階層は本プロジェクトの標準(`[[feedback]]`): **A+(実物直�
   terminalとしてConfirmedへ移行済み(§1.5参照)。
 - **制御点の扱い方(v1.1更新、Interpretation §5-A準拠)**: 固定数(P0〜P3等)では
   なく、以下の**機能的カテゴリを表現できる必要最小限の点数**として扱う。
-  - Shaft接続部(Bridge側の起点。**§4-5が未解消のため、Lower Armの端点として扱って
-    よいか経路途中の分岐点として扱うべきかは未確定、v1.2**)
+  - Bridge側端(旧「Shaft接続部」。**v1.4更新**: Interpretation v1.9 §4-5-Aの
+    Topology Candidate Evaluationにより、単一連続鎖[候補A]がStrongly supportedと
+    判定され、Lower Armの端点として扱う[Interpretationレベルの判断、Confirmedではない]。
+    **Topologyは決着したが、mm絶対座標[Position]は引き続きPending**、§0-B Phase2参照)
   - 主要曲率変化点(複数。Interpretation §1.3-Aの見立てでは約3回のカーブに対応)
   - Pocket形成部(Funnel状Geometryとして確定済み、§1.4参照)
-  - 開口端(Upper Arm・Lower Armそれぞれの自由端。Hook-like terminalとして確定済み、
-    §1.5参照)
+  - Hook側端(旧「開口端[Upper Arm・Lower Armそれぞれの自由端]」。**v1.4更新**:
+    候補A[単一連続鎖]では、もう一方の端点はUpper/Lower Armそれぞれの自由端ではなく
+    単一のHook-like terminal 1箇所。Hook-like terminal自体はConfirmed[§1.5]、
+    起点・方向はPending、§0-B Phase3参照)
 - **現在のEvidence**:
   - Evidence B: shoji見立て(Interpretation §1.3)により、全長約6.0〜7.5mm、長辺方向
     に**約8箇所**で前後に成形、という定性的な回数・全長の情報はある。
@@ -315,12 +369,18 @@ Pending4項目は重要度が異なるため、追加実測・確認は以下の
 3. ~~shojiの記入完了後、Evidence A(またはA+)として本文書§2へ反映する。~~
    **一部完了(v1.2)**: Pocket関連4項目・Terminal Shape/Lengthを§1.4・§1.5へ
    反映済み。**残るShaft接続位置の記入待ち**(Measurement Record §1-1-A)。
-4. Shaft接続位置が確定次第、**Centerline Parameter Definition**(制御点の具体的な
-   座標定義: Centerline開始点・Arm方向・Pocket形成部の曲率制御点・Hook-like
-   terminalへの遷移点)へ進む。これは本文書の次のステップであり、**まだ着手していない**。
-5. Centerline Parameter Definition完了後、本Improvement Specの最終版を作成し、
-   Centerline Sweep実装(④)へ進む。
-6. **現時点ではコード変更を行わない**(制御点座標設定・Mesh実装は未着手のまま)。
+4. Shaft接続位置(Position/mm絶対値)が確定次第、Phase2(Lower Arm)の**Centerline
+   Parameter Definition**(制御点の具体的な座標定義)へ進む。これは本文書の次のステップ
+   であり、**まだ着手していない**。
+5. Phase2・Phase3のCenterline Parameter Definition完了後、本Improvement Specの
+   最終版を作成し、Centerline Sweep実装(④)を全区間へ拡張する。
+6. **v1.4新規**: §0-BのPhase Gateにより、**Phase1(Pocket区間)はEntry条件を
+   既に充足しているため、Phase2・3の完了を待たずに先行着手できる**。Phase1の
+   Centerline Parameter Definition(Pocket入口→最深部の制御点、A+実測値のみ使用)
+   → Mesh実装 → Verification Order(Build→TypeCheck→Lint→Review→Clinical
+   Validation)→shojiレビューという順で進める。
+7. **現時点ではコード変更を行わない**(本文書はSpec整理のみ。Phase1着手時も本文書とは
+   別途、実装ステップとして着手する)。
 
 ## 5. 参照文書
 
