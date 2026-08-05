@@ -1,8 +1,13 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認待ち)。**コード変更・Mesh実装は行っていない**(本文書は
-Phase1着手前の仕様定義のみ)。
-**Date**: 2026-08-05
+**Status**: Draft(shoji確認・v1.1反映済み)。**コード変更・Mesh実装は行っていない**
+(本文書はPhase1着手前の仕様定義のみ)。
+**Date**: 2026-08-05(v1.1更新)
+**v1.1での変更点(shoji指摘、2026-08-05)**: §5を5.1 Evidence-derived Design
+Decisions(Pocket Maximum Widthの到達位置=t1採用。既存Confirmed Evidenceの論理的
+帰結であり新形状の創作ではないため、Known LimitationからDesign Decisionへ格上げ)と
+5.2 Known Limitations(N軸=Band厚さ参考値。Band ThicknessとPocket Thicknessは別物
+であり同一視できないため、引き続きReference onlyのEvidence不足として扱う)に分離。
 **位置づけ**: `Soft_Clip_Geometry_Improvement_Spec_v1.0.md`(v1.4)§0-B Phase Gateの
 **Phase1(Pocket区間)**に対応する実装仕様。Phase Gateの定義通り、Entry条件(既存A+/A
 Evidenceのみ)を満たす範囲でのみ制御点を定義する。**推測による座標入力は禁止**
@@ -75,29 +80,46 @@ G3-2で確立した「主要寸法は正確に、形状は単純に留める」�
 | t | 幅 | 根拠 |
 |---|---:|---|
 | t = 0(入口) | 0.75 mm(Arm Gap) | Evidence A+ |
-| t = 1(最深部) | 1.40 mm(Pocket Maximum Width) | Evidence A+、**Evidence C的解釈を含む(§5参照)** |
-| 0 < t < 1 | 0.75mm→1.40mmへ単調増加(線形またはsmoothstep) | Evidence C(§5参照) |
+| t = 1(最深部) | 1.40 mm(Pocket Maximum Width) | Evidence A+ + Evidence-derived Design Decision(§5.1参照) |
+| 0 < t < 1 | 0.75mm→1.40mmへ単調増加(線形またはsmoothstep) | Evidence-derived Design Decision(§5.1参照) |
 
 ---
 
-## 5. Known Limitations(Evidence C的判断、明示)
+## 5. Evidence-derived Design Decisions / Known Limitations
 
 Phase1のEntry条件(既存A+/A Evidence)は満たしているが、Mesh生成には以下2点の
-**追加的な形状解釈**が必要になる。いずれも新規測定ではなく、既存Confirmed
-Interpretationからの合理的な帰結として採用する(shoji確認を推奨)。
+追加的な形状解釈が必要になる。この2点は性質が異なるため分離する。**5.1は既存
+Confirmed Evidenceの論理的帰結(新しい形状の創作ではない)、5.2は真にEvidence不足の
+項目**である(shoji指摘、2026-08-05)。
 
-1. **Pocket Maximum Widthの到達位置(t軸上)**: 実測値はPocket内部空間の「最大幅」
-   としてのみ記録されており、それがt軸上のどの位置で生じるかは直接測定されていない。
-   Interpretation §1.5の記述順序(入口→狭い開口→内部で広がる空間→最深部)が
-   単調な広がりを示唆しているため、**Pocket Maximum Widthは最深部(t=1)で到達する
-   という単調増加プロファイルを採用**する。中間で一度広がってから狭まるような
-   非単調形状を示すEvidenceはなく、単調増加が最も単純かつ既存記述と矛盾しない解釈
-   である。
-2. **N軸方向(幅と直交する厚み方向)の寸法**: Pocket自体のN軸寸法を直接示す
-   Evidenceはない。Band Loop断面厚さ(0.10mm、Evidence A、Interpretation §1.2)を
-   参考値として暫定使用することを提案する(Pocketを形成するArmの厚みに由来する
-   空間であるため)。これはPocket自体の実測ではなく隣接する既存実測値の流用である
-   ことを明記する。
+### 5.1 Evidence-derived Design Decisions(Evidenceからの論理的帰結)
+
+**Pocket Maximum Widthの到達位置(t軸上)**: 実測値はPocket内部空間の「最大幅」
+としてのみ記録されており、それがt軸上のどの位置で生じるかは直接測定されていない。
+しかし以下3点の既存A+/Confirmed Evidenceから、単調増加プロファイル(t=1すなわち
+最深部でPocket Maximum Widthに到達)は**新しい形状の創作ではなく論理的帰結**として
+導かれる。
+
+- Pocket入口の幅(Arm Gap 0.75mm、A+)
+- Pocket最深部までの距離(Pocket Depth 3.30mm、A+)
+- Interpretation §1.5のConfirmed記述順序: 「入口→狭い開口→内部で広がる空間→
+  最深部」
+
+この記述順序は「入口が最も狭く、内部に向かって広がる」ことを示しており、途中で
+一度広がってから最深部に向けて再び狭まるといった非単調な形状を示すEvidenceは
+存在しない。**最大幅が最深部より手前にある、という新しい形状情報を追加しては
+いない**——既存Evidenceが許容する最も単純な解釈を採用したに留まる。したがって
+本項目はKnown Limitationではなく、Evidence-derived Design Decisionとして扱う。
+
+### 5.2 Known Limitations(Evidence不足、今後の取得対象)
+
+**N軸方向(幅と直交する厚み方向)の寸法**: Pocket自体のN軸寸法(厚み)を直接示す
+Evidenceはない。Band Loop断面厚さ(0.10mm、Evidence A、Interpretation §1.2)は
+**あくまで隣接部品(Band Loop)の実測値であり、Pocket自体の厚みではない**
+(Band Thickness ≠ Pocket Thickness)。両者を同一視する根拠はないため、本文書では
+Reference onlyとして扱い、Pocket自体の実測値としては採用しない。Mesh生成時の
+暫定値として使う場合も、Pocket自体の測定値ではないことを実装コード上のコメントに
+明記する。
 
 いずれもAnchor/Pose Solver/Safety Engineに影響しない(Pocket Meshは視覚的表現のみ)。
 
@@ -140,8 +162,10 @@ CatmullRomCurve3(またはLatheGeometry、断面が概ね回転対称に扱え�
 ## 8. Next Step
 
 1. 本文書(Anchor Points/Coordinate System/Parameterization/Tangent Rule/Non-goals)
-   をshoji確認。特に§5 Known Limitations(Pocket Maximum Widthの到達位置=t1、N軸=
-   Band厚さ参考値)の2点は承認が必要。
+   をshoji確認。§5.1(Pocket Maximum Widthの到達位置=t1)はEvidenceからの論理的
+   帰結として採用済み。§5.2(N軸=Band厚さ参考値)はEvidence不足のReference only
+   のため、実装時の扱い(暫定値として使うか、N軸寸法自体を省略した簡易形状にするか)
+   についてshoji確認が必要。
 2. 承認後、Mesh実装(LatheGeometryまたはCatmullRomCurve3+押し出し)へ進む。
 3. Verification Order(Build→TypeCheck→Lint→Review→Clinical Validation)を実施。
 4. Pocket-local座標系のまま(Shaft/Global座標系に未接続の状態)でGUIレビューを行う。
