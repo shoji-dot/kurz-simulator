@@ -1,8 +1,21 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.5反映済み)。**Commit2完了・Commit3a(docs)確定**
-(本節以降の変更はCommit3実装依頼に対応。Commit3bは未着手)。
-**Date**: 2026-08-06(v1.5更新)
+**Status**: Draft(shoji確認・v1.6反映済み)。**Commit3b完了(Triangle Winding修正込み、
+`0e70e4f`にamend・push済み)。Commit4(Phase1 Close-out)は計画確定・実装待ち**。
+**Date**: 2026-08-06(v1.6更新)
+**v1.6での変更点(shoji指摘、2026-08-06、Commit3b完了・Commit4計画確定)**: 3点確定。
+①**Status/本節の同期**: v1.5時点で「Commit3bは未着手」としていた記述を、実際の
+完了状態(Ring/Face生成+GUI実装完了。Triangle Winding欠陥の発見・修正込みで
+`0e70e4f`にamend・push済み)に合わせて更新する。②**§8.2の更新**: Commit3行を
+完了マークし、Commit4行を「Orientation Validation(Frenet Frame・Twist確認)」から
+「Phase1 Close-out」に差し替える。現行実装(§4.2)はW_hat/N_hatを固定軸として使用し
+Frenet Frameを採用していないため、旧Commit4記述は現設計と矛盾しており撤回する
+(Frenet Frame/Twistの要否はPhase2/3でCenterlineが曲線化した際に別途検討する)。
+③**§8.4新設(Implementation Validation / Acceptance Criteria)**: Commit3bの
+Node検証スクリプトによる確認項目(manifold・退化三角形0・法線方向・符号付き体積)を
+明文化する。実装の幾何学的正しさを確認するAcceptance Criteriaであり、§2の
+Evidence Hierarchy(A+/A/B/C)とは別枠の技術検証であることを明記する(shoji方針、
+Evidence階層への昇格ではない)。
 **v1.5での変更点(shoji指摘、2026-08-06、Commit3実装依頼確定)**: 4点確定。
 ①**§4.2に例外規定を追加**: Sweep Geometry concept(Centerlineに沿った断面掃引)は
 Freeze維持。断面が経路上で一定(Constant Section)か変化するか(Variable Width)に
@@ -278,8 +291,12 @@ Phase1実装のGUIレビューでは、最低限以下3項目を個別に表示�
 |---|---|---|
 | 1. Centerline Construction | Anchor Points・Curve(§4.2)・Debug表示(§8.1のCenterline/Control Points) | §4・§8.1 |
 | 2. Constant Section Sweep | Sweep・幅一定(幅プロファイル未適用、経路のみ検証) | §4.2 |
-| 3. Variable Width Profile | 幅プロファイル(§4.1、Linear確定)・Pocket Maximum Width反映。section interpolation(手動Loft、§4.2 v1.5例外規定)で実装 | §4.1・§5.1・§4.2 |
-| 4. Orientation Validation | Frenet Frame・Twist確認 | §6 Tangent Rule |
+| 3. Variable Width Profile(**完了**、`0e70e4f`) | 幅プロファイル(§4.1、Linear確定)・Pocket Maximum Width反映。section interpolation(手動Loft、§4.2 v1.5例外規定)で実装。Triangle Winding欠陥の発見・修正込み(§8.4参照) | §4.1・§5.1・§4.2・§8.4 |
+| 4. Phase1 Close-out(v1.6で「Orientation Validation」から差し替え) | Freeze文書作成(`Soft_Clip_Pocket_Phase1_Freeze_v1.0.md`)・Status確定・Validation結果記録。コード変更は想定しない | §8.4・Freeze文書 |
+
+**v1.6補足**: 旧Commit4「Orientation Validation(Frenet Frame・Twist確認)」は現行
+実装(§4.2、W_hat/N_hat固定軸・Frenet Frame不使用)と矛盾するため撤回した。Frenet
+Frame/Twistの要否はPhase2/3でCenterlineが直線から曲線に変わった際に別途検討する。
 
 **v1.5補足: Commit3の分割(shoji指摘、2026-08-06)**: Commit3は実装依頼の粒度として
 Commit3a(本docs更新のみ)とCommit3b(Ring/Face生成+GUI実装)に分割する。Commit3a完了後、
@@ -299,6 +316,29 @@ Node実行での座標・幅プロファイル数値検証(既存)に加え、�
   対して常に同一の頂点列を生成する。乱数要素・フレーム依存[前フレームの状態に依存する
   処理]を含まない)。将来Safety EngineやGround Truthとの比較対象になりうるため、
   Phase1の時点でこの性質を確認しておく。
+
+### 8.4 Implementation Validation / Acceptance Criteria(新設v1.6、Commit3b)
+
+Commit3b(`getSoftClipPocketVariableWidthSweepGeometry()`)の実装後、three.js非依存の
+独立Node検証スクリプトにより以下4項目を確認した。**これは§2のEvidence Hierarchy
+(A+/A/B/C)とは別枠の技術検証(Acceptance Criteria)であり、Evidence階層への昇格
+ではない**(shoji方針確定)。
+
+| 項目 | 内容 | 結果 |
+|---|---|---|
+| Manifold性 | Directed-edge manifold check(各辺が正確に2回、逆向きに使用される) | PASS(境界0) |
+| 退化三角形 | 面積0または縮退した三角形の有無 | PASS(0件、全260三角形が非退化) |
+| 法線方向 | 各三角形法線とローカル外向き方向のdot積 | 発見時: 260/260が逆向き(dot=−1.0) → 修正後: 260/260が正しい向き(dot=+1.0) |
+| 符号付き体積 | Divergence theoremによるメッシュclosed volumeの符号 | 発見時: 符号のみ反転(絶対値は解析値と一致) → 修正後: 解析値と誤差0% |
+
+**経緯**: shojiのGUIレビューで「wireframeにX字状の交差が見える」との指摘を受け、
+上記スクリプトで解析した結果、Topology自体は正常だが全260三角形でWinding(頂点順序)
+が逆(法線が内向き)と判明した。側面2三角形+両端cap4三角形の頂点順序を修正し、
+`git commit --amend`で`0e70e4f`に統合した(修正後は本表の全項目がPASS)。
+
+**このNode検証スクリプトのリポジトリ正式追加(再利用可能なテストとして格納するか)
+はCommit4でDeferred Decisionとして扱う**(Bell/Flat等の他形状での再利用見込みを
+踏まえた将来判断、shoji方針)。
 
 ## 9. 参照文書
 
