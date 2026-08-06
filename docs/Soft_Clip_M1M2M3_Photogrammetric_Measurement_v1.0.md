@@ -1,7 +1,7 @@
-# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.8）
+# Soft Clip M1/M2/M3 Measurement Record（写真幾何解析版 v1.9）
 
-**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)。v1.7でレビュー反映(2026-08-04、Centerline Sweep実装状況・優先順位・座標系記述の整合修正のみ、Decision内容に変更なし)。v1.8でTurntable撮影セッションをGeometry Evidenceとして追加(2026-08-05、Decision内容に変更なし)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
-**Date**: 2026-07-31（v1.7更新: 2026-08-04、v1.8更新: 2026-08-05）
+**Status**: **shoji判断済み(2026-07-31、Decision v1.3まで)。v1.7でレビュー反映(2026-08-04、Centerline Sweep実装状況・優先順位・座標系記述の整合修正のみ、Decision内容に変更なし)。v1.8でTurntable撮影セッションをGeometry Evidenceとして追加(2026-08-05、Decision内容に変更なし)。v1.9でAzimuth 90°/270°撮影の解析結果を反映し、Candidate Cのステータスを変更(Decision v1.4、2026-08-06)**。M3=Definition正式採用(mm値は個体/スケール確認後に統合)、M1=Provisional採用/Definition現状維持、M2=固定座標点としての正式採用は行わない方針(v1.3)、代わりに「Hook Transition Profile」への再定義を検討中。`Soft_Clip_Band_Loop_Measurement_Record_v1.0.md` §1-1-Aへの数値統合はまだ実施しない。
+**Date**: 2026-07-31（v1.7更新: 2026-08-04、v1.8更新: 2026-08-05、v1.9更新: 2026-08-06）
 **Method**: 手動マーキングではなく、写真EvidenceからOpenCVによる幾何学的抽出（エッジ検出→直線フィット→交点計算）。M3は「Shaft外径左右端→中心軸算出」「Lower Arm構造中心線フィット」の2本の直線の交点として計算。
 
 ---
@@ -553,11 +553,99 @@ are completed.
 
 ---
 
+## v1.9 Update: Azimuth 90°/270°追加撮影の解析結果 + Candidate C位置付け変更（2026-08-06）
+
+**前提**: Photography Checklist v1.0（候補A最優先）に基づき撮影された`softclip90°.jpg`/`softclip270°.jpg`（Azimuth Ring方式、v1.5/v1.6のAzimuth Ring 4枚(045/135/225/315)と同一手法の延長）を解析。あわせて既存`right_annotated.png`/`left_annotated.png`（Right/Left Evidence）に対して**同一アルゴリズム**を適用し直接比較した。
+
+### 1. M2安定性の再評価（最大の成果）
+
+| 視点ペア | M1→M2距離 | 乖離率 |
+|---|---|---|
+| Right / Left（v1.0時点） | 2.99mm / 7.68mm | 約157% |
+| 90° / 270°（写真内較正） | 1.71mm / 1.60mm | 約7% |
+
+90°/270°ではM2の見かけ位置が両視点でほぼ一致した。これはv1.5/v1.6で立てた仮説（「90°/270°がHookの湾曲平面に最も正対する」）を強く支持する結果である。
+
+**解釈の限定**: この改善は「M2の絶対3D座標が確定した」ことを意味しない。**90°/270°という特定の投影平面上ではM2という特徴が視点非依存的に観測できる**、という点が確認されたに留まる。
+
+### 2. Hook Transition Profile評価の更新
+
+- Terminal approach angle: 90°/270°でも定性的に一致（v1.4で確認したOblique 2枚の所見と整合）。
+- 90°/270°ではHook形状全体の可視性が高く、Azimuth Ring 4枚（045/135/225/315）で確認された自己遮蔽（45°で不可視、v1.5参照）は発生していない。
+
+### 3. Shaft–Hook交差角の比較（新規知見）
+
+| 視点 | 交差角 |
+|---|---|
+| Right / Left | 94.6° / 82.6°（平均88.6°、差12.0°） |
+| 90° / 270° | 103.8° / 70.4°（平均87.1°、差33.4°） |
+
+平均値はRight/Leftと近いが、個別視点間のばらつきはRight/Leftより顕著に大きい。これは**「90°/270°が単純に0°/180°から90°回転しただけの視点ではない」**ことを示す間接証拠である。**正確な回転量（厳密に90°/270°だったか）は、写真測量的な対応点解析が未実施のため確定していない。**
+
+### 4. 座標系統合の現状（部分的前進のみ）
+
+- **前進**: Right/Left・Azimuth Ring（045/135/225/315）・Turntable・90°/270°の4セッションが、単純な回転オフセットだけでは説明できない差異を持つ、という事実が上記§3により明らかになった。
+- **未達成**: 正確な回転量の確定、複数セッション間の座標変換の導出。これらは新規撮影の追加ではなく、既存写真間の対応点解析（写真測量）によって前進できる可能性がある課題であり、下記Decision v1.4で独立トラックとして整理する。
+
+### 5. Shaft径不整合への追加要因（新規指摘、未解決のまま）
+
+v1.1で指摘した「Main Body/Neck取り違え」に加え、以下が新たな要因候補として浮上した。写真解析のみでは切り分けられず、**現物ノギス確認が必要**（Photography Checklist §4に記録事項として反映済み）。
+
+- 較正倍率の違い（Right/Left間で較正px/mmが約58%差）
+- T字接合部直下の、未整理な第三の部位を測定している可能性
+- ルーラーとShaftの視差
+
+### 6. Candidate C（現物マーキング）の要否判断
+
+M2/Hook Transition Profileという当初の目的に対しては、90°/270°の結果により**目的をほぼ達成した**と判断する。したがってCandidate Cは同目的では不要。詳細は下記Decision v1.4参照。
+
+**Centerline Sweep実装にはまだ進まない。**
+
+---
+
+## Decision v1.4（shoji、2026-08-06）
+
+**① Candidate Cのステータス変更**:
+
+| 項目 | 変更前（v1.7） | 変更後（v1.9） |
+|---|---|---|
+| Candidate C（現物マーキング＋複数Azimuth撮影） | 次点（候補Aの結果を見てから要否判断） | **Hook Transition Profile目的では不要**。90°/270°によりM2乖離が157%→7%に改善し、目的（M2/Hook Transition Profileの視点非依存的な評価）はほぼ達成されたため。他目的（現物直接確認等）が発生した場合のみ再検討。 |
+
+**優先順位リストの並び自体（候補A→C→D→B）は変更しない。** Aを実施した結果Cの要否が確定した、という位置付けであり、順序の判断ロジックそのものは妥当だったと確認された。
+
+**② 座標系統合トラックの新設**:
+
+Photography Roadmap（候補A〜D、撮影して埋めるEvidence）とは別に、以下を「Coordinate Integration」という独立の残課題として管理する。撮影の追加を必ずしも要さず、既存4セッション（Right/Left・Azimuth Ring・Turntable・90°/270°）の対応点解析（写真測量）で前進できる可能性がある点が、Photography Roadmapの各候補（新規撮影が前提）とは性質が異なる。
+
+- 正確な回転量の確定（90°/270°が厳密に90°/270°だったかの検証）
+- Right/Left・Azimuth Ring・Turntable・90°/270°の座標系統合方針の策定
+
+**③ 次工程**:
+1. Coordinate Integrationトラックの着手方法検討（次回撮影に依存しない範囲でどこまで進められるか）
+2. Shaft径不整合の現物ノギス確認（次回撮影時、Photography Checklist §4で既に記録事項化済み）
+
+**Improvement Spec / Freeze文書 / P4管理文書への反映は今回行わない**（今回の変更範囲はMeasurement Recordのみ、影響範囲を広げないため）。
+
+**Centerline Sweep実装にはまだ進まない。**
+
+### v1.9 Status サマリ（v1.7からの差分のみ）
+
+| 項目 | v1.7 | v1.9 |
+|---|---|---|
+| M2固定点 | Reject | Reject（変更なし。90°/270°でのM2視点間乖離は約7%に改善、ただし固定3D座標としての採用可否とは別問題） |
+| 追加撮影優先順位 | 候補A→C→D→B | **候補A→C→D→B（順序不変、Candidate Cを「不要」判定に変更、Decision v1.4）** |
+| 座標系統合（直立⇔Azimuth Ring⇔Turntable⇔90/270） | 未着手 | **部分的前進**（単純回転では説明できない差異を確認）。**Coordinate Integrationとして独立トラック新設** |
+| Geometry Parameter | 未確定 | 未確定（変更なし） |
+| Centerline Sweep | NOT STARTED | NOT STARTED（変更なし） |
+
+---
+
 ## Image Evidence
 
 **Used images（定量測定に使用）**:
 - `SoftClip_Right.jpg`（Right side view、1037×1577px）
 - `SoftClip_Left.jpg`（Left side view、936×1749px）
+- `softclip90°.jpg` / `softclip270°.jpg`（Azimuth Ring、90°/270°、v1.9で追加・使用。Right/Leftと同一アルゴリズムでM1→M2距離・Shaft–Lower Arm交差角を算出、詳細はv1.9 Update参照）
 
 **Used images（定性確認のみ、定量測定には不使用）**:
 - `SoftClip_Right_Oblique.jpg`（Right oblique upper view）
@@ -644,8 +732,8 @@ Grid（方眼紙）ではなく、写真に写る**mm刻みルーラー**のテ�
 1. **【解決済み・部位識別】Shaft径不一致の原因はMain Body/Neckの取り違えと判明（v1.1）**。
    写真解析で抽出したのはShaft Main Body(8.0mm)ではなく**Shaft Connection Neck(4.0mm)**だったことがshoji実物確認で判明。ただし、Neck Diameter基準で再較正すると①Right/LeftのM3→M1クロスビュー差が13%→42%に悪化、②同一写真内でのMain Body/Neck画素幅比(2.85)がshoji申告の実寸比(2.0)と一致しない、という**新たな不整合**が発生（v1.1参照）。ルーラー較正・Neck較正のいずれもmm絶対値の確定的根拠にはならず、**mm値は当面Provisional以下の参考値**として扱う。
 
-2. **M2（直線→Hook遷移点）は視点依存性が大きく、単一2D写真解析では確定困難**。
-   物理的な返し曲げが緩やかであるほど、真上から見るか横から見るかで「曲がり始め」に見える位置がずれる。より確実な決定には、①現物への直接マーキング（shoji当初案）、②Lower Armの局所曲げ平面にほぼ正対する追加アングル写真、のいずれかが必要。
+2. **【部分的に改善・v1.9】M2（直線→Hook遷移点）は視点依存性が大きく、単一2D写真解析では確定困難**。
+   物理的な返し曲げが緩やかであるほど、真上から見るか横から見るかで「曲がり始め」に見える位置がずれる。**v1.9でAzimuth 90°/270°を追加取得した結果、この2視点間ではM2乖離が約7%まで改善した**（v1.9 §1参照）。ただしこれは90°/270°という特定投影平面での視点非依存性であり、M2の絶対3D座標が確定したわけではない。現物への直接マーキングによる三角測量（Candidate C）は、Hook Transition Profile目的では不要と判断済み（Decision v1.4）だが、絶対3D座標が別途必要になった場合は再検討の余地がある。
 
 3. **Oblique 2枚（top-angle）は定量校正に使用していない**。定性的にはLower Arm–Hook–Shaftの位置関係が正面視と矛盾しないことを確認済みだが、独立した数値検証としては使っていない。
 
