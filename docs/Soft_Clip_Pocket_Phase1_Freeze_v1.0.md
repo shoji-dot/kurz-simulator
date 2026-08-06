@@ -11,6 +11,11 @@
 
 (main / origin/main 同期済み)
 
+**Sync Note(2026-08-06、Measurement Record v1.9反映)**: §5/§10のPhase2 Blocker
+記述を、候補A(90°/270°撮影・解析)完了とCandidate C位置付け変更(Decision v1.4)に
+合わせて同期した。**Frozen Decisions(§9)・Scope(冒頭Scope Note)には変更なし**
+(docs-onlyの状態同期のみ、コード変更なし)。
+
 ---
 
 > ## Scope Note(最重要・本文書の適用範囲)
@@ -79,9 +84,14 @@ Acceptance Criteria)に基づき、three.js非依存の独立Node検証スクリ
 
 ## 5. 引き継ぎ事項
 
-- **Phase2(Shaft〜Bridge〜Lower Arm)**: Evidence Blocker継続中(Top-down視点
-  追加撮影待ち、Decision v1.3)。M1/M3のpx座標・Definitionは変更なし、mm絶対値は
-  Provisional以下で保留。
+- **Phase2(Shaft〜Bridge〜Lower Arm)**: Evidence Blocker継続中。**[2026-08-06追記]**
+  候補A(90°/270° Azimuth Ring撮影)がCompleted、M2の視点間乖離が157%→7%に改善し
+  Candidate C(現物マーキング)は同目的では不要と判定(Measurement Record v1.9、
+  Decision v1.4)。**残る直接Blockerは「Top-down撮影待ち」ではなく、Hook Transition
+  Profile定量パラメータ未確定とShaft径較正の2点**。Coordinate Integration(4撮影
+  セッション間の座標変換未定義)は解析精度向上の重要課題として並行管理(P0直接
+  Blockerではない)。M1/M3のpx座標・Definitionは変更なし、mm絶対値はProvisional
+  以下で保留。
 - **Phase3(Hook/Terminal)**: 起点・方向のEvidence不在(Blocker: Shaft〜Hook〜
   Terminal区間の距離・方向欠如)。Pocket区間との接続(t=1点の出口接線)は未定義の
   まま。
@@ -157,7 +167,9 @@ Status: Completed
 Blocking Issue:
 None
 Open Issues:
-Phase2 Evidence Blocker(Top-down撮影待ち)
+Phase2 Evidence Blocker(Hook Transition Profile定量化未達 + Shaft径較正未解決。
+  候補A[90°/270°]は2026-08-06 Completed、Measurement Record v1.9参照。
+  Coordinate Integrationは並行の解析精度向上課題、P0直接Blockerではない)
 Phase3 Evidence Blocker(Shaft〜Hook〜Terminal区間の距離・方向欠如)
 Deferred Decision:
 Node検証スクリプトのリポジトリ格納可否
