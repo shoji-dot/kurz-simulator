@@ -14,7 +14,7 @@ import { SimScene } from '../scenes/SimScene';
 import type { VisibilityMap, OpacityMode } from '../scenes/models/RealAnatomyModels';
 import type { SurgicalCase } from '../data/cases';
 import type { KurzProduct } from '../data/products';
-import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX, ControlPad } from './ui';
+import { Badge, Button, Alert, LearningPanel, TeachingPointList, StepProgress, Z_INDEX, ControlPad, ContextTagBar } from './ui';
 import type { BadgeTone } from './ui';
 import { SafetyScoreCard } from './SimulationMode';
 import { CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
@@ -164,12 +164,12 @@ function StepProgressBar({ currentStep, onStepClick }: { currentStep: number; to
 function CaseTagBar({ surgicalCase }: { surgicalCase: SurgicalCase }) {
   return (
     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-      {surgicalCase.tags.procedure.map(t => (
-        <Badge key={t} tone="primary">{t}</Badge>
-      ))}
-      {surgicalCase.tags.lesion.map(t => (
-        <Badge key={t} tone="warning">{t}</Badge>
-      ))}
+      <ContextTagBar
+        variant="badge"
+        wrap={false}
+        procedureTags={surgicalCase.tags.procedure}
+        lesionTags={surgicalCase.tags.lesion}
+      />
       <Badge tone={DIFF_TONE[surgicalCase.difficulty] ?? 'neutral'}>{DIFF_LABEL[surgicalCase.difficulty] ?? surgicalCase.difficulty}</Badge>
     </div>
   );
@@ -437,10 +437,12 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
             </div>
             {selectedCaseId === c.id && (
               <>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8, marginBottom: 6 }}>
-                  {c.tags.procedure.map(t => <Badge key={t} tone="primary">{t}</Badge>)}
-                  {c.tags.lesion.map(t => <Badge key={t} tone="warning">{t}</Badge>)}
-                </div>
+                <ContextTagBar
+                  variant="badge"
+                  procedureTags={c.tags.procedure}
+                  lesionTags={c.tags.lesion}
+                  style={{ gap: 4, marginTop: 8, marginBottom: 6 }}
+                />
                 <div style={{ display: 'flex', gap: 6 }}>
                   {([
                     { key: 'malleus', label: 'ツ', status: c.ossicularStatus.malleus },
@@ -730,12 +732,13 @@ export function StepFlowMode() {
 
           {/* キャンバスオーバーレイ: コンテキストタグ */}
           <div style={{ position: 'absolute', top: (step.useSimScene && coordDebug) ? 195 : 10, left: 10, zIndex: Z_INDEX.hud, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {flowCase.tags.procedure.map(t => (
-              <Badge key={t} tone="primary" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}>{t}</Badge>
-            ))}
-            {flowCase.tags.lesion.map(t => (
-              <Badge key={t} tone="warning" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}>{t}</Badge>
-            ))}
+            <ContextTagBar
+              variant="badge"
+              wrap={false}
+              procedureTags={flowCase.tags.procedure}
+              lesionTags={flowCase.tags.lesion}
+              tagStyle={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'var(--glass-blur)' }}
+            />
           </div>
 
           {/* 軟骨スライストグル（SimScene表示時のみ） */}

@@ -44,7 +44,7 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 import { SIM_VIS_ITEMS, CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
-import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow, ControlPad } from './ui';
+import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow, ControlPad, ContextTagBar } from './ui';
 import { createSessionFromCaseCompletion, appendLearningEvidenceToSession, assessLearningSession, recommendFromAssessment } from '../engine/applicationIntegration';
 import { summarizeSession } from '../engine/learningSession';
 import { useLearningHistoryStore } from '../store/useLearningHistoryStore';
@@ -99,36 +99,6 @@ function pushHistory(entry: HistoryEntry): HistoryEntry[] {
 // ── シミュレーション用表示切替アイテム（Phase22.2でscenes/models/visToggleConfig.tsへ切り出し。
 //    StepFlowMode.tsxからも参照するための共有化。値・ロジックは無変更） ──────────────
 
-
-// ── コンテキストタグバー ──────────────────────────────────────────
-interface ContextTagBarProps {
-  procedureTags: string[];
-  lesionTags: string[];
-  style?: CSSProperties;
-}
-function ContextTagBar({ procedureTags, lesionTags, style }: ContextTagBarProps) {
-  return (
-    <div style={{
-      display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center',
-      ...style,
-    }}>
-      {procedureTags.map(t => (
-        <span key={t} style={{
-          padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(var(--color-primary-rgb),0.18)', color: 'var(--color-primary)',
-          border: '1px solid rgba(var(--color-primary-rgb),0.35)', letterSpacing: '.02em',
-        }}>{t}</span>
-      ))}
-      {lesionTags.map(t => (
-        <span key={t} style={{
-          padding: '3px 9px', borderRadius: 999, fontSize: 10, fontWeight: 700,
-          background: 'rgba(var(--color-warning-rgb),0.15)', color: 'var(--color-warning)',
-          border: '1px solid rgba(var(--color-warning-rgb),0.35)', letterSpacing: '.02em',
-        }}>{t}</span>
-      ))}
-    </div>
-  );
-}
 
 const diffLabel: Record<string, string> = {
   beginner: '初級',

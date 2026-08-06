@@ -17,3 +17,4 @@ export * from './Logo';
 export * from './AdjRow';
 export * from './HoldButton';
 export * from './ControlPad';
+export * from './ContextTagBar';
