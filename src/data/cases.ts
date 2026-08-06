@@ -36,6 +36,15 @@ export interface SurgicalCase {
     procedure: string[];  // 術式チップ: 鼓室形成型・プロステーシス種類
     lesion: string[];     // 病変チップ: 疾患・状態
   };
+  /**
+   * Detailed Reconstruction Pattern(JOS2010分類の細分類、PORP症例のみ対象)。
+   * Runtime推論は行わず、shoji確認済みの値のみを格納する(Priority3_UI_Design_Review_v1.0.md
+   * §2.1(A)参照)。Anchor Basis等の表示文字列はこの値からのpure functionとして別途導出する
+   * 方針(同文書§2.1(B))であり、このフィールド自体はUI表示ロジックを含まない。
+   * - 'Ⅲc': ツチ骨柄欠損、軟骨再建面(鼓膜)からアブミ骨頭部へ直接再建。
+   * - 'Ⅲi-M': ツチ骨柄温存、ツチ骨柄下からアブミ骨頭部への再建(interposition)。
+   */
+  detailedReconstructionPattern?: 'Ⅲc' | 'Ⅲi-M';
 }
 
 export const surgicalCases: SurgicalCase[] = ([
@@ -67,6 +76,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['慢性中耳炎', 'キヌタ骨欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲi-M',
   },
   {
     id: 'case-004',
@@ -95,6 +105,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['真珠腫性中耳炎', 'ツチ骨・キヌタ骨欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲc',
   },
   {
     id: 'case-002',
@@ -153,6 +164,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP', 'in-stage再建'],
       lesion:    ['真珠腫性中耳炎（術後）', 'ツチ骨・キヌタ骨欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲc',
   },
   {
     id: 'case-005',
@@ -185,6 +197,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['癒着性中耳炎', 'キヌタ骨欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲi-M',
   },
   {
     id: 'case-007',
@@ -211,6 +224,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP', '小児手術'],
       lesion:    ['先天性耳小骨奇形', 'キヌタ骨・アブミ骨上部欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲc',
   },
   {
     id: 'case-008',
@@ -238,6 +252,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP', '外傷手術'],
       lesion:    ['外傷性耳小骨離断', 'キヌタ骨脱臼', '側頭骨骨折'],
     },
+    detailedReconstructionPattern: 'Ⅲi-M',
   },
   {
     id: 'case-009',
@@ -346,6 +361,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP', '軟骨グラフト'],
       lesion:    ['小児慢性中耳炎', 'キヌタ骨長突起骨吸収'],
     },
+    detailedReconstructionPattern: 'Ⅲi-M',
   },
   {
     id: 'case-012',
@@ -369,6 +385,7 @@ export const surgicalCases: SurgicalCase[] = ([
       procedure: ['鼓室形成III型', 'PORP'],
       lesion:    ['慢性穿孔性中耳炎', 'ツチ骨・キヌタ骨欠損'],
     },
+    detailedReconstructionPattern: 'Ⅲc',
   },
   {
     id: 'case-013',
