@@ -1,8 +1,9 @@
-# Priority3 UI Design Review v1.0
+# Priority3 UI Design Review v1.1
 
-**Status**: Draft(shoji確認待ち)。**設計レビューのみ、実装は行っていない**(shoji指定、
-コード変更なし)。
-**Date**: 2026-08-06
+**Status**: shoji一次レビュー済み(2026-08-06)。**Confirmed(確認済み)とPending
+Approval(承認待ち)を分離**して記載(shoji指定)。**設計レビューのみ、実装は行っていない**
+(コード変更なし)。
+**Date**: 2026-08-06(v1.0作成)/2026-08-06(v1.1、shojiレビュー反映)
 **位置づけ**: `P4_Transition_Deferred_Management_Plan_v1.0.md`(v1.2)§3 Roadmap Step2。
 P3で確定したProcedure分類・Anchor・Evidence Layer(`P3_Completion_Summary_v1.0.md`)を
 Simulator UIへどう反映するかを、実装前に画面設計として整理する。**Soft Clip Geometry
@@ -11,6 +12,10 @@ Simulator UIへどう反映するかを、実装前に画面設計として整�
 **推奨フロー(shoji指定)**: ①現状UI棚卸し→②学習フロー観点の画面・情報整理→③画面遷移・
 情報アーキテクチャ設計→④Must/Should/Could優先順位→⑤Small Change実装単位分割→
 ⑥実装ロードマップ(コミット単位)。本文書はこの6段階に対応する。
+
+**v1.1差分要約**: v1.0公開後の実コード追加調査で、Decision Points #1〜#3の不確実性が
+大幅に縮小したことが判明。§2.1(新設)に確認済み事実を追加、§8をConfirmed/Pending
+Approval形式に再構成した。設計提案(§3〜§6)自体に変更はない。
 
 ---
 
@@ -85,8 +90,35 @@ Anchor BasisをUIに表示するには、(a)表示時に判定ロジックをRun
 の二択になる。**(a)は臨床分類の自動生成であり、Clinical Safety First原則(教育的・臨床的
 妥当性を常に評価する)に照らすとリスクが高い**(誤判定した分類を教育コンテンツとして
 表示する可能性)。したがって**(b)の事前格納方式が妥当と考えられるが、これはPriority3
-(UI表示)のスコープを超えたデータ層の変更であり、shoji判断が必要**(§8 Decision
-Points #1)。
+(UI表示)のスコープを超えたデータ層の変更であり、shoji判断が必要**(§8.2 Decision
+Points #2、v1.1で調査結果を追記・§2.1参照)。
+
+### 2.1 追加コード調査で確認した事実(v1.1、Confirmed)
+
+v1.0公開後、Decision Points #1〜#3の実装リスクを見積もるため追加調査を実施した。
+
+**(A) PORP 8症例のDetailed Reconstruction Pattern内訳**:
+
+| 分類状況 | 症例 | 根拠 |
+|---|---|---|
+| コードから決定的に導出可能(malleus absent→Ⅲc) | case-003・case-004・case-012 | `SurgicalCase`データのmalleus状態フィールドから一意に決まる |
+| shoji確認済み(Ⅲi-M相当) | case-001・case-005・case-008・case-011 | 過去レビューで確認済み([[next_tasks]]Issue-026関連) |
+| **未確認(Hypothesis)** | **case-007** | コード内コメントに「ツチ骨柄なし相当のため直置き」の記載がありⅢc相当の可能性が高いが、**shoji未確認のため仮説扱い**。正式採用はshoji確認後とする |
+
+→ v1.0時点で「13症例確認が必要」と見えていたものが、**未確認は case-007 の1件のみ**まで
+絞り込めた。TORP/Soft Clipカテゴリの各症例についても、Anchor経路の表現は症例間で統一的
+であり、下記(B)の対応表方式で追加確認なしにカバー可能と判断できる。
+
+**(B) Anchor Basisは分類から一意に導出可能(pure function)**: Anchor Basis(「ツチ骨柄→
+アブミ骨頭部」等)は症例ごとに自由記入で保持する必要はなく、**Detailed Reconstruction
+Pattern(Ⅲc/Ⅲi-M等)→表示文字列**という一方向・決定的な対応表(pure function)として
+実装できる。これはRuntimeでの臨床分類の自動生成(§2で「リスクが高い」とした(a))とは
+異なり、**確定済みの分類を表示用文字列に変換するだけの表示変換**であり、Clinical Safety
+上のリスクは伴わない。
+
+**(C) 影響範囲の確認**: `src/engine/`・`src/store/`配下で`tags.procedure`を参照する
+箇所は**0件**(grep確認)。Clinical Classification/Anchor Basisフィールドの追加は
+Safety Engine・Pose Solverの計算ロジックに一切影響しない。
 
 ---
 
@@ -102,7 +134,7 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 
 この整理から、Clinical ClassificationとAnchor Basisは**同じ場所にまとめて表示するのでは
 なく、異なるタイミング(症例選択時 vs 配置操作時)で提示する方が学習効果に沿う**と考えら
-れる(shoji確認推奨、§8 Decision Points)。
+れる(shoji確認推奨、§8.2 Decision Points #3)。
 
 ---
 
@@ -144,7 +176,7 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 
 | Commit | 内容 | 前提条件 |
 |---|---|---|
-| Commit1 | `cases.ts`構造化フィールド追加(データのみ、UI変更なし) | shoji確認必須(§8 #1・#2) |
+| Commit1 | `cases.ts`構造化フィールド追加(データのみ、UI変更なし) | shoji確認必須(§8.2 #1・#2) |
 | Commit2 | `ContextTagBar`の共有コンポーネント化(表示内容不変のリファクタ、Strangler Pattern) | 前提なし、単独で着手可能 |
 | Commit3 | Clinical Classification表示追加(SimulationMode) | Commit1・2完了後 |
 | Commit4 | Clinical Classification表示追加(StepFlowMode) | Commit3と同一表示ロジックを再利用 |
@@ -171,20 +203,32 @@ Lint→Review→Clinical Validation。特にCommit1(データ層)はClinical Val
 
 ---
 
-## 8. Decision Points(shoji判断が必要な事項)
+## 8. Decision Points(v1.1、Confirmed / Pending Approval分離)
 
-1. **`cases.ts`構造化フィールドの追加方式**: Runtime推論は不採用とし、事前格納方式
-   (shoji確認済みの値をフィールドとして追加)を採用してよいか。
-2. **Detailed Reconstruction Pattern(Ⅲc/Ⅲi-M)の全15症例確認**: 現在2症例のみ
-   `teachingPoints`に記載あり、残り13症例はコード内コメントのみ。shoji自身による
-   全件確認・記入という作業が新たに発生する(Evidence B、専門的判断)。作業量の
-   見積もりと着手タイミング。
-3. **Anchor Basis表示文言の生成方法**: 「ツチ骨柄→アブミ骨頭部」等の文言を判定
-   ロジックから自動生成するか、shoji記入の自由記述とするか。
-4. **§3の表示タイミング分離案**(Clinical Classificationは症例選択時、Anchor Basisは
-   配置操作時)の妥当性。
-5. **StepFlowModeのAnchor Basis表示位置**(Step4耳小骨評価 vs Step6プロステーシス
-   設置のどちらが適切か)。
+### 8.1 Confirmed(確認済み、shojiレビュー済み)
+
+- **PORP 8症例の分類状況**: case-003/004/012はコードから決定的に導出可能(Ⅲc)、
+  case-001/005/008/011はshoji確認済み(Ⅲi-M相当)。未確認はcase-007の1件のみ(§2.1(A))。
+- **Anchor Basisは分類から一意に導出可能**: 症例ごとの自由記入ではなく、
+  「分類→表示文字列」のpure functionとして実装する方針を採用(§2.1(B))。
+  Runtime臨床推論ではなく表示変換であり、Clinical Safety上安全。
+- **影響範囲**: `tags.procedure`参照は`src/engine/`・`src/store/`に0件。
+  Safety Engine・Pose Solverへの影響なし(§2.1(C))。
+
+### 8.2 Pending Approval(承認待ち)
+
+1. **case-007の最終分類(Current Assessment、Hypothesis)**: コード内コメントから
+   Ⅲc相当である可能性が高い。**ただし正式採用はshoji確認後とする**。
+2. **`cases.ts`構造化フィールドの追加方式**: 8.1の確認結果を踏まえ、事前格納方式
+   (shoji確認済みの値をフィールドとして追加)での着手可否。
+3. **表示タイミング分離案(Recommended)**: Clinical Classification=症例選択時、
+   Anchor Basis=配置操作時、というタイミング分離(§3)の妥当性。UX判断としてshoji
+   最終確認が必要。
+4. **StepFlowModeのAnchor Basis表示位置(Recommended)**: Step4(耳小骨評価)
+   vs Step6(プロステーシス設置)のどちらが適切か。UX判断としてshoji最終確認が必要。
+
+**Commit1(データ層追加)着手条件**: 8.2の#1(case-007)・#2(フィールド追加方式)の
+承認が得られ次第、着手可能(§6 Commit1参照)。#3・#4(UX判断)はCommit3以降の前提。
 
 ---
 
