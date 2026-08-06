@@ -171,6 +171,11 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
                 <>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 8, marginBottom: 8 }}>{c.description}</p>
                   <ContextTagBar procedureTags={c.tags.procedure} lesionTags={c.tags.lesion} style={{ marginBottom: 6 }} />
+                  {c.detailedReconstructionPattern && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                      細分類: <strong style={{ color: 'var(--color-primary)' }}>{c.detailedReconstructionPattern}</strong>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 6, fontSize: 11, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                     <span>ツチ骨: {ossicleLabel[c.ossicularStatus.malleus] ?? c.ossicularStatus.malleus}</span>
                     <span>·</span>
