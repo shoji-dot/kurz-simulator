@@ -445,6 +445,106 @@ function SoftClipHead({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// ================================================================
+// SOFT CLIP POCKET (Phase 1, dev preview only — not wired into SoftClipHead)
+// ================================================================
+// 実装仕様: docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md(v1.2)
+// Scope: Pocket区間(入口→最深部)のみ。Shaft/Bridge/Lower Arm/Hook/Terminalは対象外
+// (Improvement Spec v1.4 §0-B Phase2/3、Position Evidence未取得のため)。
+//
+// Pocket-local座標系(Centerline Parameter Definition §3): 原点=Pocket入口基準面
+// 中心(Upper Arm先端下面)。+Y=D軸(深さ方向)、+X=W軸(Arm Gap/Pocket Maximum Widthの
+// 測定方向)、+Z=N軸(厚み方向、Evidence不足・Reference only、§5.2)。
+// Shaft/Global座標系(SoftClipHead等が使うシャフト軸ローカル座標)とは未接続。
+// 原点はレビュー目的で仮に(0,0,0)に固定している(Phase2でShaft接続位置[M1/M3]の
+// mm絶対値が確定した後に合成する、Improvement Spec §0-B Phase2 Exit条件)。
+//
+// **本節はSoftClipHead()には組み込まれておらず、既存の臨床シーン描画には一切
+// 影響しない(Strangler Pattern、Small Change)。開発用プレビュー([[SoftClipPocketPreview]])
+// からのみ参照される。**
+
+/** Pocket Depth(入口→最深部)。Evidence A+(Interpretation v1.7 §1.5)。 */
+export const SOFT_CLIP_POCKET_DEPTH_MM = 3.30;
+/** Arm Gap(Opening、入口の開口幅)= 幅プロファイルのt=0値。Evidence A+。 */
+export const SOFT_CLIP_POCKET_ARM_GAP_MM = 0.75;
+/** Pocket Maximum Width(内部空間の最大幅)= 幅プロファイルのt=1値。Evidence A+。
+ *  t=1(最深部)で到達するという扱いはEvidence-derived Design Decision
+ *  (Centerline Parameter Definition §5.1、新形状の創作ではない)。 */
+export const SOFT_CLIP_POCKET_MAX_WIDTH_MM = 1.40;
+/** N軸(幅と直交する厚み方向)の参考値。Band Loop断面厚さ(Evidence A)の流用であり、
+ *  Pocket自体の実測値ではない(Known Limitation、Centerline Parameter Definition
+ *  §5.2)。Reference onlyとして扱い、Pocket自体の測定値として主張しない。 */
+export const SOFT_CLIP_POCKET_N_REF_MM = 0.10;
+
+/** Pocket-local座標系でのAnchor Points(t=0=入口、t=1=最深部)。
+ *  Centerline Parameter Definition §2/§4に対応。 */
+export function getSoftClipPocketAnchorPoints(): THREE.Vector3[] {
+  return [
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, SOFT_CLIP_POCKET_DEPTH_MM, 0),
+  ];
+}
+
+/** Centerline(Curve実装方式はCenterline Parameter Definition §4.2で固定:
+ *  THREE.CatmullRomCurve3)。t=0→1の2点のみ(将来Phase2/3で中間制御点がEvidenceと
+ *  共に追加された場合も同じCurveクラスをそのまま拡張使用する設計)。 */
+export function getSoftClipPocketCenterline(): THREE.CatmullRomCurve3 {
+  return new THREE.CatmullRomCurve3(getSoftClipPocketAnchorPoints(), false);
+}
+
+/** 幅プロファイル w(t)(Centerline Parameter Definition §4.1): t=0で0.75mm
+ *  (Arm Gap)からt=1で1.40mm(Pocket Maximum Width)へ単調線形増加。
+ *  Evidence-derived Design Decision(§5.1)。決定論的(同一入力に対し常に同一出力)。 */
+export function getSoftClipPocketWidthAt(t: number): number {
+  const clamped = Math.min(1, Math.max(0, t));
+  return (
+    SOFT_CLIP_POCKET_ARM_GAP_MM +
+    (SOFT_CLIP_POCKET_MAX_WIDTH_MM - SOFT_CLIP_POCKET_ARM_GAP_MM) * clamped
+  );
+}
+
+/** Soft Clip Pocket(Phase1)開発用プレビュー。GUIレビュー項目(Centerline Parameter
+ *  Definition §8.1)に対応する3つの表示トグルを個別に受け取る。
+ *  Commit1(Centerline Construction)時点ではCenterline/Control Pointsのみ実装、
+ *  Sweep MeshはCommit2以降で追加する。
+ *  **開発用。既存の症例シーン(SoftClipHead経由の描画)には一切影響しない。** */
+function SoftClipPocketPreview({
+  showCenterline = true,
+  showControlPoints = true,
+}: {
+  showCenterline?: boolean;
+  showControlPoints?: boolean;
+}) {
+  const { centerlineObject, anchorPoints } = useMemo(() => {
+    const curve = getSoftClipPocketCenterline();
+    const samples = curve.getPoints(32);
+    const geo = new THREE.BufferGeometry().setFromPoints(samples);
+    // THREE.Line(geometry, material)を直接構築し<primitive>で描画する。
+    // JSX <line>イントリンシックはTypeScriptのDOM/SVG型定義と衝突するリスクが
+    // あるため、既存コード(RealAnatomyModels.tsxのTHREE.LineSegments+<primitive>
+    // パターン)に合わせて回避する。
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#ffcc00' }));
+    return {
+      centerlineObject: line,
+      anchorPoints: getSoftClipPocketAnchorPoints(),
+    };
+  }, []);
+
+  return (
+    <group name="SoftClipPocketPreview">
+      {showCenterline && <primitive object={centerlineObject} />}
+      {showControlPoints &&
+        anchorPoints.map((p, i) => (
+          <mesh key={i} position={p}>
+            <sphereGeometry args={[0.05, 8, 8]} />
+            <meshBasicMaterial color={i === 0 ? '#00ff00' : '#ff3333'} />
+          </mesh>
+        ))}
+      {/* Sweep Mesh: Commit2(Constant Section Sweep)で追加予定、Commit1では未実装 */}
+    </group>
+  );
+}
+
 // ── Head plate selector ───────────────────────────────────────────
 export type HeadType = 'FENESTRATED' | 'DISC' | 'OVAL_RING' | 'DOME_4FIN' | 'BELL_TOP' | 'SOFT_CLIP';
 
@@ -1036,4 +1136,6 @@ export {
   ClipFoot,
   SoftClipHead,
   PistonFoot,
+  // Soft Clip Pocket (Phase1 dev preview, docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md)
+  SoftClipPocketPreview,
 };

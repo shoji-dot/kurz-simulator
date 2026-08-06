@@ -1,8 +1,13 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.2反映済み)。**コード変更・Mesh実装は行っていない**
+**Status**: Draft(shoji確認・v1.3反映済み)。**コード変更・Mesh実装は行っていない**
 (本文書はPhase1着手前の仕様定義のみ)。
-**Date**: 2026-08-05(v1.2更新)
+**Date**: 2026-08-05(v1.3更新)
+**v1.3での変更点(shoji指摘、2026-08-05、可読性向上のみ・仕様変更なし)**: Commit1の
+GUIレビューでshojiがAnchor Points(制御点)を3点(t=0/0.5/1)と誤解した(実際は2点、
+t=0.5は§4.1幅プロファイルの説明中の値であり制御点ではない)。同種の誤解を他のレビュー
+アも起こしうるため、§4.2にParameter t(連続)とAnchor/Control Points(離散2点)の
+混同を防ぐ注記を追加した。仕様(Anchor Points=2点)自体は不変。
 **v1.2での変更点(shoji指摘、2026-08-05、実装依頼の明文化)**: Claude Codeへの実装
 依頼で解釈の余地を残さないため4点追加。①**§4.2新設**: Curve実装方式を
 `THREE.CatmullRomCurve3`+Centerline Sweep(ExtrudeGeometry/extrudePath、Method
@@ -105,6 +110,12 @@ Three.js Curveクラスとして**`THREE.CatmullRomCurve3`**を使用し、Mesh�
 Splineの採用等)、およびMesh生成方式(ExtrudeGeometry+extrudePath以外への変更)は
 本文書のスコープ外であり、変更する場合は別レビュー対象とする**(shoji指定)。
 
+> **Note(v1.3新設)**: Parameter `t` is a continuous parameter along the
+> centerline. References to intermediate values (e.g., `t = 0.5`) describe
+> evaluation of parameterized properties (such as width profile), not
+> additional anchor/control points. Anchor Points(§2)は常に2点(t=0/t=1)
+> であり、幅プロファイル(§4.1)等の連続関数の説明に現れる中間値とは区別する。
+
 ---
 
 ## 5. Evidence-derived Design Decisions / Known Limitations
@@ -139,9 +150,7 @@ Confirmed Evidenceの論理的帰結(新しい形状の創作ではない)、5.2
 Evidenceはない。Band Loop断面厚さ(0.10mm、Evidence A、Interpretation §1.2)は
 **あくまで隣接部品(Band Loop)の実測値であり、Pocket自体の厚みではない**
 (Band Thickness ≠ Pocket Thickness)。両者を同一視する根拠はないため、本文書では
-Reference onlyとして扱い、Pocket自体の実測値としては採用しない。Mesh生成時の
-暫定値として使う場合も、Pocket自体の測定値ではないことを実装コード上のコメントに
-明記する。
+Reference onlyとして扱い、Pocket自体の実測値としては採用しない。
 
 いずれもAnchor/Pose Solver/Safety Engineに影響しない(Pocket Meshは視覚的表現のみ)。
 

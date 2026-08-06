@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -1100,6 +1100,16 @@ export function SimScene({
               anchorGhost={anchorPose}
               visibility={poseVisibility}
             />
+          )}
+
+          {/* ── Soft Clip Pocket Preview（Phase1 dev preview、?debug=coords かつ
+              headType==='SOFT_CLIP'時のみ。docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md。
+              Pocket-local座標系はShaft/Global座標系と未接続のため、basePosから離した
+              オフセット位置に単独描画する（実際の装着位置を意味しない、レビュー専用）。 ── */}
+          {coordDebug && product.headType === 'SOFT_CLIP' && (
+            <group position={[basePos.x + 10, basePos.y + 5, basePos.z]}>
+              <SoftClipPocketPreview />
+            </group>
           )}
 
           {/* ── 軟骨スライス ── */}
