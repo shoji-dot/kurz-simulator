@@ -1,8 +1,13 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.6反映済み)。**Commit3b完了(Triangle Winding修正込み、
-`0e70e4f`にamend・push済み)。Commit4(Phase1 Close-out)は計画確定・実装待ち**。
-**Date**: 2026-08-06(v1.6更新)
+**Status**: Draft(shoji確認・v1.7反映済み)。**Commit4完了・Freeze文書参照**
+(`docs/Soft_Clip_Pocket_Phase1_Freeze_v1.0.md`)。
+**Date**: 2026-08-06(v1.7更新)
+**v1.7での変更点(shoji指摘、2026-08-06、Commit4完了)**: Phase1(Pocket区間)の
+Close-outとして`docs/Soft_Clip_Pocket_Phase1_Freeze_v1.0.md`を作成した(Scope Note・
+Commit History・Validation結果・Frozen Decisions一覧を含む、Pocket Geometryのみが
+対象でPhase2/3は対象外)。本文書のStatusはFreeze文書への参照として更新し、コード
+変更は行っていない。
 **v1.6での変更点(shoji指摘、2026-08-06、Commit3b完了・Commit4計画確定)**: 3点確定。
 ①**Status/本節の同期**: v1.5時点で「Commit3bは未着手」としていた記述を、実際の
 完了状態(Ring/Face生成+GUI実装完了。Triangle Winding欠陥の発見・修正込みで
