@@ -503,17 +503,66 @@ export function getSoftClipPocketWidthAt(t: number): number {
   );
 }
 
+// ── Commit2: Constant Section Sweep ────────────────────────────────
+// 実装依頼: Centerline Parameter Definition v1.4 §4.2(Curve方式固定)・
+// v1.4 §5.2(N軸=Ribbon断面、shoji指定2026-08-05)に対応。
+//
+// 断面は「Ribbon」(N軸=0の数学的平面)。W軸のみEvidence A+(Arm Gap 0.75mm)で
+// 定義し、幅プロファイル(§4.1、0.75mm→1.40mm)はCommit3スコープのため本Commitでは
+// 適用しない(幅は全区間0.75mm固定)。N軸にBand Loop厚さ(0.10mm、Reference only)を
+// 流用しない — Evidence階層の異なる値を混在させないため(shoji指定)。
+//
+// SOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MM: ExtrudeGeometryが技術的に0厚みの断面を
+// 扱えないためだけに存在するレンダリング上の微小値。**Geometry Parameterでは
+// ない**(Evidence値でもDesign Decisionでもない、Three.jsの実装上の制約を回避する
+// ためだけの値)。将来ExtrudeGeometryが0厚みを扱えることが確認できれば削除してよい。
+const SOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MM = 0.001;
+
+/** Commit2用のRibbon断面Shape(W軸のみ、N軸はレンダリング用epsilon)。
+ *  widthMmはCommit2では常にSOFT_CLIP_POCKET_ARM_GAP_MM(0.75mm)固定で呼ばれる
+ *  (幅プロファイル適用はCommit3、本関数自体はCommit3で再利用可能なようwidthMmを
+ *  引数化しておく)。 */
+function buildSoftClipPocketRibbonShape(widthMm: number): THREE.Shape {
+  const halfW = widthMm / 2;
+  const halfN = SOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MM / 2;
+  const shape = new THREE.Shape();
+  shape.moveTo(-halfW, -halfN);
+  shape.lineTo(halfW, -halfN);
+  shape.lineTo(halfW, halfN);
+  shape.lineTo(-halfW, halfN);
+  shape.closePath();
+  return shape;
+}
+
+/** Commit2 Sweep Mesh本体。Centerline(t=0→1の直線、2点のみ)にRibbon断面を
+ *  ExtrudeGeometry+extrudePath(Method Decision v1.4 4-4=Option A)で掃引する。
+ *  決定論的(同一Anchor Points・同一幅に対し常に同一頂点列、§8.3)。
+ *  Centerlineが直線(2点)のため急カーブによるFrenetフレーム破綻(2026-07-02、
+ *  SoftClipWing/Bridgeで発生した既知問題)のリスクは低い。 */
+export function getSoftClipPocketSweepGeometry(): THREE.ExtrudeGeometry {
+  const curve = getSoftClipPocketCenterline();
+  const shape = buildSoftClipPocketRibbonShape(SOFT_CLIP_POCKET_ARM_GAP_MM);
+  return new THREE.ExtrudeGeometry(shape, {
+    steps: 32,
+    bevelEnabled: false,
+    extrudePath: curve,
+  });
+}
+
 /** Soft Clip Pocket(Phase1)開発用プレビュー。GUIレビュー項目(Centerline Parameter
  *  Definition §8.1)に対応する3つの表示トグルを個別に受け取る。
- *  Commit1(Centerline Construction)時点ではCenterline/Control Pointsのみ実装、
- *  Sweep MeshはCommit2以降で追加する。
+ *  Commit1(Centerline Construction): Centerline/Control Points。
+ *  Commit2(Constant Section Sweep): Sweep Mesh(本Commitで追加、幅0.75mm固定・
+ *  幅プロファイル未適用・Ribbon断面)。
  *  **開発用。既存の症例シーン(SoftClipHead経由の描画)には一切影響しない。** */
 function SoftClipPocketPreview({
   showCenterline = true,
   showControlPoints = true,
+  showSweepMesh = true,
 }: {
   showCenterline?: boolean;
   showControlPoints?: boolean;
+  showSweepMesh?: boolean;
 }) {
   const { centerlineObject, anchorPoints } = useMemo(() => {
     const curve = getSoftClipPocketCenterline();
@@ -530,6 +579,8 @@ function SoftClipPocketPreview({
     };
   }, []);
 
+  const sweepGeo = useMemo(() => getSoftClipPocketSweepGeometry(), []);
+
   return (
     <group name="SoftClipPocketPreview">
       {showCenterline && <primitive object={centerlineObject} />}
@@ -540,7 +591,11 @@ function SoftClipPocketPreview({
             <meshBasicMaterial color={i === 0 ? '#00ff00' : '#ff3333'} />
           </mesh>
         ))}
-      {/* Sweep Mesh: Commit2(Constant Section Sweep)で追加予定、Commit1では未実装 */}
+      {showSweepMesh && (
+        <mesh geometry={sweepGeo}>
+          <meshBasicMaterial color="#33aaff" side={THREE.DoubleSide} wireframe />
+        </mesh>
+      )}
     </group>
   );
 }

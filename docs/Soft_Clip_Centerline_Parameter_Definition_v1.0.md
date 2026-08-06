@@ -1,8 +1,16 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.3反映済み)。**コード変更・Mesh実装は行っていない**
-(本文書はPhase1着手前の仕様定義のみ)。
-**Date**: 2026-08-05(v1.3更新)
+**Status**: Draft(shoji確認・v1.4反映済み)。**Commit2着手済み**(本節以降の変更は
+Commit2実装依頼に対応)。
+**Date**: 2026-08-05(v1.4更新)
+**v1.4での変更点(shoji指摘、2026-08-05、Commit2実装依頼確定)**: 2点確定。
+①**断面幅の固定**: Commit2(Constant Section Sweep)の断面幅はArm Gap(0.75mm、
+Evidence A+)に固定し、幅プロファイル(§4.1、Commit3スコープ)はCommit2では適用しない
+(shoji指定)。②**§5.2 N軸(厚み方向)の実装時扱いを解消**(§8 Next Step旧項目1)。
+Ribbon断面(N軸=0、W軸=0.75mmのみを表現)を採用し、Band Loop厚さ0.10mmの流用は
+不採用(Evidence階層の異なる値を混在させるため)。ExtrudeGeometryが技術的に0厚みを
+扱えない場合に限り、レンダリング上のみ必要な微小値ε(設計値ではない)を実装内部で
+使用してよいが、Geometry Parameterとして解釈しない(shoji指定、詳細は§5.2改訂参照)。
 **v1.3での変更点(shoji指摘、2026-08-05、可読性向上のみ・仕様変更なし)**: Commit1の
 GUIレビューでshojiがAnchor Points(制御点)を3点(t=0/0.5/1)と誤解した(実際は2点、
 t=0.5は§4.1幅プロファイルの説明中の値であり制御点ではない)。同種の誤解を他のレビュー
@@ -151,6 +159,16 @@ Evidenceはない。Band Loop断面厚さ(0.10mm、Evidence A、Interpretation �
 **あくまで隣接部品(Band Loop)の実測値であり、Pocket自体の厚みではない**
 (Band Thickness ≠ Pocket Thickness)。両者を同一視する根拠はないため、本文書では
 Reference onlyとして扱い、Pocket自体の実測値としては採用しない。
+
+**v1.4での解消(shoji指摘、2026-08-05)**: 上記の「暫定値として使うか、N軸寸法自体を
+省略した簡易形状にするか」という実装時の扱いは、**省略(Ribbon断面)を採用**して
+解消した。断面ShapeはW軸(0.75mm、Evidence A+)のみで定義し、N軸寸法は設計値として
+持たない(N=0の数学的Ribbon)。Band Loop厚さ0.10mmは不採用— 円形断面(直径=幅)も
+同様に「Pocket断面が円である」という新たな形状を創作してしまうため不採用とし、
+最もEvidenceに忠実な選択としてRibbon断面(N軸未定義)をshoji指定により採用した。
+ExtrudeGeometryの実装上、真の0厚みを扱えない場合に限り、レンダリング目的のみの
+微小値ε(例: 0.001mm)を使用してよいが、これは**実装上のレンダリング都合であり
+Geometry Parameterではない**(コード上にその旨を明記する)。
 
 いずれもAnchor/Pose Solver/Safety Engineに影響しない(Pocket Meshは視覚的表現のみ)。
 
