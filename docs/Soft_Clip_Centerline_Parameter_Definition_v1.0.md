@@ -1,8 +1,22 @@
 # Soft Clip Centerline Parameter Definition v1.0
 
-**Status**: Draft(shoji確認・v1.4反映済み)。**Commit2着手済み**(本節以降の変更は
-Commit2実装依頼に対応)。
-**Date**: 2026-08-05(v1.4更新)
+**Status**: Draft(shoji確認・v1.5反映済み)。**Commit2完了・Commit3a(docs)確定**
+(本節以降の変更はCommit3実装依頼に対応。Commit3bは未着手)。
+**Date**: 2026-08-06(v1.5更新)
+**v1.5での変更点(shoji指摘、2026-08-06、Commit3実装依頼確定)**: 4点確定。
+①**§4.2に例外規定を追加**: Sweep Geometry concept(Centerlineに沿った断面掃引)は
+Freeze維持。断面が経路上で一定(Constant Section)か変化するか(Variable Width)に
+よりMesh生成APIに実装差異が生じることを明記する(Freeze解除ではなく例外規定、shoji
+指定)。Constant Section=`ExtrudeGeometry`+`extrudePath`(Commit2、不変)、Variable
+Width=section interpolation(手動Loft、Commit3新設)は同一Sweep conceptの異なる
+実装手段として整理し、ExtrudeGeometryを廃止・置換する表現は用いない。②**§4.1の
+幅プロファイルをLinearに確定**: Evidence取得済みはt=0/t=1の2点のみであり、中間形状
+への追加仮定を避けるため最小仮定(Linear)を採用、smoothstepは不採用(shoji指定)。
+③**§8.1にDebug material color注記を追加**: `showVariableWidthSweep`の識別用
+マテリアル色はGeometry比較レビュー用のdebug visualizationであり、Geometry Parameter
+でもUI Design Decisionでもないことを明記。④**§8.2にnon-indexed BufferGeometry
+採用理由・Commit3a/3b分割を追加**: Phase1 Variable Width validationでは面単位の
+normal確認を優先する一時的選択であり、indexed化・smooth shading対応は将来scope。
 **v1.4での変更点(shoji指摘、2026-08-05、Commit2実装依頼確定)**: 2点確定。
 ①**断面幅の固定**: Commit2(Constant Section Sweep)の断面幅はArm Gap(0.75mm、
 Evidence A+)に固定し、幅プロファイル(§4.1、Commit3スコープ)はCommit2では適用しない
@@ -103,7 +117,12 @@ G3-2で確立した「主要寸法は正確に、形状は単純に留める」�
 |---|---:|---|
 | t = 0(入口) | 0.75 mm(Arm Gap) | Evidence A+ |
 | t = 1(最深部) | 1.40 mm(Pocket Maximum Width) | Evidence A+ + Evidence-derived Design Decision(§5.1参照) |
-| 0 < t < 1 | 0.75mm→1.40mmへ単調増加(線形またはsmoothstep) | Evidence-derived Design Decision(§5.1参照) |
+| 0 < t < 1 | 0.75mm→1.40mmへ単調増加(Linear、v1.5で確定) | Evidence-derived Design Decision(§5.1参照) |
+
+**v1.5での確定(shoji指摘、2026-08-06)**: 幅プロファイルはLinear補間に確定する。
+Evidence A+として取得済みなのはt=0(0.75mm)・t=1(1.40mm)の2点のみであり、中間形状は
+いずれにせよ仮定にならざるを得ない。smoothstep等の非線形補間は新たな形状仮定を追加
+するため不採用とし、最小仮定であるLinearを採用する。
 
 ### 4.2 Curve実装方式の固定(新設v1.2、shoji指摘)
 
@@ -123,6 +142,25 @@ Splineの採用等)、およびMesh生成方式(ExtrudeGeometry+extrudePath以�
 > evaluation of parameterized properties (such as width profile), not
 > additional anchor/control points. Anchor Points(§2)は常に2点(t=0/t=1)
 > であり、幅プロファイル(§4.1)等の連続関数の説明に現れる中間値とは区別する。
+
+> **v1.5改訂: Mesh生成APIの例外規定(Freeze解除ではない、shoji指定2026-08-06)**
+>
+> 上記のFreeze対象は「Centerlineに沿って断面を掃引するSweep Geometry concept」
+> そのものである。この上位概念はFreeze維持のまま変更しない。
+>
+> 一方、断面(幅)が経路上で一定か変化するかによって、Mesh生成に用いるThree.js API
+> には技術的な実装差異が生じる(`ExtrudeGeometry`+`extrudePath`は単一Shapeの掃引の
+> みに対応し、経路上でのShape寸法変化には対応しない)。この差異を以下の通り整理する。
+>
+> - **Constant Section(Commit2)**: `THREE.ExtrudeGeometry`+`extrudePath`(本節
+>   既存の固定通り、不変)。
+> - **Variable Width(Commit3)**: section interpolation(tごとにRingを生成し
+>   手動でtriangulateするLoft手法)。ExtrudeGeometryを廃止・置換するものではなく、
+>   断面が変化する区間に限定して用いる追加の実装手段である。
+>
+> どちらもCenterline(本節のCatmullRomCurve3)・Pocket-local座標系(§3)を共通の
+> Sweep conceptとして使用する。Curve種別の変更・Sweep concept自体の変更は引き続き
+> 本文書のスコープ外であり、別レビュー対象とする(Freeze対象は不変)。
 
 ---
 
@@ -228,6 +266,11 @@ Phase1実装のGUIレビューでは、最低限以下3項目を個別に表示�
 - **Centerline**: t=0→t=1の補間曲線(§4.2のCatmullRomCurve3)
 - **Control Points**: Anchor Points(§2)に対応する制御点マーカー
 - **Sweep Mesh**: 幅プロファイル(§4.1)を適用した最終Mesh
+- **Debug material color(v1.5追加、shoji指摘2026-08-06)**: Constant Section
+  (Commit2)とVariable Width(Commit3)を重ねて比較表示する際、識別のためマテリアル色
+  を変える(例: `#33aaff`/`#ffaa33`)。これは**Geometry比較レビュー用のdebug
+  visualizationであり、Geometry ParameterでもUI Design Decisionでもない**
+  (コード上にもその旨を明記する)。
 
 ### 8.2 コミット単位(v1.2、shoji命名案を採用)
 
@@ -235,8 +278,18 @@ Phase1実装のGUIレビューでは、最低限以下3項目を個別に表示�
 |---|---|---|
 | 1. Centerline Construction | Anchor Points・Curve(§4.2)・Debug表示(§8.1のCenterline/Control Points) | §4・§8.1 |
 | 2. Constant Section Sweep | Sweep・幅一定(幅プロファイル未適用、経路のみ検証) | §4.2 |
-| 3. Variable Width Profile | 幅プロファイル(§4.1)・Pocket Maximum Width反映 | §4.1・§5.1 |
+| 3. Variable Width Profile | 幅プロファイル(§4.1、Linear確定)・Pocket Maximum Width反映。section interpolation(手動Loft、§4.2 v1.5例外規定)で実装 | §4.1・§5.1・§4.2 |
 | 4. Orientation Validation | Frenet Frame・Twist確認 | §6 Tangent Rule |
+
+**v1.5補足: Commit3の分割(shoji指摘、2026-08-06)**: Commit3は実装依頼の粒度として
+Commit3a(本docs更新のみ)とCommit3b(Ring/Face生成+GUI実装)に分割する。Commit3a完了後、
+diffレビューを経てCommit3bへ進む。
+
+**v1.5補足: non-indexed BufferGeometry採用理由**: Commit3bで実装する
+`getSoftClipPocketVariableWidthSweepGeometry()`は`THREE.BufferGeometry`をnon-indexed
+(頂点非共有)で構築する。理由はPhase1のVariable Width validationでは面単位
+(triangleごと)のnormal確認を優先するためであり、indexed化によるメモリ最適化や
+smooth shading対応は本Commitのscopeに含めない(将来scope、shoji指定)。
 
 ### 8.3 完了条件への追加(v1.2、shoji指摘)
 
