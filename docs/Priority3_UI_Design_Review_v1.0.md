@@ -1,10 +1,11 @@
-# Priority3 UI Design Review v1.3(確定版・実装進行中)
+# Priority3 UI Design Review v1.4(確定版・実装進行中)
 
 **Status**: **確定版(shoji承認済み)**。§8.2 Pending Approval全4項目をshojiが承認、
-全Decision Points確定。Commit1〜3実装完了(commit `01e08a1`/`afcf7cf`/`0bd4e6d`)、
-次はCommit4。
+全Decision Points確定。Commit1〜4実装完了(commit `01e08a1`/`afcf7cf`/`0bd4e6d`/
+`4f42588`)、次はCommit5(Anchor Basis、最終Commit)。
 **Date**: 2026-08-06(v1.0作成)/2026-08-06(v1.1、Confirmed/Pending Approval分離)/
-2026-08-06(v1.2、8.2承認・確定版化)/2026-08-06(v1.3、Commit2・3進捗反映)
+2026-08-06(v1.2、8.2承認・確定版化)/2026-08-06(v1.3、Commit2・3進捗反映)/
+2026-08-06(v1.4、Commit4進捗反映)
 **位置づけ**: `P4_Transition_Deferred_Management_Plan_v1.0.md`(v1.2)§3 Roadmap Step2。
 P3で確定したProcedure分類・Anchor・Evidence Layer(`P3_Completion_Summary_v1.0.md`)を
 Simulator UIへどう反映するかを、実装前に画面設計として整理する。**Soft Clip Geometry
@@ -185,8 +186,8 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 | Commit1 | `cases.ts`構造化フィールド追加(データのみ、UI変更なし) | **完了**(commit `01e08a1`、2026-08-06) |
 | Commit2 | Clinical Tag表示基盤の共通化(表示内容不変のリファクタ、Strangler Pattern、variant対応) | **完了**(commit `afcf7cf`、2026-08-06) |
 | Commit3 | Clinical Classification表示追加(SimulationMode 症例選択リストのみ) | **完了**(commit `0bd4e6d`、2026-08-06) |
-| Commit4 | Clinical Classification表示追加(StepFlowMode、Step1・Step4) | 次 |
-| Commit5 | Anchor Basis表示追加(SimulationMode配置パネル・StepFlowMode Step6) | Commit4完了後 |
+| Commit4 | Clinical Classification表示追加(StepFlowMode、Step1・Step4) | **完了**(commit `4f42588`、2026-08-06) |
+| Commit5 | Anchor Basis表示追加(SimulationMode配置パネル・StepFlowMode Step6) | 次 |
 | Commit6(Could) | Teaching Information/Evidence Layer拡充 | 任意、shoji指定があれば |
 
 ---
