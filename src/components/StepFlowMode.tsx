@@ -232,6 +232,13 @@ function StepGuidePanel({
           </div>
         )}
 
+        {/* Clinical Classification（step 4: 耳小骨評価のタイミングでのみ表示） */}
+        {step.id === 4 && surgicalCase.detailedReconstructionPattern && (
+          <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            細分類: <strong style={{ color: 'var(--color-primary)' }}>{surgicalCase.detailedReconstructionPattern}</strong>
+          </div>
+        )}
+
         {/* ティーチングポイント（step 4,5,6 で表示） */}
         {[4, 5, 6].includes(step.id) && (
           <div style={{ marginBottom: 14 }}>
@@ -443,6 +450,11 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
                   lesionTags={c.tags.lesion}
                   style={{ gap: 4, marginTop: 8, marginBottom: 6 }}
                 />
+                {c.detailedReconstructionPattern && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                    細分類: <strong style={{ color: 'var(--color-primary)' }}>{c.detailedReconstructionPattern}</strong>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 6 }}>
                   {([
                     { key: 'malleus', label: 'ツ', status: c.ossicularStatus.malleus },
