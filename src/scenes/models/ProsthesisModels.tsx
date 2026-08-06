@@ -549,20 +549,126 @@ export function getSoftClipPocketSweepGeometry(): THREE.ExtrudeGeometry {
   });
 }
 
+// ── Commit3b: Variable Width Profile (section interpolation Sweep) ─────────
+// 実装依頼: Centerline Parameter Definition v1.5 §4.2(Mesh生成APIの例外規定、
+// Freeze解除ではない)・§4.1(幅プロファイルLinear確定)に対応。
+//
+// ExtrudeGeometry+extrudePathは単一Shapeの掃引にのみ対応し、経路上でのShape寸法
+// 変化(テーパー)には対応しない。そのため本Commitでは経路をt刻みでサンプリングし
+// (section interpolation)、各tでのRing(4頂点、Commit2と同じRibbon断面)を手動で
+// triangulateするLoft手法を用いる。Sweep Geometry concept自体(Centerlineに沿った
+// 断面掃引)はCommit2から不変であり、Mesh生成APIのみが異なる(§4.2 v1.5例外規定、
+// ExtrudeGeometryの廃止・置換ではない)。getSoftClipPocketSweepGeometry()(Commit2)
+// は変更しない。
+//
+// W_hat/N_hatはCenterlineの接線(Frenetフレーム)に追従させず、Pocket-local座標系
+// (§3: +X=W軸、+Z=N軸)に固定する。Centerlineが直線2点(t=0→1)のみのPhase1スコープ
+// (§7 Non-goals: 中間制御点は対象外)ではW/N軸の向きは経路上で変化しないため、
+// Frenetフレームは不要かつ意図的に使用しない(SoftClipWing/Bridgeで過去発生した
+// Frenetフレーム破綻[2026-07-02]のリスクを構造的に排除する設計)。
+
+/** Ring分割数(t=0..1をこのステップ数で刻む)。Commit2のExtrudeGeometry(steps:32)
+ *  と視覚的解像度を合わせるための値であり、**Geometry Parameterではない**
+ *  (SOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MMと同様、Evidence値でもDesign Decisionでも
+ *  ない実装上のtessellation解像度)。 */
+const SOFT_CLIP_POCKET_VARIABLE_WIDTH_STEPS = 32;
+
+/** Pocket-local座標系(§3)に固定したW軸・N軸。Centerlineの接線には追従しない
+ *  (上記コメント参照)。 */
+const SOFT_CLIP_POCKET_W_HAT = new THREE.Vector3(1, 0, 0);
+const SOFT_CLIP_POCKET_N_HAT = new THREE.Vector3(0, 0, 1);
+
+/** tにおけるRing(4頂点)をワールド座標で返す。頂点順序はCommit2の
+ *  buildSoftClipPocketRibbonShapeと同じ((-W,-N)→(+W,-N)→(+W,+N)→(-W,+N))。
+ *  中心位置はCenterline(curve.getPointAt(t))、半幅はgetSoftClipPocketWidthAt(t)/2
+ *  (Linear、§4.1・v1.5確定)、半厚みはCommit2と同じSOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MM
+ *  (レンダリング用epsilon)を使う。 */
+function getSoftClipPocketRingAt(curve: THREE.CatmullRomCurve3, t: number): THREE.Vector3[] {
+  const center = curve.getPointAt(t);
+  const halfW = getSoftClipPocketWidthAt(t) / 2;
+  const halfN = SOFT_CLIP_POCKET_SWEEP_RENDER_EPS_MM / 2;
+  const w = SOFT_CLIP_POCKET_W_HAT;
+  const n = SOFT_CLIP_POCKET_N_HAT;
+  return [
+    center.clone().addScaledVector(w, -halfW).addScaledVector(n, -halfN),
+    center.clone().addScaledVector(w, halfW).addScaledVector(n, -halfN),
+    center.clone().addScaledVector(w, halfW).addScaledVector(n, halfN),
+    center.clone().addScaledVector(w, -halfW).addScaledVector(n, halfN),
+  ];
+}
+
+/** Commit3b Sweep Mesh本体。Ring(t=0..1、SOFT_CLIP_POCKET_VARIABLE_WIDTH_STEPS+1個)を
+ *  section interpolationで生成し、側面4辺×区間+両端キャップを手動でtriangulateする。
+ *  non-indexed BufferGeometry(頂点非共有)で構築する — Phase1のVariable Width
+ *  validationでは面単位(triangleごと)のnormal確認を優先するためであり、indexed化
+ *  によるメモリ最適化やsmooth shading対応は本Commitのscopeに含めない(Centerline
+ *  Parameter Definition v1.5 §8.2補足、将来scope)。
+ *  決定論的(同一Anchor Points・同一幅プロファイルに対し常に同一頂点列を生成、§8.3)。 */
+export function getSoftClipPocketVariableWidthSweepGeometry(): THREE.BufferGeometry {
+  const curve = getSoftClipPocketCenterline();
+  const steps = SOFT_CLIP_POCKET_VARIABLE_WIDTH_STEPS;
+  const rings: THREE.Vector3[][] = [];
+  for (let i = 0; i <= steps; i++) {
+    rings.push(getSoftClipPocketRingAt(curve, i / steps));
+  }
+
+  const positions: number[] = [];
+  const pushTri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  };
+
+  // 側面: 4辺(v0-v1, v1-v2, v2-v3, v3-v0) × 区間(steps個)
+  const edges: Array<[number, number]> = [[0, 1], [1, 2], [2, 3], [3, 0]];
+  for (let i = 0; i < steps; i++) {
+    const ringA = rings[i];
+    const ringB = rings[i + 1];
+    for (const [a, b] of edges) {
+      // 巻き順は外向き法線(outward normal)になるよう選択している。決定根拠:
+      // Node検証スクリプト(divergence theoremによる符号付き体積計算+directed-edge
+      // manifold check)で全260三角形の法線が期待方向とdot>0(退化三角形0、
+      // 自己交差なし、開いた境界なし)であることを確認済み(GUIレビュー2026-08-06
+      // 指摘を受けての修正)。
+      pushTri(ringA[a], ringB[b], ringA[b]);
+      pushTri(ringA[a], ringB[a], ringB[b]);
+    }
+  }
+
+  // 端面キャップ(Commit2のExtrudeGeometry自動キャップと同じく両端を閉じる。
+  // §6 Tangent Rule: 最深部は開いた形状ではなく閉じた形状として扱う)。
+  const entrance = rings[0];
+  pushTri(entrance[0], entrance[1], entrance[2]); // 法線 -D方向(入口側)
+  pushTri(entrance[0], entrance[2], entrance[3]);
+  const deepest = rings[steps];
+  pushTri(deepest[0], deepest[2], deepest[1]); // 法線 +D方向(最深部側)
+  pushTri(deepest[0], deepest[3], deepest[2]);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** Soft Clip Pocket(Phase1)開発用プレビュー。GUIレビュー項目(Centerline Parameter
- *  Definition §8.1)に対応する3つの表示トグルを個別に受け取る。
+ *  Definition §8.1)に対応する表示トグルを個別に受け取る。
  *  Commit1(Centerline Construction): Centerline/Control Points。
- *  Commit2(Constant Section Sweep): Sweep Mesh(本Commitで追加、幅0.75mm固定・
- *  幅プロファイル未適用・Ribbon断面)。
+ *  Commit2(Constant Section Sweep): Sweep Mesh(幅0.75mm固定・幅プロファイル未適用・
+ *  Ribbon断面)。
+ *  Commit3b(Variable Width Profile): Variable Width Sweep Mesh(本Commitで追加、
+ *  section interpolation・幅0.75mm→1.40mm Linear)。Commit2のSweep Meshとは別トグル
+ *  で、マテリアル色を変えて重ねて比較表示する(色分けはGeometry比較レビュー用の
+ *  debug visualizationであり、Geometry ParameterでもUI Design Decisionでもない、
+ *  §8.1 v1.5追記)。
  *  **開発用。既存の症例シーン(SoftClipHead経由の描画)には一切影響しない。** */
 function SoftClipPocketPreview({
   showCenterline = true,
   showControlPoints = true,
   showSweepMesh = true,
+  showVariableWidthSweep = true,
 }: {
   showCenterline?: boolean;
   showControlPoints?: boolean;
   showSweepMesh?: boolean;
+  showVariableWidthSweep?: boolean;
 }) {
   const { centerlineObject, anchorPoints } = useMemo(() => {
     const curve = getSoftClipPocketCenterline();
@@ -580,6 +686,7 @@ function SoftClipPocketPreview({
   }, []);
 
   const sweepGeo = useMemo(() => getSoftClipPocketSweepGeometry(), []);
+  const variableWidthSweepGeo = useMemo(() => getSoftClipPocketVariableWidthSweepGeometry(), []);
 
   return (
     <group name="SoftClipPocketPreview">
@@ -593,7 +700,16 @@ function SoftClipPocketPreview({
         ))}
       {showSweepMesh && (
         <mesh geometry={sweepGeo}>
+          {/* debug visualization用の識別色。Geometry ParameterでもUI Design
+              Decisionでもない(Centerline Parameter Definition §8.1 v1.5追記)。 */}
           <meshBasicMaterial color="#33aaff" side={THREE.DoubleSide} wireframe />
+        </mesh>
+      )}
+      {showVariableWidthSweep && (
+        <mesh geometry={variableWidthSweepGeo}>
+          {/* debug visualization用の識別色(Commit2と区別するための配色のみ)。
+              Geometry ParameterでもUI Design Decisionでもない(§8.1 v1.5追記)。 */}
+          <meshBasicMaterial color="#ffaa33" side={THREE.DoubleSide} wireframe />
         </mesh>
       )}
     </group>
