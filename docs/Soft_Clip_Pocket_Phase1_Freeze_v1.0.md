@@ -85,7 +85,7 @@ Acceptance Criteria)に基づき、three.js非依存の独立Node検証スクリ
 - **Phase3(Hook/Terminal)**: 起点・方向のEvidence不在(Blocker: Shaft〜Hook〜
   Terminal区間の距離・方向欠如)。Pocket区間との接続(t=1点の出口接線)は未定義の
   まま。
-- **Node検証スクリプトのリポジトリ格納可否**: 本Commitでは判断を保留する
+- **Geometry Validation Standard化の要否**: 本Commitでは判断を保留する
   (§6 Deferred Decision参照)。
 - **Housekeeping(優先度低、未着手)**: 未追跡ファイル(`.claude`/`.mcp.json`/
   `.serena`/`serena-mcp.ps1`/`_softclip_split_backup`)のgitignore整理、backup
@@ -96,11 +96,15 @@ Acceptance Criteria)に基づき、three.js非依存の独立Node検証スクリ
 
 ## 6. Deferred Decision
 
-**Node検証スクリプトのリポジトリ正式追加**(`tests/`等への格納、再利用可能な
-Acceptance Testとしての整備)は、本Commit4では判断を保留する。Bell/Flat等の他形状
-実装でも同種のmanifold/winding/volume検証が必要になる見込みがあり、その時点で
-共通化の要否とあわせて判断する方が合理的なため(shoji方針)。現時点ではスクリプトは
-一時検証用として扱い、リポジトリには未格納。
+**論点は「Node検証スクリプトを`tests/`等へ格納するか」ではなく、「Bell/Flat/Soft
+Clip等で共通に必要となるTopology・Normal Direction・Signed Volume・Manifold検証を
+Geometry Validation Standard(Geometry QA Framework)として標準化するか」である**
+(shoji指摘、2026-08-06。単なるファイル配置の問題ではなく、将来の全Geometry実装に
+適用する検証基準の制定という位置づけ)。本Commit4ではこの標準化の要否・設計を
+判断せず保留する。Bell/Flat等の他形状実装で同種の検証が再び必要になった時点で、
+再利用パターンが十分見えてから設計する方が合理的なため(shoji方針)。現時点では
+Commit3bのNode検証スクリプトは一時検証用として扱い、リポジトリには未格納・
+標準化もしていない。
 
 ## 7. Explicit Non-goals(再掲、詳細は§7参照)
 
@@ -139,7 +143,7 @@ Phase1(Pocket Geometry)で意図的に確定した設計判断の一覧。変更
 | 7 | Epsilon(微小値) | 真の0厚みをAPIが扱えない場合に限り、レンダリング目的のみの微小値εを使用可。Geometry Parameterとしては解釈しない | §5.2(v1.4解消) |
 | 8 | Debug material color | `#33aaff`(Commit2)/`#ffaa33`(Commit3b)。Geometry比較レビュー用のdebug visualizationであり、Geometry Parameter/UI Design Decisionではない | §8.1(v1.5追加) |
 | 9 | Triangle Winding | 側面2三角形+両端cap4三角形の頂点順序を修正済み(`0e70e4f`amend)。全260三角形で法線が正しい外向き(dot=+1.0)、符号付き体積が解析値と誤差0% | §8.4、本文書§4 |
-| 10 | Node検証スクリプトの位置付け | Evidence Hierarchyとは別枠のImplementation Validation / Acceptance Criteria。リポジトリ格納可否はDeferred Decision(§6) | §8.4 |
+| 10 | Node検証スクリプトの位置付け | Evidence Hierarchyとは別枠のImplementation Validation / Acceptance Criteria。Geometry Validation Standard(Geometry QA Framework)として標準化するか否かはDeferred Decision(§6) | §8.4 |
 | 11 | Pocket Maximum Widthの到達位置 | t=1(最深部)。既存Confirmed Evidenceの論理的帰結として採用(新形状の創作ではない) | §5.1 |
 | 12 | 座標系の独立性 | Pocket-local座標系はShaft/Global座標系と未接続。Phase1単体では原点を仮に(0,0,0)として表示可 | §3 |
 
