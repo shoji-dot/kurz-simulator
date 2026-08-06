@@ -1,9 +1,9 @@
-# Priority3 UI Design Review v1.1
+# Priority3 UI Design Review v1.2(確定版)
 
-**Status**: shoji一次レビュー済み(2026-08-06)。**Confirmed(確認済み)とPending
-Approval(承認待ち)を分離**して記載(shoji指定)。**設計レビューのみ、実装は行っていない**
-(コード変更なし)。
-**Date**: 2026-08-06(v1.0作成)/2026-08-06(v1.1、shojiレビュー反映)
+**Status**: **確定版(shoji承認済み)**。§8.2 Pending Approval全4項目をshojiが承認、
+全Decision Points確定。Commit1(データ層追加)実装完了(commit `01e08a1`)。
+**Date**: 2026-08-06(v1.0作成)/2026-08-06(v1.1、Confirmed/Pending Approval分離)/
+2026-08-06(v1.2、8.2承認・確定版化)
 **位置づけ**: `P4_Transition_Deferred_Management_Plan_v1.0.md`(v1.2)§3 Roadmap Step2。
 P3で確定したProcedure分類・Anchor・Evidence Layer(`P3_Completion_Summary_v1.0.md`)を
 Simulator UIへどう反映するかを、実装前に画面設計として整理する。**Soft Clip Geometry
@@ -16,6 +16,12 @@ Simulator UIへどう反映するかを、実装前に画面設計として整�
 **v1.1差分要約**: v1.0公開後の実コード追加調査で、Decision Points #1〜#3の不確実性が
 大幅に縮小したことが判明。§2.1(新設)に確認済み事実を追加、§8をConfirmed/Pending
 Approval形式に再構成した。設計提案(§3〜§6)自体に変更はない。
+
+**v1.2差分要約**: shojiが§8.2 Pending Approval全4項目を承認(下記§8.3参照)。これにより
+本文書のDecision Pointsは全て確定。Commit1(`cases.ts`への`detailedReconstructionPattern`
+フィールド追加、データ層のみ)を実装・commit `01e08a1`完了。Verification Order
+(Build/TypeCheck/Lint/Review/Clinical Validation)全て完了。次はCommit2
+(`ContextTagBar`共有コンポーネント化)。
 
 ---
 
@@ -151,11 +157,10 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 
 ### StepFlowMode
 
-- **FlowSetup(Step1症例選択)**: SimulationModeと同様のClinical Classification表示を
-  追加。**表示ロジックはSimulationModeと共有すべき**(§1で指摘した重複実装の解消と
-  同時に行う)。
-- **Step4(耳小骨評価)またはStep6(プロステーシス設置)**: Anchor Basis表示を追加
-  (手技理解のタイミングに最も近い、要shoji確認でどちらが適切か)。
+- **FlowSetup(Step1症例選択)・Step4(耳小骨評価)**: SimulationModeと同様のClinical
+  Classification表示を追加(shoji確定、§8.3 #4)。**表示ロジックはSimulationModeと
+  共有すべき**(§1で指摘した重複実装の解消と同時に行う)。
+- **Step6(プロステーシス設置)**: Anchor Basis表示を追加(shoji確定、§8.3 #4)。
 
 ---
 
@@ -174,13 +179,13 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 
 ## 6. Small Change実装単位分割(案)
 
-| Commit | 内容 | 前提条件 |
+| Commit | 内容 | 状態 |
 |---|---|---|
-| Commit1 | `cases.ts`構造化フィールド追加(データのみ、UI変更なし) | shoji確認必須(§8.2 #1・#2) |
-| Commit2 | `ContextTagBar`の共有コンポーネント化(表示内容不変のリファクタ、Strangler Pattern) | 前提なし、単独で着手可能 |
+| Commit1 | `cases.ts`構造化フィールド追加(データのみ、UI変更なし) | **完了**(commit `01e08a1`、2026-08-06) |
+| Commit2 | `ContextTagBar`の共有コンポーネント化(表示内容不変のリファクタ、Strangler Pattern) | 次(前提なし、単独で着手可能) |
 | Commit3 | Clinical Classification表示追加(SimulationMode) | Commit1・2完了後 |
-| Commit4 | Clinical Classification表示追加(StepFlowMode) | Commit3と同一表示ロジックを再利用 |
-| Commit5 | Anchor Basis表示追加(該当画面) | Commit1完了後 |
+| Commit4 | Clinical Classification表示追加(StepFlowMode、Step1・Step4) | Commit3と同一表示ロジックを再利用 |
+| Commit5 | Anchor Basis表示追加(SimulationMode配置パネル・StepFlowMode Step6) | Commit1完了後 |
 | Commit6(Could) | Teaching Information/Evidence Layer拡充 | 任意、shoji指定があれば |
 
 ---
@@ -229,6 +234,18 @@ Lint→Review→Clinical Validation。特にCommit1(データ層)はClinical Val
 
 **Commit1(データ層追加)着手条件**: 8.2の#1(case-007)・#2(フィールド追加方式)の
 承認が得られ次第、着手可能(§6 Commit1参照)。#3・#4(UX判断)はCommit3以降の前提。
+
+### 8.3 Resolved(2026-08-06、shoji承認・確定)
+
+| # | 項目 | 決定内容 |
+|---|---|---|
+| 1 | case-007の最終分類 | **Ⅲcで確定**(Hypothesisから正式分類へ昇格) |
+| 2 | `cases.ts`構造化フィールドの追加方式 | **新規フィールド追加方式で確定**(既存フィールドは変更しない)。Commit1で実装済み(`detailedReconstructionPattern?: 'Ⅲc' \| 'Ⅲi-M'`、commit `01e08a1`) |
+| 3 | 表示タイミング分離案 | **確定**: Clinical Classification=症例選択時、Anchor Basis=配置操作時 |
+| 4 | StepFlowModeのAnchor Basis表示位置 | **確定**: Clinical ClassificationはStep1(FlowSetup)とStep4(耳小骨評価)の両方に表示、Anchor BasisはStep6(プロステーシス設置)に表示 |
+
+これにより8.1(Confirmed)・8.3(Resolved)で全Decision Pointsが確定し、Pending Approval
+は0件。以降のCommit2-6は本§8.3の決定内容に従って実装する。
 
 ---
 
