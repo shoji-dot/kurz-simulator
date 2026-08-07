@@ -1,8 +1,17 @@
-# Soft Clip Geometry Editor 設計文書 v1.1
+# Soft Clip Geometry Editor 設計文書 v1.2
 
-**Status**: Approved(shojiレビュー承認、2026-08-07)。以下v1.1の変更を実装へ反映して
-Phase1着手する。
-**Date**: 2026-08-07(v1.0)/2026-08-07(v1.1、shojiフィードバック反映)
+**Status**: Approved(shojiレビュー承認、2026-08-07)。v1.2はHook:curve可変グループの
+追加(Small Change)を反映。
+**Date**: 2026-08-07(v1.0)/2026-08-07(v1.1、shojiフィードバック反映)/2026-08-07(v1.2、
+Hook:curve追加)
+**v1.2での変更点(shoji方針、2026-08-07)**: Proposal v2レビューでHookの直線区間が
+「孤立した棒状の突起」に見えると判明したのを受け、Hook区間(`hook/start`–`hook/end`)に
+`role:"curve"`可変グループを追加。LowerArm/RearFlex/UpperArmで既に使われている構造の
+横展開であり、Frozen Layer・専用UI([[Non-goals §6の"Hook詳細編集"]]、Phase2)には
+該当しない。**Decision Point(未解決のまま保留)**: Terminal Length 2.40mm
+(`hook/start`–`hook/end`間、Evidence A)の測定定義が直線距離(chord)か経路長(path)かは
+Measurement Record上明文化されておらず未確定。本追加はEditorの表現力拡張が目的であり、
+この定義を確定・変更するものではない(shoji指定の一文をそのまま採用)。
 **v1.1での変更点(shojiレビュー、2026-08-07)**: ①Control Point IDをUUID的な`cp_*`
 命名からPath形式(`region/role`または`region/role/index`)へ変更。②`functionalRegion`
 のフラットenumをRegion(LowerArm/RearFlex/UpperArm/Pocket/Bridge/Hook)+Role
@@ -130,7 +139,7 @@ Editor内でのみ意味を持つ暫定フレームとし、Phase1では原点�
 }
 ```
 
-**Region/Role組み合わせ**(固定スロット6 + 可変グループ3。**注記**: shoji提案の
+**Region/Role組み合わせ**(固定スロット6 + 可変グループ4[v1.2、Hook:curve追加]。**注記**: shoji提案の
 省略形(`rearFlex/0`等)ではなく、`region/role/index`へ統一表記とした。全ての可変
 グループで`role:"curve"`を用いることで内部処理を共通化するための一貫性優先の判断
 (shoji提案の意図=可読性の良いPath形式、は維持)):
@@ -144,7 +153,8 @@ Editor内でのみ意味を持つ暫定フレームとし、Phase1では原点�
 | `pocket/deepest` | Pocket | deepest | 固定1点 | 位置=Hypothesis、内部params=A+(Lock) | |
 | `rearFlex/curve/0..n` | RearFlex | curve | 可変(0〜n) | Hypothesis | |
 | `upperArm/curve/0..n` | UpperArm | curve | 可変(0〜n) | Hypothesis | |
-| `hook/start` | Hook | start | 固定1点 | Unknown(旧M2、固定点として不採用済み) | Phase2でHook Transition Profileパラメータに拡張 |
+| `hook/start` | Hook | start | 固定1点 | Unknown(旧M2、固定点として不採用済み) | Phase2でHook Transition Profileパラメータに拡張(定量値化は別途) |
+| `hook/curve/0..n` | Hook | curve | 可変(0〜n、v1.2追加) | Hypothesis | Hook区間の巻き込み表現用。Terminal Length 2.40mm(A)のMeasurement Definition[chord/path]は未確定のままDecision Point保留 |
 | `hook/end` | Hook | end | 固定1点 | 位置=Hypothesis、参照距離2.40mm(A)をヒント表示 | 単一鎖のもう一端 |
 
 **Region/Role分離の狙い(shoji指摘どおり)**: Phase2で`hook/start`に曲率・進入角
@@ -263,8 +273,10 @@ Phase1では`bridge`/`hook`(詳細パラメータ)フィールドは省略可能
 - ✅ **JSON Import(v1.1追加)**
 - ✅ **Undo/Ctrl+Z(v1.1追加)**
 - ❌ 曲率Handle/スライダー — Phase2
-- ❌ Hook詳細編集(長さ/曲率/方向の専用UI) — Phase2(`hook/start`点の位置編集自体は
-  Phase1に含む)
+- ✅ **Hook:curve可変グループ(v1.2追加)** — `hook/start`/`hook/end`は引き続き固定、
+  中間点(`hook/curve/0..n`)のみ可変グループとして追加・削除・ドラッグ可能
+- ❌ Hook詳細編集(長さ/曲率/方向の専用UI) — Phase2(`hook/start`点の位置編集・
+  `hook/curve`点の追加自体はv1.2でPhase1に含めた)
 - ❌ Bridge詳細編集(長さ/角度の専用UI) — Phase2(`bridge/end`点の位置編集自体は
   Phase1に含む)
 - ❌ Redo — Phase2
