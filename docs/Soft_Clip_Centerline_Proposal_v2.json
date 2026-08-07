@@ -1,0 +1,256 @@
+{
+  "schemaVersion": "1.0",
+  "tool": "Soft_Clip_Geometry_Editor",
+  "exportedAt": "2026-08-07T09:00:00.000Z",
+  "disclaimer": "This JSON is a design proposal (Hypothesis), not Evidence. Any reflection into production Geometry requires separate review and approval.",
+  "coordinateFrame": {
+    "type": "bandLoopLocal",
+    "note": "Global/Shaft座標系とは未統合(Tier C Coordinate Integration課題)。今回は意図的に平面(2D)で設計(shoji方針、立体化は次フェーズ)。"
+  },
+  "profile": {
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "evidenceLevel": "A+",
+    "locked": true,
+    "source": "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md §0"
+  },
+  "centerline": {
+    "curveType": "CatmullRomCurve3",
+    "controlPoints": [
+      {
+        "id": "bridge/end",
+        "region": "Bridge",
+        "role": "end",
+        "index": null,
+        "position": {
+          "x": -0.6297228916786285,
+          "y": 1.004,
+          "z": -0.6787575503312078
+        },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "単一連続鎖の一端。Topology(単一鎖であること)はStrongly supported(Interpretation §4-5-A)だが、3D位置はUnknown。(Proposal v1から変更なし)",
+        "removable": false
+      },
+      {
+        "id": "lowerArm/start",
+        "region": "LowerArm",
+        "role": "start",
+        "index": null,
+        "position": {
+          "x": -0.4107782259656372,
+          "y": 1.004,
+          "z": -0.6406539093152357
+        },
+        "locked": false,
+        "evidenceLevel": "Provisional",
+        "note": "旧M1(Lower Arm Centerline開始点)。M3→M1: 1.50–1.73mm(視点2方向、M1M2M3 Measurement v1.9)。スケール較正未解決のためProvisional。(Proposal v1から変更なし、レビューで曲率良好と評価)",
+        "removable": false
+      },
+      {
+        "id": "lowerArm/curve/0",
+        "region": "LowerArm",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": -0.1788671931142775,
+          "y": 1.004,
+          "z": -0.03689489464178197
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "主要曲率変化点(見立てでは約3回、Interpretation §1.3-A)。座標の実測なし。(Proposal v1から変更なし)",
+        "removable": true
+      },
+      {
+        "id": "pocket/entrance",
+        "region": "Pocket",
+        "role": "entrance",
+        "index": null,
+        "position": {
+          "x": -0.43793063461238685,
+          "y": 1.004,
+          "z": 0.24874903315623653
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "内部params(Arm Gap 0.75mm等)はLock/参照専用。この点自体の3D位置はHypothesis。(shoji指定によりv2レビュー対象外、v1から変更なし)",
+        "removable": false
+      },
+      {
+        "id": "pocket/deepest",
+        "region": "Pocket",
+        "role": "deepest",
+        "index": null,
+        "position": {
+          "x": -1.2657488011488554,
+          "y": 1.004,
+          "z": 0.5996034586283943
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "内部params(Pocket Depth 3.30mm等)はLock/参照専用。この点自体の3D位置はHypothesis。(shoji指定によりv2レビュー対象外、v1から変更なし)",
+        "removable": false
+      },
+      {
+        "id": "rearFlex/curve/0",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": -2.05,
+          "y": 1.004,
+          "z": 0.55
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。Proposal v2でv1の7点から5点へ整理(点数削減が目的ではなく、turn angleの符号反転[-84/-96/+104/-86/-98/+71度]を解消し単一の滑らかな弯曲へ近づけるための再配置。Centerline_Proposal_v1_Review.md §3.2/§6参照)。座標はHypothesis、写真との一致度はshoji確認待ち。",
+        "removable": true
+      },
+      {
+        "id": "rearFlex/curve/1",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 1,
+        "position": {
+          "x": -2.3,
+          "y": 1.004,
+          "z": 0.95
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。Proposal v2でv1の7点から5点へ整理(点数削減が目的ではなく、turn angleの符号反転[-84/-96/+104/-86/-98/+71度]を解消し単一の滑らかな弯曲へ近づけるための再配置。Centerline_Proposal_v1_Review.md §3.2/§6参照)。座標はHypothesis、写真との一致度はshoji確認待ち。",
+        "removable": true
+      },
+      {
+        "id": "rearFlex/curve/2",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 2,
+        "position": {
+          "x": -1.95,
+          "y": 1.004,
+          "z": 1.4
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。Proposal v2でv1の7点から5点へ整理(点数削減が目的ではなく、turn angleの符号反転[-84/-96/+104/-86/-98/+71度]を解消し単一の滑らかな弯曲へ近づけるための再配置。Centerline_Proposal_v1_Review.md §3.2/§6参照)。座標はHypothesis、写真との一致度はshoji確認待ち。",
+        "removable": true
+      },
+      {
+        "id": "rearFlex/curve/3",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 3,
+        "position": {
+          "x": -1.55,
+          "y": 1.004,
+          "z": 1.6
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。Proposal v2でv1の7点から5点へ整理(点数削減が目的ではなく、turn angleの符号反転[-84/-96/+104/-86/-98/+71度]を解消し単一の滑らかな弯曲へ近づけるための再配置。Centerline_Proposal_v1_Review.md §3.2/§6参照)。座標はHypothesis、写真との一致度はshoji確認待ち。",
+        "removable": true
+      },
+      {
+        "id": "rearFlex/curve/4",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 4,
+        "position": {
+          "x": -0.75,
+          "y": 1.004,
+          "z": 1.2
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。Proposal v2でv1の7点から5点へ整理(点数削減が目的ではなく、turn angleの符号反転[-84/-96/+104/-86/-98/+71度]を解消し単一の滑らかな弯曲へ近づけるための再配置。Centerline_Proposal_v1_Review.md §3.2/§6参照)。座標はHypothesis、写真との一致度はshoji確認待ち。",
+        "removable": true
+      },
+      {
+        "id": "upperArm/curve/0",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": -0.1454972128280408,
+          "y": 1.004,
+          "z": 0.7971099919598175
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。Proposal v2でRearFlex出口からHook開始点への遷移を滑らかにするため2点構成へ変更(v1は1点)。座標は完全にHypothesis(shoji主導、Claudeは滑らかさの観点のみ検証)。",
+        "removable": true
+      },
+      {
+        "id": "upperArm/curve/1",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 1,
+        "position": {
+          "x": 0.05,
+          "y": 1.004,
+          "z": 0.72
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。Proposal v2でRearFlex出口からHook開始点への遷移を滑らかにするため2点構成へ変更(v1は1点)。座標は完全にHypothesis(shoji主導、Claudeは滑らかさの観点のみ検証)。",
+        "removable": true
+      },
+      {
+        "id": "hook/start",
+        "region": "Hook",
+        "role": "start",
+        "index": null,
+        "position": {
+          "x": 0.3421837410749535,
+          "y": 1.004,
+          "z": 0.698656645407701
+        },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "旧M2(Hook-like曲げ開始点)。固定点として不採用(M1M2M3 Measurement v1.9 Decision v1.4)。Hook Transition Profileとして再定義中、Phase2で拡張予定。(Proposal v1から位置変更なし)",
+        "removable": false
+      },
+      {
+        "id": "hook/end",
+        "region": "Hook",
+        "role": "end",
+        "index": null,
+        "position": {
+          "x": 1.7129107402217765,
+          "y": 1.004,
+          "z": -1.2713960172919399
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "単一鎖のもう一端(Terminal)。Proposal v2でhook/startからの距離をEvidence A Terminal Length(約2.40mm)へ近づけた(v1は0.613mmで大幅未達)。方向はv1の既存方向を維持し、距離のみ延長(Hypothesisの方向自体はshoji主導のため新規に変更しない、という判断)。ただしこの2.40mmは実物では巻き込み形状(curl)に沿った長さの可能性があり、Phase1のHookはcurve pointを持たないため直線距離として扱っている点はKnown Limitation(Review v2 §5参照)。",
+        "removable": false
+      }
+    ]
+  },
+  "evidenceSnapshot": {
+    "pocketDepthMm": 3.3,
+    "armGapMm": 0.75,
+    "pocketMaxWidthMm": 1.4,
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "bandCrossSectionEvidenceLevel": "A+",
+    "terminalLengthMm": 2.4,
+    "sourceDocs": [
+      "Soft_Clip_Geometry_Improvement_Spec_v1.0.md",
+      "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md",
+      "Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.0.md"
+    ]
+  },
+  "referenceValues": {
+    "terminalLengthMm": {
+      "value": 2.4,
+      "evidenceLevel": "A"
+    }
+  },
+  "meta": {
+    "editedBy": "Claude (Proposal v2 draft, per shoji instruction 2026-08-07)",
+    "sessionNote": "Proposal v1のレビュー結果(Soft_Clip_Centerline_Proposal_v1_Review.md)を踏まえ、shoji指定の方針(点数削減が目的ではない/写真一致優先/RearFlexはまず7→5/2D平面継続)に沿って作成。shojiによるEditor上での確認・再調整を前提とするHypothesis下書き。"
+  }
+}
