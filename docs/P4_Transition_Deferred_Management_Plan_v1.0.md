@@ -1,9 +1,21 @@
-# P4 Transition / Deferred Management Plan v1.2
+# P4 Transition / Deferred Management Plan v1.3
 
 **Status**: Active(P4C実装再開ではない、Evidence取得待ち期間の優先順位管理文書)。
+**v1.3でPriority2をクローズしPriority4へ移行**(Soft Clip Geometry Improvement Phase v1
+Freeze・shoji確定、2026-08-07)。
 **v1.2でMeasurement Record v1.9の内容に同期**(新しい方針判断は含まない、Decision v1.4の
 事実を転記するのみ)。
-**Date**: 2026-07-30(v1.0)/2026-08-06(v1.1)/2026-08-06(v1.2)
+**Date**: 2026-07-30(v1.0)/2026-08-06(v1.1)/2026-08-06(v1.2)/2026-08-07(v1.3)
+**v1.3での変更点(shoji確定、2026-08-07)**: Soft Clip Geometry Improvement Phase v1
+(Tier A/B/C分類での本番コードEvidence反映作業)がTier A Completed(Clinical Visual
+Validation PASSED)/Tier B Canceled(Tier C依存と判明)/Tier C Deferredで完了・Freeze
+(`Soft_Clip_Geometry_Improvement_Phase_v1_Freeze_v1.0.md`)。これを受け**Priority2
+(Ground Truth Collection)を「現時点で取得可能なEvidenceの反映は完了」という
+マイルストーンでクローズ**し、**Priority4(KURZ公式CAD問い合わせ準備)へ移行**。
+shoji整理: Priority4のスコープはCAD問い合わせ本体だけでなく、メーカーへの確認事項
+整理・将来取得したい寸法リスト・Tier C解除条件の明文化を含む(§2 Priority4参照)。
+§1現在地点図・§2 Priority1/2/4・§3 Roadmapを更新。
+
 **v1.2での変更点(shoji承認、2026-08-06)**: 3点。①§1の現在地点図・§2 Priority1/2の
 「Top-down撮影待ち」という古い記述を、Measurement Record v1.9(Decision v1.4)の内容に
 同期(候補A[90°/270°]撮影・解析がCompletedし、Candidate Cは同目的では不要と判定済み)。
@@ -57,8 +69,16 @@ Priority1(プロステーシス品質向上)着手(2026-07-30〜)
          Coordinate Integrationは解析精度向上の重要課題として並行管理、P0直接
          Blockerではない)
         ↓
-現在地点(2026-08-06): P4C Evidence取得待ち継続 + Priority1(Soft Clip)を意図的にFreeze。
-Priority2/3/4は本文書v1.0策定以降ほぼ未着手 → §3 Roadmap参照。
+  Soft Clip Geometry Improvement Phase v1(本番コードへのEvidence反映、2026-08-07)
+        Tier A(Shaft Lower/Middle 2段円柱化) — Completed & Clinical Visual
+          Validation PASSED(commit 0639f2d)
+        Tier B(Pocket座標統合) — Canceled(Tier Cへのサブタスクと判明、暫定配置不採用)
+        Tier C(Bridge/Band Loop全体/Hook) — Deferred(再開条件は同Freeze文書§5)
+        (`Soft_Clip_Geometry_Improvement_Phase_v1_Freeze_v1.0.md`)
+        ↓
+現在地点(2026-08-07): P4C Evidence取得待ち継続 + Priority1(Soft Clip)を意図的にFreeze。
+**Priority2はSoft Clip Geometry Improvement Phase v1 Freezeをもってクローズ、
+Priority4(CAD問い合わせ準備)へ移行** → §2/§3参照。
 ```
 
 **重要な制約(P4C-0からの継承、本文書はこれを変更しない)**:
@@ -107,6 +127,16 @@ Blockerと証明されたわけではないため、**P0直接Blockerとは区�
 課題」(P0〜P1境界)として並行管理する**(shoji指摘、2026-08-06)。**Priority1は引き
 続き意図的にFreeze中**。
 
+**v1.3時点の状況**: Soft Clip Geometry Improvement Phase v1として、既存Evidence
+(Shaft Lower/Middle径等)の本番コード反映をTier分類で実施。**Tier A(Shaft Lower/
+Middle 2段円柱化)はCompleted・Clinical Visual Validation PASSED**(commit 0639f2d、
+2026-08-07)。**Tier B(Pocket座標統合)はTier C(Band Loop全体)へのサブタスクと
+実装前レビューで判明しCanceled**(暫定配置は不採用、Evidence First優先)。**Tier C
+(Bridge/Band Loop全体/Hook)はDeferred**、再開条件は`Soft_Clip_Geometry_
+Improvement_Phase_v1_Freeze_v1.0.md`§5(Band Loop制御点位置・Hook Transition
+Profile定量パラメータ・Shaft径較正のいずれかがEvidence A/A+相当に確定すること)。
+**Priority1は引き続き意図的にFreeze中**(Tier C再開まで新規Mesh実装は行わない)。
+
 ### Priority 2: Ground Truth Collection継続
 
 候補: KURZ公式CAD取得可能性確認 / 実物計測追加 / 写真Evidence追加 / 3D Scan可能性検討
@@ -140,6 +170,16 @@ Completedとして扱う(Measurement Record v1.9)。次に必要なEvidenceは�
 Checklist_v1.0.md` §4に記録事項化済み)。Top-down(候補B)は引き続き低優先のまま
 維持。
 
+**v1.3時点の状況(Priority2クローズ、shoji確定2026-08-07)**: Scaniverse 3D Scan
+Evidence Evaluation(Completed、Partially Adopted/Evidence B+/A-、
+`Scaniverse_Validation_Report_v1.0.md`)に続き、既存Evidence(ノギス実測・写真計測・
+候補A撮影)を最大活用したSoft Clip Geometry Improvement Phase v1(Tier A Completed/
+Tier B Canceled/Tier C Deferred)をもって、**「現時点で取得可能なEvidenceの反映は
+完了」というマイルストーンでPriority2をクローズ**。理由(shoji): Scaniverseの限界は
+確認済み、既存のノギス・写真・実測データはほぼ出し切っており、これ以上はTier C
+(Bridge/Band Loop全体/Hook)のような「Evidence Bから妥当な形状を設計する」フェーズに
+入ってしまいEvidence Firstの軸足がぶれるため。次はPriority4へ移行。
+
 ### Priority 3: UI / 教育体験改善
 
 P3で確定したProcedure分類・Anchor・Evidence Layerを、Simulator UIへどう反映するかを検討する。例:
@@ -158,13 +198,30 @@ Anchor Basis: Malleus Handle → Stapes Head
 Informationをどこへ・どう表示するか)のレビューを行ってから、Small Changeで段階的に
 実装する**(shoji指定。§3 Roadmap Step2〜5参照)。
 
-### Priority 4: KURZ公式CAD問い合わせ準備(低優先、外部依存)
+### Priority 4: KURZ公式CAD問い合わせ準備
 
 着手前に「何のデータが必要か」「何を検証したいか」「Confidential情報の要否」を整理する
-(P4C-0 §5と同一方針、格下げ維持)。
+(P4C-0 §5と同一方針)。
 
 **v1.1時点の状況**: 完全未着手。要件整理(文書作成のみ)は問い合わせの実行(外部依存)
 とは切り離して先行可能だが、優先度は引き続き最下位。
+
+**v1.3時点の状況(shoji確定2026-08-07、Priority2クローズに伴い次テーマへ格上げ)**:
+Priority2クローズを受け、**準備作業(文書化)はActiveへ格上げ**(実際のKURZ社への
+問い合わせ実行自体は引き続き外部依存・低優先のまま)。scopeは4点:
+
+1. KURZ公式CAD問い合わせ本体(データ要件・検証目的・Confidential要否の整理、
+   問い合わせ文面作成)
+2. メーカーへの確認事項整理(Head Plate Normal/Shaft Axis角度、Soft Clip Band Loop
+   制御点位置等、composeNormal()・Tier C双方が必要とする項目の棚卸し)
+3. 将来取得したい寸法リスト(Priority2で埋まらなかった項目の一覧化。P4C-0 §3・
+   `Soft_Clip_Band_Loop_Measurement_Record_v1.0.md`優先順位[P1〜P5]・本文書の
+   Tier C再開条件[Freeze v1.0 §5]を統合)
+4. Tier C解除条件の明文化(Soft Clip Geometry Improvement Phase v1 Freeze §5に
+   既出の3条件[Band Loop制御点位置/Hook Transition Profile定量化/Shaft径較正]を、
+   CAD問い合わせで代替取得できるか・現物計測で埋めるべきかを区別して整理)
+
+具体的な文書作成・着手順序はshoji確認後に決定(次アクション)。
 
 ## 3. Roadmap(shoji確定、2026-08-06、v1.1新設)
 
@@ -209,6 +266,14 @@ Backlog(品質向上・教育価値・Evidenceに直接寄与しないため優�
     据え置き)
 ```
 
+**v1.3 Sync Note(2026-08-07)**: 上記Step2〜Step5(Priority3 UI改善)は、本Roadmap
+策定と同日(2026-08-06)中にCommit1〜5として実装が進み、Priority3全体が
+`Priority3_UI_Design_Review_v1.0.md`(v1.5)・Commit5監査を経て**Completed &
+Auditedとして正式クローズ済み**(shoji承認、2026-08-07)。本Roadmap上のStep2〜5表記は
+歴史的記録として残すが、最新状況はPriority3_UI_Design_Review系文書を参照すること。
+続けてPriority2もSoft Clip Geometry Improvement Phase v1 Freezeをもってクローズし、
+現在はPriority4(CAD問い合わせ準備、§2参照)へ移行済み。
+
 **据え置き(着手しない)**: Issue-025(Safety Engine Head Plate側評価範囲拡張)・Soft
 Clip Phase2/3実装・composeNormal()は、Evidence確定(Hook Transition Profile定量化・
 Shaft径較正、またはP4C-0の代替手段確定)まで着手しない。**Step1[候補A撮影]完了は
@@ -227,4 +292,8 @@ Evidence取得の前進であって確定ではない**(Measurement Record v1.9�
 - `docs/Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.0.md`(v1.9、Decision v1.4。
   候補A[90°/270°]結果・Candidate C位置付け変更・Coordinate Integration新設の根拠)
 - `docs/Soft_Clip_Phase2_Photography_Checklist_v1.0.md`
+- `docs/Soft_Clip_Geometry_Improvement_Phase_v1_Freeze_v1.0.md`(Tier A/B/C結論、
+  Priority2クローズの根拠)
+- `docs/Priority3_UI_Design_Review_v1.0.md`(v1.5、Priority3 Completed & Auditedの根拠)
+- `docs/Scaniverse_Validation_Report_v1.0.md`(Priority2 Scaniverse検証の根拠)
 - `docs/Issue-025_SafetyEngine_HeadPlate_DangerZone_Evaluation_Gap.md`(据え置き事項)
