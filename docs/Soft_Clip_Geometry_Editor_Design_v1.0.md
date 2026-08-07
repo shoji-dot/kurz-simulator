@@ -1,9 +1,25 @@
-# Soft Clip Geometry Editor 設計文書 v1.2
+# Soft Clip Geometry Editor 設計文書 v1.3
 
-**Status**: Approved(shojiレビュー承認、2026-08-07)。v1.2はHook:curve可変グループの
-追加(Small Change)を反映。
+**Status**: Approved(shojiレビュー承認、2026-08-07)。v1.3はTopology revision(Hook/Bridge
+の鎖順序変更)を反映。
 **Date**: 2026-08-07(v1.0)/2026-08-07(v1.1、shojiフィードバック反映)/2026-08-07(v1.2、
-Hook:curve追加)
+Hook:curve追加)/2026-08-07(v1.3、Topology revision)
+**v1.3での変更点(shoji確認、2026-08-07)**: Editorでの対話的検討中、`right_annotated.png`・
+`right_oblique_terminal_zoom.png`・`azimuth-ring/azimuth135_hook_visible_zoom.png`の
+再確認により、Hook-like terminal(Evidence A)はBridge(Shaft接続点)のすぐ近傍にあり、
+UpperArmの遠い先端はHookではなく単なる自由端(Photo#1でいう「ループ端」)である可能性が
+高いとshojiが確認。これは`Soft_Clip_Geometry_Interpretation_v1.0.md` §4-5-A(v1.9、
+「候補A: 単一連続鎖・BridgeとHookは鎖の両端」をStrongly Supportedと判定)の図解と
+矛盾するため、同節を**Pending Re-evaluation**として明示し、正式な文書改訂は別途行う
+こととした(shoji指定、Editor実装が文書改訂に先行する形)。Editor側は以下の変更を実施:
+①鎖順序をHook→Bridge→LowerArm→Pocket→RearFlex→UpperArmへ変更。②旧`hook/start`・
+`hook/end`をBridge隣接の短い区間として再配置。③旧UpperArm遠端(旧`hook/end`の位置)を
+`upperArm/end`(新規ロール)として分離、Terminal Length 2.40mmの参照はHook側へ移動。
+④shoji指摘の「Hook–Bridge–LowerArm間は下弦のカーブを描く」を表現するため、Bridge
+region配下に`approach`(Hook側)・`departure`(LowerArm側)の2つのcurve可変グループを
+新設。⑤1領域に複数のcurveグループを持てるよう、`renderCpList`/`addCurvePoint`の
+マッチングをregion単独からregion+roleへ変更(Small Change、Region/Role分離の設計
+意図に沿った拡張)。
 **v1.2での変更点(shoji方針、2026-08-07)**: Proposal v2レビューでHookの直線区間が
 「孤立した棒状の突起」に見えると判明したのを受け、Hook区間(`hook/start`–`hook/end`)に
 `role:"curve"`可変グループを追加。LowerArm/RearFlex/UpperArmで既に使われている構造の
@@ -129,7 +145,7 @@ Editor内でのみ意味を持つ暫定フレームとし、Phase1では原点�
 {
   id: "lowerArm/start",           // Path形式(region/role、可変グループはregion/role/index)
   region: "LowerArm",             // "Bridge" | "LowerArm" | "Pocket" | "RearFlex" | "UpperArm" | "Hook"
-  role: "start",                  // "start" | "curve" | "entrance" | "deepest" | "end"
+  role: "start",                  // "start" | "curve" | "entrance" | "deepest" | "end" | "approach" | "departure"(v1.3、Bridge専用)
   index: null,                    // 可変グループのみ使用(0始まり)、固定スロットはnull
   position: { x: 0, y: 0, z: 0 }, // mm、Band Loop Editorローカル座標
   locked: false,                  // true = Evidence A+、ドラッグ不可
@@ -139,23 +155,33 @@ Editor内でのみ意味を持つ暫定フレームとし、Phase1では原点�
 }
 ```
 
-**Region/Role組み合わせ**(固定スロット6 + 可変グループ4[v1.2、Hook:curve追加]。**注記**: shoji提案の
-省略形(`rearFlex/0`等)ではなく、`region/role/index`へ統一表記とした。全ての可変
-グループで`role:"curve"`を用いることで内部処理を共通化するための一貫性優先の判断
-(shoji提案の意図=可読性の良いPath形式、は維持)):
+**Region/Role組み合わせ**(v1.3、Topology revision反映。固定スロット7 + 可変グループ6。
+**注記**: shoji提案の省略形(`rearFlex/0`等)ではなく、`region/role/index`へ統一表記とした。
+可変グループの多くで`role:"curve"`を用いるが、Bridgeのみ`approach`/`departure`という
+別ロール名を使う[v1.3新設、理由は下記]。1領域に複数の可変グループを持てるよう、
+Editor側の`renderCpList`/`addCurvePoint`はregion単独ではなくregion+roleでマッチする
+よう変更済み):
+
+**鎖順序(v1.3)**: `hook/end` → `hook/curve/0..n` → `hook/start` → `bridge/approach/0..n`
+→ `bridge/end` → `bridge/departure/0..n` → `lowerArm/start` → `lowerArm/curve/0..n` →
+`pocket/entrance` → `pocket/deepest` → `rearFlex/curve/0..n` → `upperArm/curve/0..n` →
+`upperArm/end`
 
 | Path ID例 | Region | Role | 種別 | Evidence | 備考 |
 |---|---|---|---|---|---|
-| `bridge/end` | Bridge | end | 固定1点 | Topology: B / Position: Unknown | 単一鎖の一端 |
+| `hook/end` | Hook | end | 固定1点 | Hypothesis、参照距離2.40mm(A)をヒント表示 | 単一鎖の自由端(Hook-like terminal先端)。v1.3でBridge隣接へ再配置(旧: UpperArm遠端側と誤って想定) |
+| `hook/curve/0..n` | Hook | curve | 可変(0〜n) | Hypothesis | Hook区間の巻き込み表現用。Terminal Length 2.40mm(A)のMeasurement Definition[chord/path]は未確定のままDecision Point保留 |
+| `hook/start` | Hook | start | 固定1点 | Unknown(旧M2、固定点として不採用済み) | Bridge側の曲げ開始点。Phase2でHook Transition Profileパラメータに拡張(定量値化は別途) |
+| `bridge/approach/0..n` | Bridge | approach | 可変(0〜n、v1.3新設) | Hypothesis | Hook→Bridge間の「下弦のカーブ」表現用(shoji指摘) |
+| `bridge/end` | Bridge | end | 固定1点 | Topology: 要再評価(Interpretation §4-5-A参照) / Position: Unknown | Shaft MiddleとBand Loopを接合するT字接合部(Component Tree、Confirmed) |
+| `bridge/departure/0..n` | Bridge | departure | 可変(0〜n、v1.3新設) | Hypothesis | Bridge→LowerArm間の「下弦のカーブ」表現用(shoji指摘、approachと対) |
 | `lowerArm/start` | LowerArm | start | 固定1点 | Provisional(旧M1) | |
 | `lowerArm/curve/0..n` | LowerArm | curve | 可変(0〜n) | Hypothesis | 主要曲率変化点(見立てでは約3回) |
 | `pocket/entrance` | Pocket | entrance | 固定1点 | 位置=Hypothesis、内部params=A+(Lock) | |
 | `pocket/deepest` | Pocket | deepest | 固定1点 | 位置=Hypothesis、内部params=A+(Lock) | |
 | `rearFlex/curve/0..n` | RearFlex | curve | 可変(0〜n) | Hypothesis | |
 | `upperArm/curve/0..n` | UpperArm | curve | 可変(0〜n) | Hypothesis | |
-| `hook/start` | Hook | start | 固定1点 | Unknown(旧M2、固定点として不採用済み) | Phase2でHook Transition Profileパラメータに拡張(定量値化は別途) |
-| `hook/curve/0..n` | Hook | curve | 可変(0〜n、v1.2追加) | Hypothesis | Hook区間の巻き込み表現用。Terminal Length 2.40mm(A)のMeasurement Definition[chord/path]は未確定のままDecision Point保留 |
-| `hook/end` | Hook | end | 固定1点 | 位置=Hypothesis、参照距離2.40mm(A)をヒント表示 | 単一鎖のもう一端 |
+| `upperArm/end` | UpperArm | end | 固定1点 | Hypothesis | v1.3新設(旧`hook/end`を改称)。Upper Armの自由端、Photo#1の「ループ端」に相当。Terminal Length 2.40mmの参照は持たない |
 
 **Region/Role分離の狙い(shoji指摘どおり)**: Phase2で`hook/start`に曲率・進入角
 パラメータを追加する、あるいは`bridge`region配下に`bridge/end`以外のフィールド

@@ -1,7 +1,9 @@
 # Soft Clip Geometry Interpretation v1.0
 
 **Status**: Draft(shoji確認・v1.9反映済み)。**コード変更は行っていない(形状解釈・
-用語整理のみ)**。
+用語整理のみ)**。**2026-08-07追記**: §4-5-A(Topology Candidate Evaluation)はshojiとの
+写真再確認によりPending Re-evaluationとなった(詳細は同節冒頭の警告ボックス参照)。
+正式な候補A/B表・図解の改訂はまだ未実施。
 shojiさんの訂正(2026-07-30)を反映しv1.1に更新: ①太いクロム円柱は撮影用治具ではなく
 Soft Clip本体の段付きシャフト(Confirmedへ変更、§4-1)。②Wing終端フィーチャー・
 ③曲げの性質はOpen Questionのまま維持(shoji指定)。
@@ -533,6 +535,20 @@ Lower Arm経路の途中の分岐点として扱うべきかが確定しない�
 最優先のPending項目として扱う。
 
 ### 4-5-A Topology Candidate Evaluation(新設、v1.9、2026-08-05)
+
+> **⚠️ Pending Re-evaluation(2026-08-07追加、まだConfirmed/Strongly Supportedの書き換えは行っていない)**:
+> Soft Clip Geometry Editorでのshojiとの対話的検討中、`right_annotated.png`・
+> `right_oblique_terminal_zoom.png`・`azimuth-ring/azimuth135_hook_visible_zoom.png`を
+> 再確認した結果、下記「候補A: 単一連続鎖(Bridgeは端点)」の図解(BridgeとHookが鎖の
+> 両端)とは異なる読み方が浮上した。具体的には、Hook-like terminal(Evidence A)は
+> Bridge(Shaft接続点)のすぐ近傍にあり、UpperArmの遠い先端はHookではなく単なる自由端
+> (Photo#1でいう「ループ端」)である可能性が高いとshojiが確認した。この読み方は、
+> 本評価が根拠とした`Photo#1の両端記述`(「ループ端」「フック端」)そのものとは矛盾せず、
+> むしろ図解側が両ラベルの割り当てを取り違えていた可能性を示唆する。**この節の
+> Strongly Supported判定・図解は、上記再確認を反映した正式改訂がまだ行われていない
+> ため、現時点ではそのまま参照しないこと**。Editor側(`Soft_Clip_Geometry_Editor_v1.html`)
+> は先行して新しい鎖順序(Hook→Bridge→LowerArm→Pocket→RearFlex→UpperArm)へ変更済み
+> (2026-08-07)。本節の正式改訂(候補A/B表・図解の書き換え)は別途実施する。
 
 **本評価の位置づけ**: This evaluation is based solely on previously acquired
 evidence. No additional measurements, photography, or physical inspection were
