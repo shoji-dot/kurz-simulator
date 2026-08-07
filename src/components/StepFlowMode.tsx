@@ -19,6 +19,7 @@ import type { BadgeTone } from './ui';
 import { SafetyScoreCard } from './SimulationMode';
 import { CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
 import { isCoordDebugMode } from '../utils/debugMode';
+import { getAnchorBasis } from '../data/anchorBasis';
 
 // ── 症例別耳小骨visマップ生成 ────────────────────────────────────
 /**
@@ -236,6 +237,13 @@ function StepGuidePanel({
         {step.id === 4 && surgicalCase.detailedReconstructionPattern && (
           <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--color-text-secondary)' }}>
             細分類: <strong style={{ color: 'var(--color-primary)' }}>{surgicalCase.detailedReconstructionPattern}</strong>
+          </div>
+        )}
+
+        {/* Anchor Basis（step 6: プロステーシス設置のタイミングでのみ表示） */}
+        {step.id === 6 && getAnchorBasis(surgicalCase) && (
+          <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+            再建経路: <strong style={{ color: 'var(--color-primary)' }}>{getAnchorBasis(surgicalCase)}</strong>
           </div>
         )}
 

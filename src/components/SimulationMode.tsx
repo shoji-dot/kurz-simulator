@@ -44,6 +44,7 @@ import {
   type VisibilityMap,
 } from '../scenes/models/RealAnatomyModels';
 import { SIM_VIS_ITEMS, CYCLE, MODE_LABEL, MODE_BG, MODE_FG } from '../scenes/models/visToggleConfig';
+import { getAnchorBasis } from '../data/anchorBasis';
 import { Button, IconButton, PillToggleGroup, ToolbarContainer, StepProgress, LearningPanel, TeachingPointList, ScoreStat, Feedback, Alert, Toggle, Z_INDEX, AdjRow, ControlPad, ContextTagBar } from './ui';
 import { createSessionFromCaseCompletion, appendLearningEvidenceToSession, assessLearningSession, recommendFromAssessment } from '../engine/applicationIntegration';
 import { summarizeSession } from '../engine/learningSession';
@@ -1233,6 +1234,11 @@ function PlacementStep() {
       <div className="sidebar">
         <div className="card">
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{selectedProduct.name}</div>
+          {getAnchorBasis(selectedCase) && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+              再建経路: <strong style={{ color: 'var(--color-primary)' }}>{getAnchorBasis(selectedCase)}</strong>
+            </div>
+          )}
 
           {/* ── スナップ + リセット ── */}
           <Button
