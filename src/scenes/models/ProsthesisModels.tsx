@@ -1012,6 +1012,25 @@ function ClipFoot({ ghost }: { ghost?: boolean }) {
  */
 export const PISTON_COLLAR_TOP_Y_MM = 0.20;
 
+/**
+ * Shaft Lower(Band Loopから見て最も遠い側の固定長区間)の長さ・半径(mm、実寸)。
+ * Evidence A+(`Soft_Clip_Component_Tree_v1.0.md` v1.2、20倍模型実測43.4mm/8mm径
+ * →実寸2.17mm/径0.40mm)。PistonFoot collar上端(PISTON_COLLAR_TOP_Y_MM)に隣接する
+ * 固定長区間。G3-3 Priority2 Tier A(2026-08-07)でProsthesisModel()のシャフト描画
+ * から参照するためexportする。BELL_HEIGHT_MM/FLAT_CEILING_Y_MM/PISTON_COLLAR_TOP_Y_MM
+ * と同じ理由・パターン。
+ */
+export const SOFT_CLIP_SHAFT_LOWER_LEN_MM = 2.17;
+export const SOFT_CLIP_SHAFT_LOWER_R_MM   = 0.20;
+
+/**
+ * Shaft Middle(製品の8種類の長さラインナップに対応し長さのみ変化する区間)の半径
+ * (mm、実寸)。Evidence A+(`Soft_Clip_Component_Tree_v1.0.md` v1.2、20倍模型実測
+ * 26.6mm/4.0mm径→実寸1.33mm/径0.20mm)。長さはshaftLength依存
+ * (len - PISTON_COLLAR_TOP_Y_MM - SOFT_CLIP_SHAFT_LOWER_LEN_MM)のためexportしない。
+ */
+export const SOFT_CLIP_SHAFT_MIDDLE_R_MM  = 0.10;
+
 function PistonFoot({ ghost }: { ghost?: boolean }) {
   return (
     <group>
@@ -1237,13 +1256,44 @@ export function ProsthesisModel({
         const isBell   = product.footType === 'BELL';
         const isFlat   = product.footType === 'FLAT';
         const isPiston = product.footType === 'PISTON';
-        const shaftLen = isBell   ? Math.max(0.01, len - BELL_HEIGHT_MM)
-                        : isFlat   ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
-                        : isPiston ? Math.max(0.01, len - PISTON_COLLAR_TOP_Y_MM)
+
+        // G3-3 Priority2 Tier A(2026-08-07、`Soft_Clip_Component_Tree_v1.0.md` v1.2、
+        // Evidence A+反映): PISTON(Soft Clip)のシャフトはShaft Lower(固定長2.17mm・
+        // 半径0.20mm)とShaft Middle(可変長・半径0.10mm)の2段円柱で構成される。従来は
+        // 全長を一律半径0.20mmの単一円柱で描画しておりShaft Middle区間の半径が誤って
+        // いた(Component Tree §4で既出の発見)。base/dir/shaftLength/headOff/footOff
+        // (Safety Engine・Pose Solver参照値)は一切変更しない、純粋な描画修正。
+        // BELL/FLAT/その他のfootTypeの描画・寸法は無変更。
+        if (isPiston) {
+          const lowerLen  = SOFT_CLIP_SHAFT_LOWER_LEN_MM;
+          const lowerR    = SOFT_CLIP_SHAFT_LOWER_R_MM;
+          const middleR   = SOFT_CLIP_SHAFT_MIDDLE_R_MM;
+          const middleLen = Math.max(0.01, len - PISTON_COLLAR_TOP_Y_MM - lowerLen);
+          // bottomY: collar上端(footOff + PISTON_COLLAR_TOP_Y_MM)と同一。旧実装の
+          // shaftY=PISTON_COLLAR_TOP_Y_MM/2・shaftLen=len-PISTON_COLLAR_TOP_Y_MMから
+          // 導かれる下端(0.20 - len/2)と数式的に一致し、上端(len/2)も不変。
+          const bottomY   = -(len / 2) + PISTON_COLLAR_TOP_Y_MM;
+          const lowerY    = bottomY + lowerLen / 2;
+          const middleY   = bottomY + lowerLen + middleLen / 2;
+          return (
+            <>
+              <mesh position={[0, lowerY, 0]}>
+                <cylinderGeometry args={[lowerR, lowerR, lowerLen, 16]} />
+                <TitaniumMat ghost={ghost} />
+              </mesh>
+              <mesh position={[0, middleY, 0]}>
+                <cylinderGeometry args={[middleR, middleR, middleLen, 16]} />
+                <TitaniumMat ghost={ghost} />
+              </mesh>
+            </>
+          );
+        }
+
+        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM)
+                        : isFlat ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
                         : len;
-        const shaftY   = isBell   ? BELL_HEIGHT_MM / 2
-                        : isFlat   ? FLAT_CEILING_Y_MM / 2
-                        : isPiston ? PISTON_COLLAR_TOP_Y_MM / 2
+        const shaftY   = isBell ? BELL_HEIGHT_MM / 2
+                        : isFlat ? FLAT_CEILING_Y_MM / 2
                         : 0;
         return (
           <mesh position={[0, shaftY, 0]}>
