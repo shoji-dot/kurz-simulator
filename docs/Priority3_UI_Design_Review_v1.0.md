@@ -1,11 +1,14 @@
-# Priority3 UI Design Review v1.4(確定版・実装進行中)
+# Priority3 UI Design Review v1.5(Commit1〜6完了・Priority3クローズ)
 
-**Status**: **確定版(shoji承認済み)**。§8.2 Pending Approval全4項目をshojiが承認、
-全Decision Points確定。Commit1〜4実装完了(commit `01e08a1`/`afcf7cf`/`0bd4e6d`/
-`4f42588`)、次はCommit5(Anchor Basis、最終Commit)。
+**Status**: **Commit1〜5完了(Commit6は任意/Could項目のため未着手)**。§8.2
+Pending Approval全4項目をshojiが承認、全Decision Points確定。Commit1〜5実装完了
+(commit `01e08a1`/`afcf7cf`/`0bd4e6d`/`4f42588`/`4e04c83`)。Commit5はshoji確認の
+結果PORPのみへスコープ限定(§11参照)。**Priority3(UI改善)は本Commit5をもって
+実質完了**、TORP/Soft ClipのAnchor Basis拡張は将来Phaseへ持ち越し。
 **Date**: 2026-08-06(v1.0作成)/2026-08-06(v1.1、Confirmed/Pending Approval分離)/
 2026-08-06(v1.2、8.2承認・確定版化)/2026-08-06(v1.3、Commit2・3進捗反映)/
-2026-08-06(v1.4、Commit4進捗反映)
+2026-08-06(v1.4、Commit4進捗反映)/2026-08-06(v1.5、Commit5完了・§11追記・
+Priority3クローズ)
 **位置づけ**: `P4_Transition_Deferred_Management_Plan_v1.0.md`(v1.2)§3 Roadmap Step2。
 P3で確定したProcedure分類・Anchor・Evidence Layer(`P3_Completion_Summary_v1.0.md`)を
 Simulator UIへどう反映するかを、実装前に画面設計として整理する。**Soft Clip Geometry
@@ -187,7 +190,7 @@ Simulator全体の学習段階を3つに分けて、情報の出しどころを�
 | Commit2 | Clinical Tag表示基盤の共通化(表示内容不変のリファクタ、Strangler Pattern、variant対応) | **完了**(commit `afcf7cf`、2026-08-06) |
 | Commit3 | Clinical Classification表示追加(SimulationMode 症例選択リストのみ) | **完了**(commit `0bd4e6d`、2026-08-06) |
 | Commit4 | Clinical Classification表示追加(StepFlowMode、Step1・Step4) | **完了**(commit `4f42588`、2026-08-06) |
-| Commit5 | Anchor Basis表示追加(SimulationMode配置パネル・StepFlowMode Step6) | 次 |
+| Commit5 | Anchor Basis表示追加(SimulationMode配置パネル・StepFlowMode Step6、**PORPのみ**) | **完了**(commit `4e04c83`、2026-08-06、スコープをPORPのみに限定。理由は§11参照) |
 | Commit6(Could) | Teaching Information/Evidence Layer拡充 | 任意、shoji指定があれば |
 
 ---
@@ -266,3 +269,34 @@ Lint→Review→Clinical Validation。特にCommit1(データ層)はClinical Val
 - `docs/P3_Completion_Summary_v1.0.md`(§2 Procedure Classification・§3 Anchor Definition)
 - `src/data/cases.ts`(`SurgicalCase`型定義・15症例データ)
 - `src/components/SimulationMode.tsx`・`src/components/StepFlowMode.tsx`
+
+---
+
+## 11. Commit5スコープ限定の経緯(2026-08-06、v1.5で追記)
+
+Commit5着手前、shoji指定の実装前確認事項(①Anchor Basis関数の配置場所②分類→表示
+文字列の変換のみか③Soft Clip/TORP/PORPの既存表示経路と競合しないか)を調査した
+結果、③で**Clinical Safety First原則に関わる重要な制約**を発見した。
+
+`P3_Completion_Summary_v1.0.md`(Frozen)を確認したところ、§3 Anchor Definitionは
+**PORPのⅢc/Ⅲi-M判定手順のみ**を確定事項として扱っており、TORPについては言及が
+ない。さらに§5 Known Limitationsには**「Soft Clip Stapes(Stapedotomy)のAnchor
+定義(キヌタ骨長突起→底板): Pending Clinical Confirmation」**と明記されている。
+実データ確認では、TORP4症例(case-002/006/009/013)は全件`malleus:absent,
+incus:absent, stapes:footplate-only`で均一、Soft Clip3症例(case-010/014/015)は
+全件`malleus:intact, incus:intact, stapes:footplate-only`で均一だが、これは
+Anchor Basisを構造化データとして確定してよい根拠にはならない(P3 Frozen文書の
+確認ステータスが優先される)。
+
+この発見を受け、Commit5開始前にshojiへ3案(①PORPのみ②PORP+TORP、この場でTORPの
+Anchorを新規確認③全カテゴリ、この場でSoft Clipも含め一括確認)を提示。**shojiが
+①PORPのみを選択**(理由: 「今回のPriority3は確定済みGround Truthの可視化であり、
+新たな臨床定義を導入するフェーズではない」)。
+
+**結論**: `getAnchorBasis()`(`src/data/anchorBasis.ts`)はPORP症例
+(`detailedReconstructionPattern`が設定されている8症例)のみを対象とし、TORP/
+Soft Clipは`undefined`を返して何も表示しない。将来的にTORPのAnchor Definitionを
+臨床的に確定→P3文書更新→本関数拡張、Soft ClipはClinical Confirmation完了後に
+追加、という順序をロードマップとして残す(本Commitでは拡張しない)。
+
+---
