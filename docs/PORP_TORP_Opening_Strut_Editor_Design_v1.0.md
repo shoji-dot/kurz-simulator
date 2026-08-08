@@ -1,9 +1,14 @@
-# PORP/TORP Head Plate — Opening/Strut Editor v1.0（Design Note）
+# PORP/TORP Head Plate — Opening/Strut Editor v1.1（Design Note）
 
-**Status**: Implemented（shoji確認待ち）
+**Status**: Implemented（v1.1、shoji方向性承認済み・実機確認待ち）
 **Date**: 2026-08-08
 **位置づけ**: `PORP_TORP_Head_Plate_Geometry_Scope_Baseline_Audit_v1.0.md`の後続。shoji指示（2026-08-08）に
 基づく対話的Editor実装。**コード変更なし（本番`ProsthesisModels.tsx`は非接続・非改変）**。
+
+**shoji評価（2026-08-08）**: 「v1.1 → 実機確認へ進む: YES / さらに機能追加: NO / 本番Geometry変更: NO」。
+ここから先はshoji自身が実機で「① 3点キャリブレーション → ② Baseline+写真の重ね合わせ確認 →
+③ Opening形状が楕円+回転で表現可能か判断 → ④ Shaftとの構造的対応確認 → ⑤ Candidateを1要素ずつ調整」
+という順序で確認する段階であり、Claude側での追加実装は行わない（詳細は末尾「実機確認手順」節）。
 
 ---
 
@@ -103,8 +108,17 @@ shojiがv1でBaselineを目視で大まかに実物写真へ再配置(Candidate 
 ②は「新規Slit Primitiveを作らない」という当初方針の撤回ではなく、その方針の**延長**として
 対応した。既存の3 Openingそれぞれと、Shaft(Collar境界、r=0.10mm、原点固定)との最短境界距離を
 新たに計測・可視化する「Opening ↔ Shaft(Slit)」パネルを追加。新規Primitive・新規Topologyは
-依然として追加していない。hole2(Lower-Left、3つの中で最小)をShaftへ近づけることで「スリット」
-を表現できる想定。Evidence(caliper/cv2とも未取得)は現時点でN/A。
+依然として追加していない。
+
+**重要な訂正（shoji指摘、2026-08-08）**: 「hole2をShaftへ近づけることでスリットを表現できる」は
+**確定事項ではなくHypothesis(仮説)**である。Opening↔Shaftの最短境界距離は**Slit candidate metric
+（Slit候補指標）**に留め、これを**Slit width（実物のスリット幅）と同一視してはいけない**。理由:
+実物が「Opening境界からShaftへ向かって細い残存材が伸び、その残存材の途中がSlit」という構造で
+あった場合、単純な最短距離はOpening境界とShaft境界の間の距離を測っているに過ぎず、実物のSlit幅
+そのものを表しているとは限らないため。どのOpeningがShaft方向の細い構造につながっているかは
+写真からある程度見えてきているが、対応関係(hole2かどうか含む)自体もまだ実機でのBaseline+写真
+重ね合わせによる確認待ちであり、本文書やEditor上の「hole2」という名指しも暫定的な作業仮説として
+扱う。Evidence(caliper/cv2とも未取得)は現時点でN/A。
 
 ①のうち「シャフトの位置が違う」は、Photo Comparisonパネルの手動TransformControls操作が
 無較正(目視のみ)であるため、写真の位置合わせ誤差自体が原因である可能性が高いと判断した。
@@ -127,6 +141,38 @@ Evidence Aとの内部整合性を優先した。
 - Import JSONボタンを追加(Soft Clip Editorと同じ`schemaVersion`検証パターン)、Export/Importの
   往復編集に対応
 - Shaft境界(cyan破線)を常時表示する参照リングを追加
+
+## 実機確認手順（shoji指定、2026-08-08。次に行うのはこれのみで、追加実装ではない）
+
+Editorへの機能追加はここでいったん停止し、以下の順でshoji自身が実機確認する。目的は
+「現行Geometryが本当に悪いか」ではなく、「キャリブレーション後の写真とBaselineを重ねたとき、
+どこが実際に違って見えるか」を具体的に特定すること。
+
+1. **3点キャリブレーション**: `真上0°.jpg`を読み込み、①Shaft/Boss中心 ②Disc長軸上端
+   ③下端をクリック。ここではGeometryの正しさではなく、**写真とBaselineの座標系が本当に
+   重なるか**を確認する(Shaft中心・外形・長軸方向・上下位置・スケールが自然に一致するか)。
+   ここが合わなければ、以降のOpening比較は信用しない。
+2. **Baseline + calibrated photoを重ねる**(Candidateは一旦見ない): hole1/hole2/hole3それぞれ
+   について中心位置→外形→縦横サイズ→回転→境界の順で見る。「開口部の形状が違う」という
+   最初の感覚がキャリブレーション後も残るか確認する。
+3. **3つのOpeningを個別に確認**: 楕円+回転だけで実物のOpeningを表現できるか判断する。
+   YESなら現在のEditor構造で十分。NOなら初めてpolygon/splineをCandidate Geometryとして
+   検討する(現状はProduction変更ではなくEditorの表現力の問題として扱う、新規Topology相当の
+   判断のため要shoji確認)。
+4. **Shaftとの構造的対応を見る**(特にhole2): 「Opening↔Shaft(Slit)」の数値そのものより、
+   写真上でOpeningからShaftへ向かう実際の構造と、Editor上のGeometryが同じ構造に見えるかを
+   見る(上記の通りこの数値はSlit candidate metricであり、Slit widthと同一視しない)。
+5. **その後にCandidateを触る**: 一度に3つとも動かさず、hole2だけ/hole1だけ/hole3だけ、と
+   1要素ずつ変更し、どのOpeningの変更がstrutの見え方を変えているかを分離して観察する。
+
+**この確認で得られる分解**: 3 Opening → Opening間の残存材(hole↔hole) → Shaftとの残存材
+(hole↔Shaft)、という形でGeometry関係そのものを評価でき、「Slit」という曖昧な言葉に
+引っ張られずに済む。
+
+**変更しないもの**: この実機確認の結果「Candidateの方が自然」と判断されても、本番`BellTop()`は
+今回変更しない。CandidateはExportして「Candidate Proposal」として残すに留め、以降は
+Soft Clipで確立した手順(Visual Judgment→Evidenceとの整合→必要なら追加写真・実測→
+Revision Proposal→本番変更)に従う。
 
 ## 未検証事項
 
