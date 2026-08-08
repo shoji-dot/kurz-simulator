@@ -1,6 +1,6 @@
-# PORP/TORP Head Plate — Opening/Strut Editor v1.1（Design Note）
+# PORP/TORP Head Plate — Opening/Strut Editor v1.2（Design Note）
 
-**Status**: Implemented（v1.1、shoji方向性承認済み・実機確認待ち）
+**Status**: Implemented（v1.2、shoji実機確認結果を反映・再確認待ち）
 **Date**: 2026-08-08
 **位置づけ**: `PORP_TORP_Head_Plate_Geometry_Scope_Baseline_Audit_v1.0.md`の後続。shoji指示（2026-08-08）に
 基づく対話的Editor実装。**コード変更なし（本番`ProsthesisModels.tsx`は非接続・非改変）**。
@@ -142,6 +142,46 @@ Evidence Aとの内部整合性を優先した。
   往復編集に対応
 - Shaft境界(cyan破線)を常時表示する参照リングを追加
 
+## 2026-08-08 追記: v1.2（実機確認結果を受けたPolygon編集・Slit点挿入）
+
+v1.1の実機確認手順①〜②までをshojiが実施(3点キャリブレーション実施、JSON添付)した結果、
+「3つの開口部は単純な円や楕円ではない」と判明した(実機確認手順③のNO分岐)。これは事前に
+Design Note v1.1で明記していた分岐条件そのものであり、想定内の展開である。あわせて
+「下の小さい方の開口部からシャフトに繋がるスリットを、ポイントを指定して実物と同様の構造にしたい」
+という要望があった。
+
+### 対応内容
+
+- **Candidate Shape Mode(楕円 / 多角形)**: 各Openingは引き続き楕円(数値編集)を既定とするが、
+  「多角形(自由編集)」に切り替えると、3D View上に色付き球ハンドルが表示され、直接ドラッグして
+  境界点を編集できる。多角形は**折れ線(straight segment)であり、スプライン補間はしない**
+  (shojiが置いた点を忠実に反映するため。Catmull-Rom等の平滑化は、点間隔が不均一な場合に
+  オーバーシュートし意図しない自己交差を生む懸念があったため採用しなかった)。楕円モードへ
+  いつでも戻せる(点データは保持されるため多角形へ再度切り替え可能)。
+- **Shaftへスリット点を追加ボタン**: 選択したOpeningを(必要なら自動的に多角形へ変換した上で)
+  Shaftに最も近い境界点から、Shaft方向へ幅0.05mm(仮の初期値)の細い突起を4点挿入する。
+  位置・幅は挿入後にドラッグで調整する前提。
+- **Topologyへの影響**: `THREE.Shape` + `THREE.Path`(Hole) + `ExtrudeGeometry`という既存の
+  メッシュ生成方式は維持している。変更したのはHoleの境界点をどこから取得するか(楕円の数式 vs
+  shojiが配置した点列)のみであり、新しいメッシュ生成方式やPrimitive種別を追加したわけではない。
+  この意味で「新規Topologyを追加しない」という当初方針の精神は保たれていると判断しているが、
+  境界表現力が大きく拡張された(実質的に任意形状が可能)ことは事実であり、これは実機確認で
+  shoji自身が「NO」と判断したことに基づく正式な方針転換である。
+- **Baselineへの影響**: なし。Baselineは引き続き楕円のみで、`Object.freeze`によりコードレベルでも
+  不変性を保証している。
+- **距離計算・Diff表示・カメラPreset・Export/Import**: `boundaryPoints(hole, n)`という統一関数を
+  通すよう内部をリファクタリングし、楕円/多角形いずれのモードでも既存のStrut Measurement・
+  Opening↔Shaft(Slit candidate metric)・Diff表示・カメラPreset・Export/Importがすべてそのまま
+  動作するようにした(モード別の特別扱いを最小化)。多角形の頂点はExport JSONの
+  `candidate.holeN.points`にそのまま含まれ、Import時も復元される。
+
+### 実物構造との対応について(重要な留保)
+
+「スリット点を追加」機能は、実物の構造を**確定的に再現するものではなく**、shojiが写真と照合し
+ながら試行錯誤するための足場(仮の初期形状)を提供するだけである。[[feedback_visual_judgment_priority]]
+の原則通り、最終判断は3D Viewer上でのshoji自身の目視確認による。挿入直後の初期形状(幅0.05mm、
+Shaft境界の少し手前まで)にEvidence上の根拠はなく、完全にHypothesisとして扱う。
+
 ## 実機確認手順（shoji指定、2026-08-08。次に行うのはこれのみで、追加実装ではない）
 
 Editorへの機能追加はここでいったん停止し、以下の順でshoji自身が実機確認する。目的は
@@ -184,8 +224,14 @@ Revision Proposal→本番変更)に従う。
 - 3点キャリブレーション機能(Raycaster+クリックpicking)は特にsandboxでの実機検証ができておらず、
   ロジックレビュー(HTML id突き合わせ・構文検査)のみで代替した。写真読み込み→3点クリック→
   キャリブレーション実行の一連の操作感はshoji側での実機確認が必要。
-- 楕円+回転で実物Opening形状を十分に近似できるかは未確認。近似が不十分と判明した場合は
-  多角形/スプライン境界の導入を別途検討する(新規Topology追加に相当するため要shoji確認)。
+- （v1.2で解消）楕円+回転で実物Opening形状を十分に近似できるかは、shojiの実機確認で
+  「不十分」と判明したため多角形モードを追加した。
+- （v1.2新規）多角形ハンドルのドラッグ操作は、OrbitControlsとのポインタイベント競合を避けるため
+  `{capture:true}`でイベントを先取りし、ハンドルを掴んだ場合のみ`stopPropagation`する設計にして
+  いるが、実ブラウザでの動作(特にOrbitControlsの回転開始と誤って同時発火しないか)は未検証。
+- （v1.2新規）「Shaftへスリット点を追加」で挿入する幅0.05mmの細い矩形突起が、
+  `ExtrudeGeometry`(earcut三角形分割)で正しく単純多角形として処理されるか、退化・自己交差を
+  起こさないかは未検証。挿入直後に3D Viewで目視確認することを推奨。
 
 ## 参照文書
 
