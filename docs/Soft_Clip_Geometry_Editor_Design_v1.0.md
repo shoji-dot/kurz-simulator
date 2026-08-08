@@ -1,9 +1,44 @@
-# Soft Clip Geometry Editor 設計文書 v1.3
+# Soft Clip Geometry Editor 設計文書 v1.5
 
-**Status**: Approved(shojiレビュー承認、2026-08-07)。v1.3はTopology revision(Hook/Bridge
-の鎖順序変更)を反映。
+**Status**: Approved(shojiレビュー承認、2026-08-07/2026-08-08)。v1.5はチェーン順序の汎用化
+(chainOrder)を反映。
 **Date**: 2026-08-07(v1.0)/2026-08-07(v1.1、shojiフィードバック反映)/2026-08-07(v1.2、
-Hook:curve追加)/2026-08-07(v1.3、Topology revision)
+Hook:curve追加)/2026-08-07(v1.3、Topology revision)/2026-08-07(v1.4、Reference Photo追加)/
+2026-08-08(v1.5、チェーン順序汎用化)
+**v1.5での変更点(shoji発見・指摘、2026-08-08)**: shojiが写真を背景に配置してHook〜UpperArm間の
+形状をトレースした結果、**Pocket entrance/deepestの本来あるべき位置**が判明。entranceは
+Bridge/Hookの点列の間、deepestはRearFlex:curveの点列の途中(例: `rearFlex/curve/3`付近)に
+来る必要があると判明したが、従来のORDER_KEYS(region:roleのブロックを一列に並べる方式)では
+「他グループの点列の途中への割り込み」を表現できず、Pocket entrance/deepestは常に
+LowerArmとRearFlexの間に挟まる固定2点としてしか配置できなかった。**対応方針をAskUserQuestion
+で2案提示しshojiが選択**: ①汎用チェーン順序(推奨、採用)=各点に`region`/`role`とは独立した
+`chainOrder`(数値)を持たせ、専用リストの▲▼ボタンで領域をまたいで自由に並べ替え可能にする方式。
+②固定挿入(不採用)=entrance/deepestの2点のみ専用ロジックで固定位置に割り込ませる方式(将来
+また位置を変えたい場合にコード修正が必要になり、汎用性に欠けるため見送り)。**実装**: 新規
+`chainOrder`フィールドを全Control Pointに追加(既存の`ORDER_KEYS`/`orderIndex`は廃止せず、
+新規点・旧JSON読み込み時のデフォルト順序算出にのみ残置)。左パネルに「チェーン順序」リストを
+新設(Control Pointsの領域別一覧とは別に、実際のCenterline接続順を▲▼で表示・変更)。新規点
+追加時のchainOrder割り当ては「同グループ内最後の点と、チェーン上の次の点との中間値」で挿入する
+方式を採用(単純な「グループ内最大値+1」だと、並べ替え後は隣接グループとの間に隙間がなくなり
+chainOrderが衝突して意図しない位置に挿入される不具合をNode検証で確認・修正済み)。Export
+JSONの各controlPointに`chainOrder`を追加(schemaVersionを1.0→1.1へ更新)。旧v1.0形式JSON
+(chainOrderなし)を読み込んだ場合はORDER_KEYSベースのデフォルト順序へ自動フォールバック
+(all-or-nothing判定、一部の点だけ数値が入る中途半端な状態を回避)。Node実行で①デフォルト順序が
+旧ORDER_KEYS方式と完全一致②entrance/deepestの割り込み挿入③新規点追加時の非衝突④旧JSON
+フォールバックの4点を数値検証(全てPASS)。region/role自体の構造・Evidence・noteは無変更
+(並び順の決め方のみを汎用化)。
+**v1.4での変更点(shoji依頼、2026-08-07)**: 写真を背景として配置しトレースの目視ガイドに
+したいというshoji依頼を受け、Reference Photo機能を追加。単一画像を読み込み、半透明の
+Planeとして3D空間に配置、既存Control PointsのTransformControlsと同じ操作感(移動/回転/
+拡縮)で位置合わせできる(左パネルに専用セクション追加)。**設計上の制約(Evidence位置づけ)**:
+本Editorのカメラは自由回転のPerspectiveCameraであり、写真とのカメラキャリブレーション
+(FOV・視点の厳密一致)は行っていない。したがって写真オーバーレイは目視による定性的な
+形状ガイド(Evidence Bレベルの補助表示)であり、座標を精密にトレースする手段ではない。
+この位置づけは画面内注記としても明示した。**スコープ判断(shoji選択)**: ①配置方式は
+3D平面+TransformControls方式を採用(固定ビュー2Dオーバーレイ方式は不採用)。②複数画像の
+同時読み込み・切替は今回のスコープ外とし、単一画像のみ対応(必要なら都度読み込み直す)。
+写真自体・その3D変形値(位置/回転/拡縮)はExport JSON(Frozen Schema)には含めない
+(既存Export/Import/Undo機構は無変更、Small Change)。
 **v1.3での変更点(shoji確認、2026-08-07)**: Editorでの対話的検討中、`right_annotated.png`・
 `right_oblique_terminal_zoom.png`・`azimuth-ring/azimuth135_hook_visible_zoom.png`の
 再確認により、Hook-like terminal(Evidence A)はBridge(Shaft接続点)のすぐ近傍にあり、
