@@ -1,6 +1,6 @@
-# PORP/TORP Head Plate — Opening/Strut Editor v1.2（Design Note）
+# PORP/TORP Head Plate — Opening/Strut Editor v1.3（Design Note）
 
-**Status**: Implemented（v1.2、shoji実機確認結果を反映・再確認待ち）
+**Status**: Implemented（v1.3、shoji実機確認結果を反映・再確認待ち）
 **Date**: 2026-08-08
 **位置づけ**: `PORP_TORP_Head_Plate_Geometry_Scope_Baseline_Audit_v1.0.md`の後続。shoji指示（2026-08-08）に
 基づく対話的Editor実装。**コード変更なし（本番`ProsthesisModels.tsx`は非接続・非改変）**。
@@ -182,6 +182,44 @@ Design Note v1.1で明記していた分岐条件そのものであり、想定�
 の原則通り、最終判断は3D Viewer上でのshoji自身の目視確認による。挿入直後の初期形状(幅0.05mm、
 Shaft境界の少し手前まで)にEvidence上の根拠はなく、完全にHypothesisとして扱う。
 
+## 2026-08-08 追記: v1.3（Candidate Shaft位置の自由編集）
+
+v1.2で開口部形状(多角形)の再現・スリット点挿入を実施した結果、shojiから以下のフィードバックが
+あった。
+
+1. 「各開口部の形状は上手く再現できた」(ポジティブ、対応不要)
+2. 「スリット機能はOpening 2(hole2)でのみ必要だったが、hole2の(通常の)点と被って操作しづらかった。
+   ただし目視した限りスリットは上手く入っているように見える」(UXの改善余地はあるが、致命的では
+   ないため今回は未対応。将来、点が密集する箇所の選択性向上が必要になれば対応する)
+3. 「シャフトの位置が実物と違っているので、Editor上でシャフトの位置を自由に編集できるようにして
+   ほしい」(新規要望、本バージョンで対応)
+
+### 対応内容
+
+- **Candidate Shaft**: `candidateShaft = {cx, cy}`という新しいCandidate状態を追加。3D View上に
+  マゼンタの球+破線リング(Shaft Collar径 r=0.10mmの目安)として表示され、Opening境界点と同じ
+  ドラッグ機構で自由に移動できる。左パネルにcx/cyの数値入力も用意した。
+- **Baseline Shaftとの関係**: Baseline Shaftは引き続き原点(0,0)固定・Evidence Aのまま不変
+  (cyan破線リング)。Candidate Shaftは独立した新しい可動マーカーであり、Baseline側やOpeningの
+  座標系(原点・キャリブレーション基準)そのものを再定義するものではない。写真キャリブレーション
+  (3点)は引き続きShaft=原点(0,0)を前提とした変換のままである。
+- **Opening↔Shaft距離への反映**: `computeShaftDistances(holes, shaftRef)`を、固定のBaseline用
+  `SHAFT_REF`と可動のCandidate用`candidateShaftRef()`のいずれかを受け取れるよう変更。Baseline列は
+  従来通り原点基準、Candidate列はCandidate Shaftの現在位置基準に変わる。
+- **Candidate群の3D表示への反映**: `buildPlateGroup()`に`shaftPos`引数を追加し、Candidate側の
+  Pin/Collar(3Dシリンダー装飾)もCandidate Shaft位置に追従して描画されるようにした(Baseline側は
+  常に原点のまま)。
+- **Export/Import**: `candidateShaft`をExport JSONに追加(`schemaVersion`は1.2、`tool`名は
+  Editor v1.3に更新)。旧schema(candidateShaftを含まないJSON)をImportした場合は原点(0,0)として
+  扱う後方互換処理を実装。
+
+### P4C-0との境界(重要な確認事項)
+
+Candidate Shaftの編集は**真上0°平面内でのXY位置(2D)のみ**であり、Head Plate Normal・Shaft Axis
+という**3D方向・姿勢**の話には一切踏み込んでいない。P4C-0(Blocked/Deferred)の対象はあくまで
+Z軸(Normal)の確定であり、本変更はその範囲に影響しない。HTML側のバナー・Scope説明文にもこの
+区別を明記した。
+
 ## 実機確認手順（shoji指定、2026-08-08。次に行うのはこれのみで、追加実装ではない）
 
 Editorへの機能追加はここでいったん停止し、以下の順でshoji自身が実機確認する。目的は
@@ -232,6 +270,11 @@ Revision Proposal→本番変更)に従う。
 - （v1.2新規）「Shaftへスリット点を追加」で挿入する幅0.05mmの細い矩形突起が、
   `ExtrudeGeometry`(earcut三角形分割)で正しく単純多角形として処理されるか、退化・自己交差を
   起こさないかは未検証。挿入直後に3D Viewで目視確認することを推奨。
+- （v1.3新規）Candidate Shaftのドラッグは既存のOpening点ドラッグと同じraycaster/pointer機構を
+  共用しているが、点ハンドルとShaftマーカーが近接した場合の選択優先順位(`intersectObjects`の
+  ヒット順)は未検証。
+- （v1.3新規）hole2の点密集によるドラッグ操作のしづらさ(shoji報告)は今回未対応。将来、密集時の
+  選択性向上(例: ズーム連動のハンドルサイズ調整、数値リストからの直接編集)が必要になれば検討する。
 
 ## 参照文書
 
