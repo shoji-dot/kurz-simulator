@@ -652,15 +652,17 @@ export function getSoftClipPocketVariableWidthSweepGeometry(): THREE.BufferGeome
 // SOFT CLIP BAND LOOP (Hypothesis Geometry, dev preview only — not wired into SoftClipHead)
 // ================================================================
 // 実装依頼: 「Soft Clip Band Loop — Current Evidence-Based Geometry Implementation Task」
-// (2026-08-08、shoji指定)。出典:
-//   docs/Soft_Clip_Centerline_Proposal_v3.json(shoji作成、chainOrder確定版、schemaVersion 1.1)
-//   docs/Soft_Clip_Centerline_Proposal_v3_Review.md(自己交差なし・旋回パターン確認済み)
+// (2026-08-08、shoji指定)。現行版(v6)出典:
+//   docs/Soft_Clip_Centerline_Proposal_v6.json(shoji作成+Claude修正、v5候補ベース)
+//   docs/Soft_Clip_Centerline_Proposal_v6_Review.md(self-intersection 4→0確認)
+//   docs/Soft_Clip_Centerline_Proposal_v5_candidate_shoji_2026-08-08.json(shoji作成、
+//     UpperArm8点構成・RearFlex中央部改善の出典)
 //   docs/Soft_Clip_Geometry_Editor_Design_v1.0.md(v1.5、Region/Role/chainOrder定義元)
 //   docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md(断面寸法Evidence A+の出典)
 //
 // **Hypothesis Geometry(Geometry Freeze未実施)**: 以下の制御点座標(Band Loop Editor
 // ローカル座標系、z一定平面)はEvidence A/A+ではなくHypothesis(shojiによるEditor上での
-// 写真トレース結果、Proposal v3)。断面寸法(幅0.25mm/厚さ0.10mm)のみEvidence A+
+// 写真トレース結果)。断面寸法(幅0.25mm/厚さ0.10mm)のみEvidence A+
 // (Measurement Record v1.0 §0)。
 //
 // **座標系(Small Change判断)**: Proposal v3はBand Loop Editor独自のローカル座標系
@@ -684,51 +686,60 @@ interface SoftClipBandLoopControlPoint {
   position: THREE.Vector3;
 }
 
-/** Proposal v3の全23制御点(chainOrder昇順、docs/Soft_Clip_Centerline_Proposal_v3.json
- *  controlPoints[].positionの転記、z=1.9固定はEditorローカル座標系の値をそのまま維持)。
+/** 全27制御点(chainOrder昇順)。系譜: Proposal v3(23点、Small Change導入時)→v4
+ *  (lowerArm/start自己交差修正)→v5候補(shoji作成、RearFlex中央部の滑らかさ改善+
+ *  UpperArmを4点→8点へ拡張し「2つの山」形状を再現、docs/Soft_Clip_Centerline_
+ *  Proposal_v5_candidate_shoji_2026-08-08.json)→**v6(本バージョン、2026-08-08)**。
  *
- *  **upperArm/curve/0..3の4点のみ、座標をSmoothed値へ置換している**(他19点は転記のまま
- *  無変更)。理由: Proposal v3 Reviewで指摘された「4点全てで旋回符号が毎点反転する
- *  ジグザグ」(+41.3°→-27.4°→+34.7°→-47.5°)を、実物写真
- *  (docs/assets/soft-clip-m1m2m3/azimuth-ring/azimuth045_upperarm_end_zoom.png)と照合した
- *  結果、UpperArmは滑らかな単一カーブとして写っておりジグザグに対応する輪郭変化は
- *  確認できなかったため、トレースノイズと判断した(Evidence変更ではなくHypothesis
- *  Control Pointの整理、実装タスク指示§4に基づく)。
- *  手法: 隣接するrearFlex/curve/7・upperArm/endを固定端とし、隣接元点の3点移動平均
- *  (simple moving average)でupperArm/curve/0..3を再配置。旋回符号は
- *  [+41.3,-27.4,+34.7,-47.5](4点全反転)→[+5.3,+19.1,-14.1,-5.1](1回のみ反転、
- *  単一の緩いS字)へ変化(Node検証スクリプトで再計算、verify_band_loop.js相当)。
- *  端点(rearFlex/curve/7・upperArm/end)は無変更のため、写真シルエット全体の位置関係
- *  (Priority1)は維持される。 */
+ *  **v6での変更点(v5候補からの差分、3箇所のみ)**:
+ *  1. `upperArm/curve/6`のz: 1.6131370913305092 → 1.9(shoji修正、TransformControls
+ *     操作時の意図しないZドラッグと判明。v5候補Reviewで指摘した異常点)。
+ *  2. `lowerArm/start`のy: 2.8998480454435365 → 2.6998480454435367(dy=-0.20mm)。
+ *  3. `upperArm/curve/0`のy: 3.496894373489493 → 3.6468943734894932(dy=+0.15mm)。
+ *  2・3は、v5候補で新規発生していた自己交差2箇所(`rearFlex/curve/3`↔`lowerArm/start`、
+ *  `rearFlex/curve/4`↔`upperArm/curve/0`。v5候補ReviewでLevel A判定)を解消するための
+ *  最小限の修正(Node検証、production設定 STEPS=400・MIN_GAP=15でself-intersection
+ *  4→0を確認)。詳細: docs/Soft_Clip_Centerline_Proposal_v6.json、
+ *  docs/Soft_Clip_Centerline_Proposal_v6_Review.md
+ *
+ *  **upperArm/curve/0..3(旧4点構成)の由来(v5候補で置換済み、参考)**: 元はProposal v3の
+ *  Raw値からEditor上でshojiが3点移動平均で平滑化した値だったが、v5候補でRearFlex
+ *  curve5-7の滑らかさを基準に8点構成へ全面的に再設計されている(旋回角の符号反転密度が
+ *  改善、v5候補Review §4で定量確認)。 */
 const SOFT_CLIP_BAND_LOOP_CONTROL_POINTS: SoftClipBandLoopControlPoint[] = [
-  { id: 'hook/end',           chainOrder: 0,        position: new THREE.Vector3(0.1414178322984369, 2.1119308493240965, 1.9) },
-  { id: 'hook/curve/0',       chainOrder: 1,        position: new THREE.Vector3(0.25439342335153775, 2.170207268380656, 1.9) },
-  { id: 'hook/curve/1',       chainOrder: 1.5,      position: new THREE.Vector3(0.37878895982766625, 2.7341334811037137, 1.9) },
-  { id: 'hook/start',         chainOrder: 2,        position: new THREE.Vector3(0.2748395034604978, 2.8317050058135287, 1.9) },
-  { id: 'pocket/entrance',    chainOrder: 3,        position: new THREE.Vector3(0.13301644205356888, 2.897446647923019, 1.9) },
-  { id: 'bridge/approach/0',  chainOrder: 4,        position: new THREE.Vector3(-0.06667295800350283, 2.830306266487419, 1.9) },
-  { id: 'bridge/end',         chainOrder: 5,        position: new THREE.Vector3(-0.30384276668344, 2.81424339224731, 1.9) },
-  { id: 'bridge/departure/0', chainOrder: 6,        position: new THREE.Vector3(-0.5499679785373885, 2.842112812650996, 1.9) },
-  // lowerArm/start: v4で変更(自己交差解消)。v3位置(y=2.9223861078063824)からy-0.16mm。
-  // 理由: bridge/departure/0→lowerArm/start→rearFlex/curve/0の区間と、rearFlex/curve/2→
-  // curve/3の区間がRibbon境界で交差していた(Visual Verification v1.0でLevel A判定)。
-  // 詳細: docs/Soft_Clip_Centerline_Proposal_v4.json、docs/Soft_Clip_Centerline_Proposal_v4_Review.md
-  { id: 'lowerArm/start',     chainOrder: 8,        position: new THREE.Vector3(-0.7304564432703485, 2.7623861078063824, 1.9) },
-  { id: 'rearFlex/curve/0',   chainOrder: 9,        position: new THREE.Vector3(-1.281135510527136, 2.5182848414433963, 1.9) },
-  { id: 'rearFlex/curve/1',   chainOrder: 10,       position: new THREE.Vector3(-1.4537093187668275, 2.644017062559282, 1.9) },
-  { id: 'rearFlex/curve/2',   chainOrder: 10.5,     position: new THREE.Vector3(-1.3595083855254386, 2.8724696092990585, 1.9) },
-  { id: 'rearFlex/curve/3',   chainOrder: 10.75,    position: new THREE.Vector3(-0.7524819074155867, 3.05727409750886, 1.9) },
-  { id: 'pocket/deepest',     chainOrder: 10.875,   position: new THREE.Vector3(-0.7410172512575132, 3.2063648884808646, 1.9) },
-  { id: 'rearFlex/curve/4',   chainOrder: 10.9375,  position: new THREE.Vector3(-0.737576409783926, 3.336913400183387, 1.9) },
-  { id: 'rearFlex/curve/5',   chainOrder: 10.96875, position: new THREE.Vector3(-1.2391505749643992, 3.4987160616399406, 1.9) },
-  { id: 'rearFlex/curve/6',   chainOrder: 10.984375, position: new THREE.Vector3(-1.2916650723743408, 3.6735476360556722, 1.9) },
+  { id: 'hook/end',           chainOrder: 0,          position: new THREE.Vector3(0.1414178322984369, 2.1119308493240965, 1.9) },
+  { id: 'hook/curve/0',       chainOrder: 1,          position: new THREE.Vector3(0.25439342335153775, 2.170207268380656, 1.9) },
+  { id: 'hook/curve/1',       chainOrder: 1.5,        position: new THREE.Vector3(0.37878895982766625, 2.7341334811037137, 1.9) },
+  { id: 'hook/start',         chainOrder: 2,          position: new THREE.Vector3(0.2748395034604978, 2.8317050058135287, 1.9) },
+  { id: 'pocket/entrance',    chainOrder: 3,          position: new THREE.Vector3(0.13301644205356888, 2.9, 1.9) },
+  { id: 'bridge/approach/0',  chainOrder: 4,          position: new THREE.Vector3(-0.06667295800350283, 2.830306266487419, 1.9) },
+  { id: 'bridge/end',         chainOrder: 5,          position: new THREE.Vector3(-0.3027957008544402, 2.784901616962019, 1.9084141123734004) },
+  { id: 'bridge/departure/0', chainOrder: 6,          position: new THREE.Vector3(-0.5499679785373885, 2.83, 1.9) },
+  // lowerArm/start: v6で変更(自己交差解消、上記v6コメント参照)。v5候補位置
+  // (y=2.8998480454435365)からy-0.20mm。
+  { id: 'lowerArm/start',     chainOrder: 8,          position: new THREE.Vector3(-0.7304564432703485, 2.6998480454435367, 1.9) },
+  { id: 'rearFlex/curve/0',   chainOrder: 9,          position: new THREE.Vector3(-1.2656294676966109, 2.5182848414433976, 1.9) },
+  { id: 'rearFlex/curve/1',   chainOrder: 10,         position: new THREE.Vector3(-1.4537093187668275, 2.644017062559282, 1.9) },
+  { id: 'rearFlex/curve/2',   chainOrder: 10.5,       position: new THREE.Vector3(-1.3595083855254386, 2.826488118093293, 1.9) },
+  { id: 'rearFlex/curve/3',   chainOrder: 10.75,      position: new THREE.Vector3(-0.7524819074155867, 3.05727409750886, 1.9) },
+  { id: 'pocket/deepest',     chainOrder: 10.875,     position: new THREE.Vector3(-0.6808566589075552, 3.2063648884808638, 1.9) },
+  { id: 'rearFlex/curve/4',   chainOrder: 10.9375,    position: new THREE.Vector3(-0.737576409783926, 3.336913400183387, 1.9) },
+  { id: 'rearFlex/curve/5',   chainOrder: 10.96875,   position: new THREE.Vector3(-1.2391505749643992, 3.4987160616399406, 1.9) },
+  { id: 'rearFlex/curve/6',   chainOrder: 10.984375,  position: new THREE.Vector3(-1.2916650723743408, 3.6735476360556722, 1.9) },
   { id: 'rearFlex/curve/7',   chainOrder: 10.9921875, position: new THREE.Vector3(-1.1601872161349602, 3.7741848469287094, 1.9) },
-  // upperArm/curve/0..3: Smoothed(上記コメント参照、Proposal v3のRAW値からの置換)
-  { id: 'upperArm/curve/0',   chainOrder: 11,       position: new THREE.Vector3(-0.6923974, 3.6189084, 1.9) },
-  { id: 'upperArm/curve/1',   chainOrder: 11.5,     position: new THREE.Vector3(-0.2240231, 3.5098171, 1.9) },
-  { id: 'upperArm/curve/2',   chainOrder: 11.75,    position: new THREE.Vector3(0.2934998, 3.5643652, 1.9) },
-  { id: 'upperArm/curve/3',   chainOrder: 11.875,   position: new THREE.Vector3(0.8561307, 3.4843418, 1.9) },
-  { id: 'upperArm/end',       chainOrder: 12,       position: new THREE.Vector3(1.448343580806909, 3.3455760205743075, 1.9) },
+  // upperArm/curve/0: v6で変更(自己交差解消、上記v6コメント参照)。v5候補位置
+  // (y=3.496894373489493)からy+0.15mm。
+  { id: 'upperArm/curve/0',   chainOrder: 11,         position: new THREE.Vector3(-0.6774557698425141, 3.6468943734894932, 1.9) },
+  { id: 'upperArm/curve/1',   chainOrder: 11.5,       position: new THREE.Vector3(-0.4581844035750978, 3.539531577665855, 1.9) },
+  { id: 'upperArm/curve/2',   chainOrder: 11.75,      position: new THREE.Vector3(-0.2477447764436741, 3.5709354833095848, 1.9) },
+  { id: 'upperArm/curve/3',   chainOrder: 11.875,     position: new THREE.Vector3(-0.01558487021688204, 3.492690086221288, 1.9) },
+  { id: 'upperArm/curve/4',   chainOrder: 11.9375,    position: new THREE.Vector3(0.21585214699099187, 3.4273620816661357, 1.9) },
+  { id: 'upperArm/curve/5',   chainOrder: 11.96875,   position: new THREE.Vector3(0.47565999137364756, 3.55527099080158, 1.9) },
+  // upperArm/curve/6: z=1.9(shoji修正、上記v6コメント参照)。v5候補のz=1.6131370913305092は
+  // TransformControls誤操作によるZドラッグと判明。
+  { id: 'upperArm/curve/6',   chainOrder: 11.984375,  position: new THREE.Vector3(0.87305848246888, 3.655845452332891, 1.9) },
+  { id: 'upperArm/curve/7',   chainOrder: 11.9921875, position: new THREE.Vector3(1.1462071254305506, 3.5682213449628097, 1.9) },
+  { id: 'upperArm/end',       chainOrder: 12,         position: new THREE.Vector3(1.3207478396262586, 3.3455760205743075, 1.9) },
 ];
 
 /** Centerline(Editor Design v1.5 §3.1と同じくCatmullRomCurve3、closed=false — Hook側/
@@ -745,7 +756,7 @@ export function getSoftClipBandLoopControlPoints(): SoftClipBandLoopControlPoint
 }
 
 // ── Ring-loft Sweep(Pocket Commit3bと同じ手法、Frenetフレーム不使用) ──────────
-// 全23制御点がz=1.9の平面上にある(平面Curve)ため、Pocketと同じくTubeGeometry/
+// 全27制御点がz=1.9の平面上にある(平面Curve)ため、Pocketと同じくTubeGeometry/
 // extrudePathのFrenetフレーム自動追従(2026-07-02、SoftClipWing/Bridgeで発生した既知の
 // 破綻問題)は使わない。固定の平面法線(N軸、厚み方向)と、その法線に対する各tでの接線の
 // 外積(W軸、幅方向)を都度計算する明示的フレームを使う。z軸は接線と常に非平行
@@ -788,11 +799,14 @@ function getSoftClipBandLoopRingAt(curve: THREE.CatmullRomCurve3, t: number): TH
  *  (Pocket Commit3bと同じ方式)。両端(hook/end・upperArm/end)は自由端だが、
  *  Geometryとしては閉じた形状として端面キャップを付ける(Pocket Commit3bと同じ扱い)。
  *
- *  **v4更新(自己交差解消、2026-08-08)**: v1.0時点ではLowerArm開始点(`lowerArm/start`)
- *  付近とRearFlex折り返し(`rearFlex/curve/3`付近)の間でRibbon境界に2箇所の自己交差が
- *  あった(Visual Verification v1.0でLevel A判定)。`lowerArm/start`のyを-0.16mm調整
- *  (Proposal v4)することで解消し、Node検証(production設定 STEPS=400・MIN_GAP=15)で
- *  self-intersection = 0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v4_Review.md */
+ *  **更新履歴(自己交差解消)**:
+ *  - v4(2026-08-08): `lowerArm/start`↔`rearFlex/curve/3`付近の自己交差2箇所を
+ *    `lowerArm/start`のy-0.16mm調整で解消(23点構成、旧UpperArm4点時代)。
+ *  - v6(2026-08-08): v5候補(UpperArm8点構成への拡張)で新規発生していた自己交差
+ *    2箇所(`rearFlex/curve/3`↔`lowerArm/start`系統の再発、`rearFlex/curve/4`↔
+ *    `upperArm/curve/0`)を、`lowerArm/start`のy-0.20mm・`upperArm/curve/0`のy+0.15mm
+ *    調整で解消。Node検証(production設定 STEPS=400・MIN_GAP=15)でself-intersection
+ *    4→0、NaN=0、退化フレーム=0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v6_Review.md */
 export function getSoftClipBandLoopSweepGeometry(): THREE.BufferGeometry {
   const curve = getSoftClipBandLoopCenterline();
   const steps = SOFT_CLIP_BAND_LOOP_STEPS;
@@ -1585,6 +1599,6 @@ export {
   PistonFoot,
   // Soft Clip Pocket (Phase1 dev preview, docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md)
   SoftClipPocketPreview,
-  // Soft Clip Band Loop (Hypothesis Geometry dev preview, docs/Soft_Clip_Centerline_Proposal_v3.json)
+  // Soft Clip Band Loop (Hypothesis Geometry dev preview, docs/Soft_Clip_Centerline_Proposal_v6.json)
   SoftClipBandLoopPreview,
 };

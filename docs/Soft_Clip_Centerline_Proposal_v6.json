@@ -1,0 +1,371 @@
+{
+  "schemaVersion": "1.1",
+  "tool": "Soft_Clip_Geometry_Editor",
+  "exportedAt": "2026-08-08T00:00:00.000Z",
+  "disclaimer": "This JSON is a design proposal (Hypothesis), not Evidence. Any reflection into production Geometry requires separate review and approval.",
+  "generationNote": "v5候補(shoji作成、soft_clip_geometry_editor_export_2026-08-08 (2).json、upperArm/curve/6のz修正済み)を起点に、Claudeがself-intersection解消のため2点(lowerArm/start, upperArm/curve/0)をNode数値探索で調整したもの。GUIでのトレースではない。詳細な探索方法はSoft_Clip_Centerline_Proposal_v6_Review.md参照。",
+  "coordinateFrame": {
+    "type": "bandLoopLocal",
+    "note": "Global/Shaft座標系とは未統合(Tier C Coordinate Integration課題)"
+  },
+  "profile": {
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "evidenceLevel": "A+",
+    "locked": true,
+    "source": "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md §0"
+  },
+  "centerline": {
+    "curveType": "CatmullRomCurve3",
+    "controlPoints": [
+      {
+        "id": "hook/end",
+        "region": "Hook",
+        "role": "end",
+        "index": null,
+        "position": { "x": 0.1414178322984369, "y": 2.1119308493240965, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 0
+      },
+      {
+        "id": "hook/curve/0",
+        "region": "Hook",
+        "role": "curve",
+        "index": 0,
+        "position": { "x": 0.25439342335153775, "y": 2.170207268380656, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 1
+      },
+      {
+        "id": "hook/curve/1",
+        "region": "Hook",
+        "role": "curve",
+        "index": 1,
+        "position": { "x": 0.37878895982766625, "y": 2.7341334811037137, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 1.5
+      },
+      {
+        "id": "hook/start",
+        "region": "Hook",
+        "role": "start",
+        "index": null,
+        "position": { "x": 0.2748395034604978, "y": 2.8317050058135287, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 2
+      },
+      {
+        "id": "pocket/entrance",
+        "region": "Pocket",
+        "role": "entrance",
+        "index": null,
+        "position": { "x": 0.13301644205356888, "y": 2.9, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 3
+      },
+      {
+        "id": "bridge/approach/0",
+        "region": "Bridge",
+        "role": "approach",
+        "index": 0,
+        "position": { "x": -0.06667295800350283, "y": 2.830306266487419, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 4
+      },
+      {
+        "id": "bridge/end",
+        "region": "Bridge",
+        "role": "end",
+        "index": null,
+        "position": { "x": -0.3027957008544402, "y": 2.784901616962019, "z": 1.9084141123734004 },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 5
+      },
+      {
+        "id": "bridge/departure/0",
+        "region": "Bridge",
+        "role": "departure",
+        "index": 0,
+        "position": { "x": -0.5499679785373885, "y": 2.83, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 6
+      },
+      {
+        "id": "lowerArm/start",
+        "region": "LowerArm",
+        "role": "start",
+        "index": null,
+        "position": { "x": -0.7304564432703485, "y": 2.6998480454435367, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Provisional",
+        "note": "v6で変更: yを v5候補値(2.8998480454435365)から -0.20mm。理由: rearFlex/curve/3との間でRibbon境界が自己交差していた(v5候補ReviewでLevel A判定、v3/v4時代と同系統の交差が再発)。Node数値探索(production設定 STEPS=400・MIN_GAP=15)でdy=-0.12〜-0.20mmの範囲がcrossings=0のプラトーであることを確認し、中間よりやや余裕を持たせた-0.20mmを採用。",
+        "removable": false,
+        "chainOrder": 8
+      },
+      {
+        "id": "rearFlex/curve/0",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 0,
+        "position": { "x": -1.2656294676966109, "y": 2.5182848414433976, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 9
+      },
+      {
+        "id": "rearFlex/curve/1",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 1,
+        "position": { "x": -1.4537093187668275, "y": 2.644017062559282, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10
+      },
+      {
+        "id": "rearFlex/curve/2",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 2,
+        "position": { "x": -1.3595083855254386, "y": 2.826488118093293, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10.5
+      },
+      {
+        "id": "rearFlex/curve/3",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 3,
+        "position": { "x": -0.7524819074155867, "y": 3.05727409750886, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10.75
+      },
+      {
+        "id": "pocket/deepest",
+        "region": "Pocket",
+        "role": "deepest",
+        "index": null,
+        "position": { "x": -0.6808566589075552, "y": 3.2063648884808638, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 10.875
+      },
+      {
+        "id": "rearFlex/curve/4",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 4,
+        "position": { "x": -0.737576409783926, "y": 3.336913400183387, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。単独調整での交差解消を試行したが範囲を広く探索してもproduction設定でcrossings=0に到達しなかったため、対岸のupperArm/curve/0側を調整する方針に切り替えた(詳細はReview参照)。",
+        "removable": true,
+        "chainOrder": 10.9375
+      },
+      {
+        "id": "rearFlex/curve/5",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 5,
+        "position": { "x": -1.2391505749643992, "y": 3.4987160616399406, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10.96875
+      },
+      {
+        "id": "rearFlex/curve/6",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 6,
+        "position": { "x": -1.2916650723743408, "y": 3.6735476360556722, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10.984375
+      },
+      {
+        "id": "rearFlex/curve/7",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 7,
+        "position": { "x": -1.1601872161349602, "y": 3.7741848469287094, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 10.9921875
+      },
+      {
+        "id": "upperArm/curve/0",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 0,
+        "position": { "x": -0.6774557698425141, "y": 3.6468943734894932, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v6で変更: yを v5候補値(3.496894373489493)から +0.15mm。理由: rearFlex/curve/4付近との間でRibbon境界が自己交差していた(v5候補ReviewでLevel A判定、pocket/deepest移動に伴う新規交差)。rearFlex/curve/4単独調整では解消しなかったため(上記note参照)、こちら側を調整。Node数値探索でdy=+0.10〜+0.30mmの広いプラトーでcrossings=0となることを確認し、+0.15mmを採用(下限からやや余裕を持たせた値)。",
+        "removable": true,
+        "chainOrder": 11
+      },
+      {
+        "id": "upperArm/curve/1",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 1,
+        "position": { "x": -0.4581844035750978, "y": 3.539531577665855, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 11.5
+      },
+      {
+        "id": "upperArm/curve/2",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 2,
+        "position": { "x": -0.2477447764436741, "y": 3.5709354833095848, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 11.75
+      },
+      {
+        "id": "upperArm/curve/3",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 3,
+        "position": { "x": -0.01558487021688204, "y": 3.492690086221288, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 11.875
+      },
+      {
+        "id": "upperArm/curve/4",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 4,
+        "position": { "x": 0.21585214699099187, "y": 3.4273620816661357, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 11.9375
+      },
+      {
+        "id": "upperArm/curve/5",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 5,
+        "position": { "x": 0.47565999137364756, "y": 3.55527099080158, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": true,
+        "chainOrder": 11.96875
+      },
+      {
+        "id": "upperArm/curve/6",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 6,
+        "position": { "x": 0.87305848246888, "y": 3.655845452332891, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "shojiが修正済み(soft_clip_geometry_editor_export_2026-08-08 (2).json): zを1.6131370913305092から1.9へ。v5候補ReviewでTransformControls誤操作によるZドラッグの可能性を指摘した異常点。",
+        "removable": true,
+        "chainOrder": 11.984375
+      },
+      {
+        "id": "upperArm/curve/7",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 7,
+        "position": { "x": 1.1462071254305506, "y": 3.5682213449628097, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更(座標としては(1)と(2)で同一。shojiの言及した「curve/7の修正」は実際にはcurve/6のzのことであると判断、Review参照)。",
+        "removable": true,
+        "chainOrder": 11.9921875
+      },
+      {
+        "id": "upperArm/end",
+        "region": "UpperArm",
+        "role": "end",
+        "index": null,
+        "position": { "x": 1.3207478396262586, "y": 3.3455760205743075, "z": 1.9 },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "v5候補から無変更。",
+        "removable": false,
+        "chainOrder": 12
+      }
+    ]
+  },
+  "evidenceSnapshot": {
+    "pocketDepthMm": 3.3,
+    "armGapMm": 0.75,
+    "pocketMaxWidthMm": 1.4,
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "bandCrossSectionEvidenceLevel": "A+",
+    "terminalLengthMm": 2.4,
+    "sourceDocs": [
+      "Soft_Clip_Geometry_Improvement_Spec_v1.0.md",
+      "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md",
+      "Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.0.md"
+    ]
+  },
+  "referenceValues": {
+    "terminalLengthMm": {
+      "value": 2.4,
+      "evidenceLevel": "A"
+    }
+  },
+  "meta": {
+    "editedBy": "Claude (Node数値探索、GUIトレースではない)",
+    "sessionNote": "2箇所の自己交差(lowerArm/start↔rearFlex/curve3系統の再発、rearFlex/curve4↔upperArm/curve0の新規)を解消。詳細はSoft_Clip_Centerline_Proposal_v6_Review.md参照。"
+  }
+}
