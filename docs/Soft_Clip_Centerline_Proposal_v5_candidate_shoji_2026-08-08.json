@@ -1,0 +1,478 @@
+{
+  "schemaVersion": "1.1",
+  "tool": "Soft_Clip_Geometry_Editor",
+  "exportedAt": "2026-08-08T03:25:21.022Z",
+  "disclaimer": "This JSON is a design proposal (Hypothesis), not Evidence. Any reflection into production Geometry requires separate review and approval.",
+  "coordinateFrame": {
+    "type": "bandLoopLocal",
+    "note": "Global/Shaft座標系とは未統合(Tier C Coordinate Integration課題)"
+  },
+  "profile": {
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "evidenceLevel": "A+",
+    "locked": true,
+    "source": "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md §0"
+  },
+  "centerline": {
+    "curveType": "CatmullRomCurve3",
+    "controlPoints": [
+      {
+        "id": "hook/end",
+        "region": "Hook",
+        "role": "end",
+        "index": null,
+        "position": {
+          "x": 0.1414178322984369,
+          "y": 2.1119308493240965,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "単一鎖の自由端(Hook-like terminalの先端)。2026-08-07 Topology revision: 写真再確認によりBridgeのすぐProximal側にあると判明(旧: UpperArm遠端側と誤って想定していた)。参照: Terminal Length 約2.40mm(hook/start–hook/end間、Evidence A、右パネル参照値参照)。",
+        "removable": false,
+        "chainOrder": 0
+      },
+      {
+        "id": "hook/curve/0",
+        "region": "Hook",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": 0.25439342335153775,
+          "y": 2.170207268380656,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Hook区間(hook/end→hook/start)に湾曲を持たせるためのHypothesis点(2026-08-07追加)。Terminal Length 2.40mm(hook/start–hook/end間、Evidence A)は維持対象の参照値だが、その測定定義(直線距離chordか経路長pathか)はMeasurement Record上未確定であり、本Decision Pointは保留のまま管理する。本点の追加はEditorの表現力拡張(他領域と同じcurve可変グループパターンの横展開)が目的であり、Terminal LengthのMeasurement Definitionを確定・変更するものではない。座標(巻き込み形状そのもの)はHypothesisであり、写真との整合性を見ながら手動調整すること。",
+        "removable": true,
+        "chainOrder": 1
+      },
+      {
+        "id": "hook/curve/1",
+        "region": "Hook",
+        "role": "curve",
+        "index": 1,
+        "position": {
+          "x": 0.37878895982766625,
+          "y": 2.7341334811037137,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Hook区間(hook/end→hook/start)に湾曲を持たせるためのHypothesis点(2026-08-07追加)。Terminal Length 2.40mm(hook/start–hook/end間、Evidence A)は維持対象の参照値だが、その測定定義(直線距離chordか経路長pathか)はMeasurement Record上未確定であり、本Decision Pointは保留のまま管理する。本点の追加はEditorの表現力拡張(他領域と同じcurve可変グループパターンの横展開)が目的であり、Terminal LengthのMeasurement Definitionを確定・変更するものではない。座標(巻き込み形状そのもの)はHypothesisであり、写真との整合性を見ながら手動調整すること。",
+        "removable": true,
+        "chainOrder": 1.5
+      },
+      {
+        "id": "hook/start",
+        "region": "Hook",
+        "role": "start",
+        "index": null,
+        "position": {
+          "x": 0.2748395034604978,
+          "y": 2.8317050058135287,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "旧M2(Hook-like曲げ開始点、Bridge側)。固定点として不採用(M1M2M3 Measurement v1.9 Decision v1.4)。Hook Transition Profile(遷移長・曲率・進入角)の定量値は依然ゼロ。2026-08-07 Topology revisionによりBridgeのすぐ隣に再配置。",
+        "removable": false,
+        "chainOrder": 2
+      },
+      {
+        "id": "pocket/entrance",
+        "region": "Pocket",
+        "role": "entrance",
+        "index": null,
+        "position": {
+          "x": 0.13301644205356888,
+          "y": 2.9,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "内部params(Arm Gap 0.75mm等)はLock/参照専用(右パネル参照)。この点自体の3D位置はHypothesis。",
+        "removable": false,
+        "chainOrder": 3
+      },
+      {
+        "id": "bridge/approach/0",
+        "region": "Bridge",
+        "role": "approach",
+        "index": 0,
+        "position": {
+          "x": -0.06667295800350283,
+          "y": 2.830306266487419,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "2026-08-07新設。Hook側からBridgeへ向かう「下弦のカーブ」を表現するためのHypothesis点(shoji指摘: Hook–Bridge–LowerArm間は直線でなく弧を描く。Bridge:departureと対になる区間)。座標の実測なし。",
+        "removable": true,
+        "chainOrder": 4
+      },
+      {
+        "id": "bridge/end",
+        "region": "Bridge",
+        "role": "end",
+        "index": null,
+        "position": {
+          "x": -0.3027957008544402,
+          "y": 2.784901616962019,
+          "z": 1.9084141123734004
+        },
+        "locked": false,
+        "evidenceLevel": "Unknown",
+        "note": "Shaft MiddleとBand Loopを接合するT字接合部(Component Tree、Confirmed)。3D位置はUnknown。2026-08-07 Topology revision: HookはこのBridgeのすぐ近くに位置し、UpperArm遠端(旧hook/end)とは反対側の短い区間であると判明(Interpretation v1.9 §4-5-A図解の改訂が別途必要)。",
+        "removable": false,
+        "chainOrder": 5
+      },
+      {
+        "id": "bridge/departure/0",
+        "region": "Bridge",
+        "role": "departure",
+        "index": 0,
+        "position": {
+          "x": -0.5499679785373885,
+          "y": 2.83,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "2026-08-07新設。BridgeからLowerArmへ向かう「下弦のカーブ」を表現するためのHypothesis点(shoji指摘、Bridge:approachと対になる区間)。座標の実測なし。",
+        "removable": true,
+        "chainOrder": 6
+      },
+      {
+        "id": "lowerArm/start",
+        "region": "LowerArm",
+        "role": "start",
+        "index": null,
+        "position": {
+          "x": -0.7304564432703485,
+          "y": 2.8998480454435365,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Provisional",
+        "note": "旧M1(Lower Arm Centerline開始点)。M3→M1: 1.50–1.73mm(視点2方向、M1M2M3 Measurement v1.9)。スケール較正未解決のためProvisional。",
+        "removable": false,
+        "chainOrder": 8
+      },
+      {
+        "id": "rearFlex/curve/0",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": -1.2656294676966109,
+          "y": 2.5182848414433976,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 9
+      },
+      {
+        "id": "rearFlex/curve/1",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 1,
+        "position": {
+          "x": -1.4537093187668275,
+          "y": 2.644017062559282,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10
+      },
+      {
+        "id": "rearFlex/curve/2",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 2,
+        "position": {
+          "x": -1.3595083855254386,
+          "y": 2.826488118093293,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.5
+      },
+      {
+        "id": "rearFlex/curve/3",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 3,
+        "position": {
+          "x": -0.7524819074155867,
+          "y": 3.05727409750886,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.75
+      },
+      {
+        "id": "pocket/deepest",
+        "region": "Pocket",
+        "role": "deepest",
+        "index": null,
+        "position": {
+          "x": -0.6808566589075552,
+          "y": 3.2063648884808638,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "内部params(Pocket Depth 3.30mm等)はLock/参照専用(右パネル参照)。この点自体の3D位置はHypothesis。",
+        "removable": false,
+        "chainOrder": 10.875
+      },
+      {
+        "id": "rearFlex/curve/4",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 4,
+        "position": {
+          "x": -0.737576409783926,
+          "y": 3.336913400183387,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.9375
+      },
+      {
+        "id": "rearFlex/curve/5",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 5,
+        "position": {
+          "x": -1.2391505749643992,
+          "y": 3.4987160616399406,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.96875
+      },
+      {
+        "id": "rearFlex/curve/6",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 6,
+        "position": {
+          "x": -1.2916650723743408,
+          "y": 3.6735476360556722,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.984375
+      },
+      {
+        "id": "rearFlex/curve/7",
+        "region": "RearFlex",
+        "role": "curve",
+        "index": 7,
+        "position": {
+          "x": -1.1601872161349602,
+          "y": 3.7741848469287094,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "SOFTCLIPフックが接触する弯曲部。正確な曲率・境界は未確認(Improvement Spec §2.5)。",
+        "removable": true,
+        "chainOrder": 10.9921875
+      },
+      {
+        "id": "upperArm/curve/0",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 0,
+        "position": {
+          "x": -0.6774557698425141,
+          "y": 3.496894373489493,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11
+      },
+      {
+        "id": "upperArm/curve/1",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 1,
+        "position": {
+          "x": -0.4581844035750978,
+          "y": 3.539531577665855,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.5
+      },
+      {
+        "id": "upperArm/curve/2",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 2,
+        "position": {
+          "x": -0.2477447764436741,
+          "y": 3.5709354833095848,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.75
+      },
+      {
+        "id": "upperArm/curve/3",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 3,
+        "position": {
+          "x": -0.01558487021688204,
+          "y": 3.492690086221288,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.875
+      },
+      {
+        "id": "upperArm/curve/4",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 4,
+        "position": {
+          "x": 0.21585214699099187,
+          "y": 3.4273620816661357,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.9375
+      },
+      {
+        "id": "upperArm/curve/5",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 5,
+        "position": {
+          "x": 0.47565999137364756,
+          "y": 3.55527099080158,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.96875
+      },
+      {
+        "id": "upperArm/curve/6",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 6,
+        "position": {
+          "x": 0.87305848246888,
+          "y": 3.655845452332891,
+          "z": 1.6131370913305092
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.984375
+      },
+      {
+        "id": "upperArm/curve/7",
+        "region": "UpperArm",
+        "role": "curve",
+        "index": 7,
+        "position": {
+          "x": 1.1462071254305506,
+          "y": 3.5682213449628097,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "Upper Arm側の曲率変化点。Lower Armより弾性変形する可能性が示唆されている(Component Tree §2.1、未確認)。",
+        "removable": true,
+        "chainOrder": 11.9921875
+      },
+      {
+        "id": "upperArm/end",
+        "region": "UpperArm",
+        "role": "end",
+        "index": null,
+        "position": {
+          "x": 1.3207478396262586,
+          "y": 3.3455760205743075,
+          "z": 1.9
+        },
+        "locked": false,
+        "evidenceLevel": "Hypothesis",
+        "note": "2026-08-07新設(旧hook/endを改称)。Upper Armの自由端、Photo#1(クリップ横２.jpg)でいう「ループ端」に相当すると解釈(Hook-like terminalではない)。Terminal Length 2.40mmの参照値は持たない(その値はHook側[Bridge近傍]に帰属)。位置はHypothesis。",
+        "removable": false,
+        "chainOrder": 12
+      }
+    ]
+  },
+  "evidenceSnapshot": {
+    "pocketDepthMm": 3.3,
+    "armGapMm": 0.75,
+    "pocketMaxWidthMm": 1.4,
+    "bandWidthMm": 0.25,
+    "bandThicknessMm": 0.1,
+    "bandCrossSectionEvidenceLevel": "A+",
+    "terminalLengthMm": 2.4,
+    "sourceDocs": [
+      "Soft_Clip_Geometry_Improvement_Spec_v1.0.md",
+      "Soft_Clip_Band_Loop_Measurement_Record_v1.0.md",
+      "Soft_Clip_M1M2M3_Photogrammetric_Measurement_v1.0.md"
+    ]
+  },
+  "referenceValues": {
+    "terminalLengthMm": {
+      "value": 2.4,
+      "evidenceLevel": "A"
+    }
+  },
+  "meta": {
+    "editedBy": "shoji",
+    "sessionNote": ""
+  }
+}
