@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview, SoftClipBandLoopPreview } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -1109,6 +1109,17 @@ export function SimScene({
           {coordDebug && product.headType === 'SOFT_CLIP' && (
             <group position={[basePos.x + 10, basePos.y + 5, basePos.z]}>
               <SoftClipPocketPreview />
+            </group>
+          )}
+
+          {/* ── Soft Clip Band Loop Preview（Hypothesis Geometry dev preview、?debug=coords
+              かつ headType==='SOFT_CLIP'時のみ。docs/Soft_Clip_Centerline_Proposal_v3.json。
+              Band Loop Editorローカル座標系はShaft/Global座標系と未接続のため、Pocket
+              Previewと同様basePosから離したオフセット位置に単独描画する（実際の装着位置を
+              意味しない、実物写真との形状比較専用）。 ── */}
+          {coordDebug && product.headType === 'SOFT_CLIP' && (
+            <group position={[basePos.x - 10, basePos.y + 5, basePos.z]}>
+              <SoftClipBandLoopPreview />
             </group>
           )}
 

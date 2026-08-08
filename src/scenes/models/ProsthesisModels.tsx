@@ -648,6 +648,230 @@ export function getSoftClipPocketVariableWidthSweepGeometry(): THREE.BufferGeome
   return geometry;
 }
 
+// ================================================================
+// SOFT CLIP BAND LOOP (Hypothesis Geometry, dev preview only — not wired into SoftClipHead)
+// ================================================================
+// 実装依頼: 「Soft Clip Band Loop — Current Evidence-Based Geometry Implementation Task」
+// (2026-08-08、shoji指定)。出典:
+//   docs/Soft_Clip_Centerline_Proposal_v3.json(shoji作成、chainOrder確定版、schemaVersion 1.1)
+//   docs/Soft_Clip_Centerline_Proposal_v3_Review.md(自己交差なし・旋回パターン確認済み)
+//   docs/Soft_Clip_Geometry_Editor_Design_v1.0.md(v1.5、Region/Role/chainOrder定義元)
+//   docs/Soft_Clip_Band_Loop_Measurement_Record_v1.0.md(断面寸法Evidence A+の出典)
+//
+// **Hypothesis Geometry(Geometry Freeze未実施)**: 以下の制御点座標(Band Loop Editor
+// ローカル座標系、z一定平面)はEvidence A/A+ではなくHypothesis(shojiによるEditor上での
+// 写真トレース結果、Proposal v3)。断面寸法(幅0.25mm/厚さ0.10mm)のみEvidence A+
+// (Measurement Record v1.0 §0)。
+//
+// **座標系(Small Change判断)**: Proposal v3はBand Loop Editor独自のローカル座標系
+// (Global/Shaft座標系とは未接続、Editor Design v1.5 §3.1、Coordinate Integration=
+// Tier C課題として意図的に未解決)。Pocket Phase1([[getSoftClipPocketSweepGeometry]])と
+// 同じ方針で、本Previewも独自ローカル原点のまま描画し、Shaft/Global座標系への統合は
+// 行わない(Frozen Coordinate Systemには一切触れない)。
+//
+// **本節はSoftClipHead()には組み込まれておらず、既存の臨床シーン描画には一切
+// 影響しない(Strangler Pattern、Small Change、Pocket Phase1と同じ位置づけ)。
+// 開発用プレビュー([[SoftClipBandLoopPreview]])からのみ、?debug=coords限定で参照される。**
+
+/** Band Loop断面: 幅(Evidence A+、Measurement Record v1.0 §0)。 */
+export const SOFT_CLIP_BAND_LOOP_WIDTH_MM = 0.25;
+/** Band Loop断面: 厚さ(Evidence A+、Measurement Record v1.0 §0)。 */
+export const SOFT_CLIP_BAND_LOOP_THICKNESS_MM = 0.10;
+
+interface SoftClipBandLoopControlPoint {
+  id: string;
+  chainOrder: number;
+  position: THREE.Vector3;
+}
+
+/** Proposal v3の全23制御点(chainOrder昇順、docs/Soft_Clip_Centerline_Proposal_v3.json
+ *  controlPoints[].positionの転記、z=1.9固定はEditorローカル座標系の値をそのまま維持)。
+ *
+ *  **upperArm/curve/0..3の4点のみ、座標をSmoothed値へ置換している**(他19点は転記のまま
+ *  無変更)。理由: Proposal v3 Reviewで指摘された「4点全てで旋回符号が毎点反転する
+ *  ジグザグ」(+41.3°→-27.4°→+34.7°→-47.5°)を、実物写真
+ *  (docs/assets/soft-clip-m1m2m3/azimuth-ring/azimuth045_upperarm_end_zoom.png)と照合した
+ *  結果、UpperArmは滑らかな単一カーブとして写っておりジグザグに対応する輪郭変化は
+ *  確認できなかったため、トレースノイズと判断した(Evidence変更ではなくHypothesis
+ *  Control Pointの整理、実装タスク指示§4に基づく)。
+ *  手法: 隣接するrearFlex/curve/7・upperArm/endを固定端とし、隣接元点の3点移動平均
+ *  (simple moving average)でupperArm/curve/0..3を再配置。旋回符号は
+ *  [+41.3,-27.4,+34.7,-47.5](4点全反転)→[+5.3,+19.1,-14.1,-5.1](1回のみ反転、
+ *  単一の緩いS字)へ変化(Node検証スクリプトで再計算、verify_band_loop.js相当)。
+ *  端点(rearFlex/curve/7・upperArm/end)は無変更のため、写真シルエット全体の位置関係
+ *  (Priority1)は維持される。 */
+const SOFT_CLIP_BAND_LOOP_CONTROL_POINTS: SoftClipBandLoopControlPoint[] = [
+  { id: 'hook/end',           chainOrder: 0,        position: new THREE.Vector3(0.1414178322984369, 2.1119308493240965, 1.9) },
+  { id: 'hook/curve/0',       chainOrder: 1,        position: new THREE.Vector3(0.25439342335153775, 2.170207268380656, 1.9) },
+  { id: 'hook/curve/1',       chainOrder: 1.5,      position: new THREE.Vector3(0.37878895982766625, 2.7341334811037137, 1.9) },
+  { id: 'hook/start',         chainOrder: 2,        position: new THREE.Vector3(0.2748395034604978, 2.8317050058135287, 1.9) },
+  { id: 'pocket/entrance',    chainOrder: 3,        position: new THREE.Vector3(0.13301644205356888, 2.897446647923019, 1.9) },
+  { id: 'bridge/approach/0',  chainOrder: 4,        position: new THREE.Vector3(-0.06667295800350283, 2.830306266487419, 1.9) },
+  { id: 'bridge/end',         chainOrder: 5,        position: new THREE.Vector3(-0.30384276668344, 2.81424339224731, 1.9) },
+  { id: 'bridge/departure/0', chainOrder: 6,        position: new THREE.Vector3(-0.5499679785373885, 2.842112812650996, 1.9) },
+  { id: 'lowerArm/start',     chainOrder: 8,        position: new THREE.Vector3(-0.7304564432703485, 2.9223861078063824, 1.9) },
+  { id: 'rearFlex/curve/0',   chainOrder: 9,        position: new THREE.Vector3(-1.281135510527136, 2.5182848414433963, 1.9) },
+  { id: 'rearFlex/curve/1',   chainOrder: 10,       position: new THREE.Vector3(-1.4537093187668275, 2.644017062559282, 1.9) },
+  { id: 'rearFlex/curve/2',   chainOrder: 10.5,     position: new THREE.Vector3(-1.3595083855254386, 2.8724696092990585, 1.9) },
+  { id: 'rearFlex/curve/3',   chainOrder: 10.75,    position: new THREE.Vector3(-0.7524819074155867, 3.05727409750886, 1.9) },
+  { id: 'pocket/deepest',     chainOrder: 10.875,   position: new THREE.Vector3(-0.7410172512575132, 3.2063648884808646, 1.9) },
+  { id: 'rearFlex/curve/4',   chainOrder: 10.9375,  position: new THREE.Vector3(-0.737576409783926, 3.336913400183387, 1.9) },
+  { id: 'rearFlex/curve/5',   chainOrder: 10.96875, position: new THREE.Vector3(-1.2391505749643992, 3.4987160616399406, 1.9) },
+  { id: 'rearFlex/curve/6',   chainOrder: 10.984375, position: new THREE.Vector3(-1.2916650723743408, 3.6735476360556722, 1.9) },
+  { id: 'rearFlex/curve/7',   chainOrder: 10.9921875, position: new THREE.Vector3(-1.1601872161349602, 3.7741848469287094, 1.9) },
+  // upperArm/curve/0..3: Smoothed(上記コメント参照、Proposal v3のRAW値からの置換)
+  { id: 'upperArm/curve/0',   chainOrder: 11,       position: new THREE.Vector3(-0.6923974, 3.6189084, 1.9) },
+  { id: 'upperArm/curve/1',   chainOrder: 11.5,     position: new THREE.Vector3(-0.2240231, 3.5098171, 1.9) },
+  { id: 'upperArm/curve/2',   chainOrder: 11.75,    position: new THREE.Vector3(0.2934998, 3.5643652, 1.9) },
+  { id: 'upperArm/curve/3',   chainOrder: 11.875,   position: new THREE.Vector3(0.8561307, 3.4843418, 1.9) },
+  { id: 'upperArm/end',       chainOrder: 12,       position: new THREE.Vector3(1.448343580806909, 3.3455760205743075, 1.9) },
+];
+
+/** Centerline(Editor Design v1.5 §3.1と同じくCatmullRomCurve3、closed=false — Hook側/
+ *  UpperArm側の両端は自由端であり閉じたループではない一筆書きのChain)。 */
+export function getSoftClipBandLoopCenterline(): THREE.CatmullRomCurve3 {
+  const points = SOFT_CLIP_BAND_LOOP_CONTROL_POINTS.map((p) => p.position);
+  return new THREE.CatmullRomCurve3(points, false);
+}
+
+/** Control Point一覧(id等含む、プレビュー表示用)。座標のみ必要な場合は
+ *  getSoftClipBandLoopCenterline()を使うこと。 */
+export function getSoftClipBandLoopControlPoints(): SoftClipBandLoopControlPoint[] {
+  return SOFT_CLIP_BAND_LOOP_CONTROL_POINTS;
+}
+
+// ── Ring-loft Sweep(Pocket Commit3bと同じ手法、Frenetフレーム不使用) ──────────
+// 全23制御点がz=1.9の平面上にある(平面Curve)ため、Pocketと同じくTubeGeometry/
+// extrudePathのFrenetフレーム自動追従(2026-07-02、SoftClipWing/Bridgeで発生した既知の
+// 破綻問題)は使わない。固定の平面法線(N軸、厚み方向)と、その法線に対する各tでの接線の
+// 外積(W軸、幅方向)を都度計算する明示的フレームを使う。z軸は接線と常に非平行
+// (接線もこの平面内にあるため、cross(N,T)が退化しない)であり、Frenetフレーム特有の
+// 急カーブでの反転は構造的に発生しない(Pocket Commit3bのW_HAT/N_HAT固定方式を、
+// 大きく方向転換するBand Loop全体に一般化: 固定軸ではなく「固定N軸+可変W軸」)。
+const SOFT_CLIP_BAND_LOOP_PLANE_NORMAL = new THREE.Vector3(0, 0, 1);
+
+/** Ring分割数。SOFT_CLIP_POCKET_VARIABLE_WIDTH_STEPSと同様、視覚解像度のための値であり
+ *  Geometry Parameterではない。全長7.6mm・急カーブ複数(Hook/RearFlex折り返し)を
+ *  考慮しPocketの32より高い分割数を使用。 */
+const SOFT_CLIP_BAND_LOOP_STEPS = 400;
+
+/** tにおけるRing(4頂点)をワールド座標で返す。頂点順序はPocketと同じ
+ *  ((-W,-N)→(+W,-N)→(+W,+N)→(-W,+N))。 */
+function getSoftClipBandLoopRingAt(curve: THREE.CatmullRomCurve3, t: number): THREE.Vector3[] {
+  const center = curve.getPointAt(t);
+  const tangent = curve.getTangentAt(t).clone().normalize();
+  const nHat = SOFT_CLIP_BAND_LOOP_PLANE_NORMAL;
+  const wHat = new THREE.Vector3().crossVectors(nHat, tangent);
+  if (wHat.lengthSq() < 1e-8) {
+    // 接線がN軸と平行になる場合のフォールバック(平面Curveでは理論上発生しないはずだが、
+    // 数値誤差での縮退に備える防御的処理)。
+    wHat.set(1, 0, 0);
+  } else {
+    wHat.normalize();
+  }
+  const halfW = SOFT_CLIP_BAND_LOOP_WIDTH_MM / 2;
+  const halfN = SOFT_CLIP_BAND_LOOP_THICKNESS_MM / 2;
+  return [
+    center.clone().addScaledVector(wHat, -halfW).addScaledVector(nHat, -halfN),
+    center.clone().addScaledVector(wHat, halfW).addScaledVector(nHat, -halfN),
+    center.clone().addScaledVector(wHat, halfW).addScaledVector(nHat, halfN),
+    center.clone().addScaledVector(wHat, -halfW).addScaledVector(nHat, halfN),
+  ];
+}
+
+/** Band Loop Sweep Mesh本体。Hook〜UpperArmの一筆書きChainにRing-loftでBand断面
+ *  (幅0.25mm×厚さ0.10mm、Evidence A+)を掃引する。非indexed BufferGeometry
+ *  (Pocket Commit3bと同じ方式)。両端(hook/end・upperArm/end)は自由端だが、
+ *  Geometryとしては閉じた形状として端面キャップを付ける(Pocket Commit3bと同じ扱い)。
+ *
+ *  **既知の限界(Node検証スクリプトで確認、Geometry Review文書に詳細記載)**:
+ *  LowerArm開始点(lowerArm/start)付近とRearFlex折り返し(rearFlex/curve/3付近)の
+ *  間で、Ribbon境界(-W側)に2箇所の自己交差が検出されている(中心線最短距離
+ *  約0.12mm < Band幅0.25mm)。これはPocket開口部近傍のHypothesis形状に起因する
+ *  もので、本Commitでは意図的に修正しない(実装タスク指示§13「RearFlexの再設計を
+ *  目的とした変更は行わない」に基づく)。次パスでの検討対象としてGeometry Review
+ *  文書に記録する。 */
+export function getSoftClipBandLoopSweepGeometry(): THREE.BufferGeometry {
+  const curve = getSoftClipBandLoopCenterline();
+  const steps = SOFT_CLIP_BAND_LOOP_STEPS;
+  const rings: THREE.Vector3[][] = [];
+  for (let i = 0; i <= steps; i++) {
+    rings.push(getSoftClipBandLoopRingAt(curve, i / steps));
+  }
+
+  const positions: number[] = [];
+  const pushTri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  };
+
+  const edges: Array<[number, number]> = [[0, 1], [1, 2], [2, 3], [3, 0]];
+  for (let i = 0; i < steps; i++) {
+    const ringA = rings[i];
+    const ringB = rings[i + 1];
+    for (const [a, b] of edges) {
+      pushTri(ringA[a], ringB[b], ringA[b]);
+      pushTri(ringA[a], ringB[a], ringB[b]);
+    }
+  }
+
+  // 端面キャップ(Pocket Commit3bと同じ、両端を閉じた形状として扱う)。
+  const startRing = rings[0];
+  pushTri(startRing[0], startRing[1], startRing[2]);
+  pushTri(startRing[0], startRing[2], startRing[3]);
+  const endRing = rings[steps];
+  pushTri(endRing[0], endRing[2], endRing[1]);
+  pushTri(endRing[0], endRing[3], endRing[2]);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Soft Clip Band Loop(Hypothesis Geometry)開発用プレビュー。既存の臨床シーン描画には
+ *  一切影響しない(SoftClipPocketPreviewと同じくSimSceneの?debug=coords限定表示から
+ *  のみ参照)。Centerline・Control Points・Sweep Meshを表示する。 */
+function SoftClipBandLoopPreview({
+  showCenterline = true,
+  showControlPoints = true,
+  showSweepMesh = true,
+}: {
+  showCenterline?: boolean;
+  showControlPoints?: boolean;
+  showSweepMesh?: boolean;
+}) {
+  const { centerlineObject, controlPoints } = useMemo(() => {
+    const curve = getSoftClipBandLoopCenterline();
+    const samples = curve.getPoints(400);
+    const geo = new THREE.BufferGeometry().setFromPoints(samples);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#ffcc00' }));
+    return {
+      centerlineObject: line,
+      controlPoints: getSoftClipBandLoopControlPoints(),
+    };
+  }, []);
+
+  const sweepGeo = useMemo(() => getSoftClipBandLoopSweepGeometry(), []);
+
+  return (
+    <group name="SoftClipBandLoopPreview">
+      {showCenterline && <primitive object={centerlineObject} />}
+      {showControlPoints &&
+        controlPoints.map((p) => (
+          <mesh key={p.id} position={p.position}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshBasicMaterial color={p.id === 'hook/end' || p.id === 'upperArm/end' ? '#00ff00' : '#ff3333'} />
+          </mesh>
+        ))}
+      {showSweepMesh && (
+        <mesh geometry={sweepGeo}>
+          <TitaniumMatDS />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 /** Soft Clip Pocket(Phase1)開発用プレビュー。GUIレビュー項目(Centerline Parameter
  *  Definition §8.1)に対応する表示トグルを個別に受け取る。
  *  Commit1(Centerline Construction): Centerline/Control Points。
@@ -1359,4 +1583,6 @@ export {
   PistonFoot,
   // Soft Clip Pocket (Phase1 dev preview, docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md)
   SoftClipPocketPreview,
+  // Soft Clip Band Loop (Hypothesis Geometry dev preview, docs/Soft_Clip_Centerline_Proposal_v3.json)
+  SoftClipBandLoopPreview,
 };
