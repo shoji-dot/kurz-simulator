@@ -709,7 +709,11 @@ const SOFT_CLIP_BAND_LOOP_CONTROL_POINTS: SoftClipBandLoopControlPoint[] = [
   { id: 'bridge/approach/0',  chainOrder: 4,        position: new THREE.Vector3(-0.06667295800350283, 2.830306266487419, 1.9) },
   { id: 'bridge/end',         chainOrder: 5,        position: new THREE.Vector3(-0.30384276668344, 2.81424339224731, 1.9) },
   { id: 'bridge/departure/0', chainOrder: 6,        position: new THREE.Vector3(-0.5499679785373885, 2.842112812650996, 1.9) },
-  { id: 'lowerArm/start',     chainOrder: 8,        position: new THREE.Vector3(-0.7304564432703485, 2.9223861078063824, 1.9) },
+  // lowerArm/start: v4で変更(自己交差解消)。v3位置(y=2.9223861078063824)からy-0.16mm。
+  // 理由: bridge/departure/0→lowerArm/start→rearFlex/curve/0の区間と、rearFlex/curve/2→
+  // curve/3の区間がRibbon境界で交差していた(Visual Verification v1.0でLevel A判定)。
+  // 詳細: docs/Soft_Clip_Centerline_Proposal_v4.json、docs/Soft_Clip_Centerline_Proposal_v4_Review.md
+  { id: 'lowerArm/start',     chainOrder: 8,        position: new THREE.Vector3(-0.7304564432703485, 2.7623861078063824, 1.9) },
   { id: 'rearFlex/curve/0',   chainOrder: 9,        position: new THREE.Vector3(-1.281135510527136, 2.5182848414433963, 1.9) },
   { id: 'rearFlex/curve/1',   chainOrder: 10,       position: new THREE.Vector3(-1.4537093187668275, 2.644017062559282, 1.9) },
   { id: 'rearFlex/curve/2',   chainOrder: 10.5,     position: new THREE.Vector3(-1.3595083855254386, 2.8724696092990585, 1.9) },
@@ -784,13 +788,11 @@ function getSoftClipBandLoopRingAt(curve: THREE.CatmullRomCurve3, t: number): TH
  *  (Pocket Commit3bと同じ方式)。両端(hook/end・upperArm/end)は自由端だが、
  *  Geometryとしては閉じた形状として端面キャップを付ける(Pocket Commit3bと同じ扱い)。
  *
- *  **既知の限界(Node検証スクリプトで確認、Geometry Review文書に詳細記載)**:
- *  LowerArm開始点(lowerArm/start)付近とRearFlex折り返し(rearFlex/curve/3付近)の
- *  間で、Ribbon境界(-W側)に2箇所の自己交差が検出されている(中心線最短距離
- *  約0.12mm < Band幅0.25mm)。これはPocket開口部近傍のHypothesis形状に起因する
- *  もので、本Commitでは意図的に修正しない(実装タスク指示§13「RearFlexの再設計を
- *  目的とした変更は行わない」に基づく)。次パスでの検討対象としてGeometry Review
- *  文書に記録する。 */
+ *  **v4更新(自己交差解消、2026-08-08)**: v1.0時点ではLowerArm開始点(`lowerArm/start`)
+ *  付近とRearFlex折り返し(`rearFlex/curve/3`付近)の間でRibbon境界に2箇所の自己交差が
+ *  あった(Visual Verification v1.0でLevel A判定)。`lowerArm/start`のyを-0.16mm調整
+ *  (Proposal v4)することで解消し、Node検証(production設定 STEPS=400・MIN_GAP=15)で
+ *  self-intersection = 0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v4_Review.md */
 export function getSoftClipBandLoopSweepGeometry(): THREE.BufferGeometry {
   const curve = getSoftClipBandLoopCenterline();
   const steps = SOFT_CLIP_BAND_LOOP_STEPS;
