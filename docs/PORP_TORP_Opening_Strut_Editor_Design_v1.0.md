@@ -90,6 +90,44 @@ Head Plate Normal / Shaft Axis / Coordinate Integration / 本番`ProsthesisModel
 で十分」という結論になっても正常である。Candidateで良い値が見つかっても自動的にEvidence Aへ
 昇格しない（Export JSONにも`status: unverified-candidate`を明記）。
 
+## 2026-08-08 追記: v1.1（shoji初回試用フィードバック反映）
+
+shojiがv1でBaselineを目視で大まかに実物写真へ再配置(Candidate export)した結果、以下2点の
+フィードバックがあった。
+
+1. 「各々の開口部の形状・シャフトの位置が実物と違う」
+2. 「下の小さい開口部からシャフトに繋がるスリットも表現する必要がある」
+
+### 対応方針の確認
+
+②は「新規Slit Primitiveを作らない」という当初方針の撤回ではなく、その方針の**延長**として
+対応した。既存の3 Openingそれぞれと、Shaft(Collar境界、r=0.10mm、原点固定)との最短境界距離を
+新たに計測・可視化する「Opening ↔ Shaft(Slit)」パネルを追加。新規Primitive・新規Topologyは
+依然として追加していない。hole2(Lower-Left、3つの中で最小)をShaftへ近づけることで「スリット」
+を表現できる想定。Evidence(caliper/cv2とも未取得)は現時点でN/A。
+
+①のうち「シャフトの位置が違う」は、Photo Comparisonパネルの手動TransformControls操作が
+無較正(目視のみ)であるため、写真の位置合わせ誤差自体が原因である可能性が高いと判断した。
+そこで、手動ドラッグに代えて**3点キャリブレーション**を追加: 写真上でShaft(Boss)中心・Disc
+長軸上端・下端の3点をクリック指定すると、BellTop()自身のEvidence A座標(Shaft=原点、
+Disc長軸長=ry×2=3.60mm)のみを基準に相似変換(回転+均一拡縮+平行移動)を自動計算し、写真を
+正確に位置合わせする。`Head_Plate_Local_Coordinate_v1.0.md`の画像較正値(cv2.fitEllipse由来)は
+既知の不整合([[p4a_geometry_validation_report]]参照)があるため使用せず、BellTop()コード自身の
+Evidence Aとの内部整合性を優先した。
+
+①のうち「開口部の形状が違う」は、rx/ry/rotationが既にCandidate編集可能であるため追加実装は
+行わず、キャリブレーション後の写真と照合しながらshojiが引き続き調整する運用とした。楕円+回転の
+表現力で実物形状に十分近づけられない場合(非楕円形状であることが確認された場合)は、より自由な
+境界表現(多角形/スプライン)の導入を別途検討する必要があるが、これは新規Topologyの追加に相当する
+設計判断のため、shoji確認前には着手していない。
+
+### その他の追加
+
+- Candidateの初期値をshoji調整済みの値(2026-08-08 08:27 Export)へ更新(作業の継続性確保)
+- Import JSONボタンを追加(Soft Clip Editorと同じ`schemaVersion`検証パターン)、Export/Importの
+  往復編集に対応
+- Shaft境界(cyan破線)を常時表示する参照リングを追加
+
 ## 未検証事項
 
 - 実ブラウザでのランタイム動作確認（sandbox制約でWebGL headless検証が完走せず、構文検査
@@ -97,6 +135,11 @@ Head Plate Normal / Shaft Axis / Coordinate Integration / 本番`ProsthesisModel
 - Pin/Collarの3D配置は本番`BellTop()`のワールド回転（`rotation={[Math.PI/2,0,0]}`）を再現して
   いない（本Editorのスコープが2D XY平面上のOpening/Strut分析であるため、意図的に簡略化）。
   定量的な分析対象（Opening位置・サイズ・Strut距離）には影響しない。
+- 3点キャリブレーション機能(Raycaster+クリックpicking)は特にsandboxでの実機検証ができておらず、
+  ロジックレビュー(HTML id突き合わせ・構文検査)のみで代替した。写真読み込み→3点クリック→
+  キャリブレーション実行の一連の操作感はshoji側での実機確認が必要。
+- 楕円+回転で実物Opening形状を十分に近似できるかは未確認。近似が不十分と判明した場合は
+  多角形/スプライン境界の導入を別途検討する(新規Topology追加に相当するため要shoji確認)。
 
 ## 参照文書
 
