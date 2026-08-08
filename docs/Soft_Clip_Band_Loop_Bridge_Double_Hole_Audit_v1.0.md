@@ -153,7 +153,32 @@ Evidenceからは判断できない。
 
 ---
 
-## 7. 参照
+## 7. 再評価(2026-08-08、User Visual Judgment Priority原則適用後)
+
+shojiの正式指示により、本AuditをLevel A/B/C分類基準で再評価した。
+
+```
+Revision Severity: Level C
+User Visual Judgment: 基本的に問題なし(shojiがアプリ上?debug=coordsでv7を確認済み、完成度約90%と評価)
+Current Geometry Status: 成立(self-intersection=0、NaN/Infinity=0、Build以外の検証はPASS)
+Revision Necessity: 不要(現時点)
+Reason: 開口2(Bridge対応)について、Y字分岐/単一帯近接/投影上の錯視のいずれかを
+2D写真だけでは確定できていない(§3・§5)。これは「現Topologyでは実物の主要構造を
+表現できないことが明確に確認された場合」という Level A の要件を満たしておらず、
+「複数のTopology解釈が可能」「現物確認が必要」というLevel Cの要件に該当する。
+したがって本Auditの結果だけを理由にTopology Revisionを開始しない。
+```
+
+**結論**: 開口2の解釈不確定は**Level C(Documentation Only)**として本文書に記録済み
+(§4・§5)とし、これ以上の追加調査(shoji現物確認以外)は行わない。v7 Geometry・
+現行Topologyをそのまま維持し、Bridge Double-Hole Auditは本再評価をもって
+**PASS(Level C記録のみ)としてクローズ**する。将来、shojiの現物確認等で
+「現Topologyでは表現不能」というLevel A相当の事実が判明した場合にのみ、
+Topology Revision Proposalを別途起票する。
+
+---
+
+## 8. 参照
 
 - `docs/Soft_Clip_Band_Loop_Visual_Verification_v1.0.md` §2(本Auditの発端、
   「Bridge | AUDIT」の指摘)
