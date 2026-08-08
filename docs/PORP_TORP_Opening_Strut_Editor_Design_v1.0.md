@@ -1,6 +1,6 @@
 # PORP/TORP Head Plate — Opening/Strut Editor v1.3（Design Note）
 
-**Status**: Implemented（v1.3、shoji実機確認結果を反映・再確認待ち）
+**Status**: Implemented（v1.3、blank pageバグ修正済み・shoji実機再確認待ち）
 **Date**: 2026-08-08
 **位置づけ**: `PORP_TORP_Head_Plate_Geometry_Scope_Baseline_Audit_v1.0.md`の後続。shoji指示（2026-08-08）に
 基づく対話的Editor実装。**コード変更なし（本番`ProsthesisModels.tsx`は非接続・非改変）**。
@@ -219,6 +219,39 @@ Candidate Shaftの編集は**真上0°平面内でのXY位置(2D)のみ**であ�
 という**3D方向・姿勢**の話には一切踏み込んでいない。P4C-0(Blocked/Deferred)の対象はあくまで
 Z軸(Normal)の確定であり、本変更はその範囲に影響しない。HTML側のバナー・Scope説明文にもこの
 区別を明記した。
+
+## 2026-08-08 緊急修正: v1.3で白紙(blank page)になる致命的バグ
+
+shoji報告: 「HTMLを開いても何も出てこない。JSONを読み込みしても何も出てこない」。
+
+### 原因
+
+v1.3で追加した`rebuildCandidateShaftMarker()`の初回呼び出しを、関数定義の直後(モジュール
+上部、Scene構築直後)に置いていた。この関数は内部で`viewMode`変数を参照するが、`viewMode`は
+`let viewMode = 'candidate';`としてモジュール下部の「View mode」セクションで初めて宣言される。
+JavaScriptの`let`は宣言前にアクセスするとTemporal Dead Zone(TDZ)により
+`ReferenceError: Cannot access 'viewMode' before initialization`を投げる。ESモジュールの
+トップレベル同期コードで例外が発生すると、そこでモジュール全体の実行が停止し、以降の
+`renderer`構築・`animate()`呼び出し・全イベントリスナー登録が一切実行されないため、
+画面は完全に白紙になる。JSON Import機能もこの時点で配線されていないため、当然反応しない。
+
+### 修正
+
+問題の即時呼び出しを削除し、ファイル末尾の「Init」セクション(`viewMode`宣言より後、かつ
+DOM/three.jsのセットアップが全て完了した後)で`rebuildCandidateShaftMarker()`と
+`updateShaftFieldsUI()`をまとめて呼び出すよう変更した。
+
+### 再発防止のための検証強化
+
+今回のバグは`node --check`(構文検査のみ)では検出できない**実行時**エラーだったため、新たに
+Node.js上でthree.js/DOM APIを最小限モック化した検証ハーネスを作成し、
+①モジュールのトップレベル同期コードが例外なく完走するか、②主要なUI操作(表示モード切替・
+Reset・Export/Import・写真キャリブレーションボタン・全Camera Preset・Shaft数値入力)を
+実際にイベント発火してエラーが出ないか、③shojiが実際にアップロードしたJSONでImportが
+成功するか、を機械的に検証できるようにした。今回のTDZバグをこのハーネスで実際に再現・
+検出できることも確認済み(修正前のコードに対して`ReferenceError: Cannot access 'viewMode'
+before initialization`を正しく検出した)。今後のバージョンアップ時もこのハーネスでの
+事前検証を行う。
 
 ## 実機確認手順（shoji指定、2026-08-08。次に行うのはこれのみで、追加実装ではない）
 
