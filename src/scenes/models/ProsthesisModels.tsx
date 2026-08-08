@@ -688,19 +688,30 @@ interface SoftClipBandLoopControlPoint {
 
 /** 全27制御点(chainOrder昇順)。系譜: Proposal v3(23点、Small Change導入時)→v4
  *  (lowerArm/start自己交差修正)→v5候補(shoji作成、RearFlex中央部の滑らかさ改善+
- *  UpperArmを4点→8点へ拡張し「2つの山」形状を再現、docs/Soft_Clip_Centerline_
- *  Proposal_v5_candidate_shoji_2026-08-08.json)→**v6(本バージョン、2026-08-08)**。
+ *  UpperArmを4点→8点へ拡張し「2つの山」形状を再現)→v6(2箇所の自己交差解消)→
+ *  **v7(本バージョン、2026-08-08、曲率品質改善)**。
  *
- *  **v6での変更点(v5候補からの差分、3箇所のみ)**:
- *  1. `upperArm/curve/6`のz: 1.6131370913305092 → 1.9(shoji修正、TransformControls
- *     操作時の意図しないZドラッグと判明。v5候補Reviewで指摘した異常点)。
- *  2. `lowerArm/start`のy: 2.8998480454435365 → 2.6998480454435367(dy=-0.20mm)。
- *  3. `upperArm/curve/0`のy: 3.496894373489493 → 3.6468943734894932(dy=+0.15mm)。
- *  2・3は、v5候補で新規発生していた自己交差2箇所(`rearFlex/curve/3`↔`lowerArm/start`、
- *  `rearFlex/curve/4`↔`upperArm/curve/0`。v5候補ReviewでLevel A判定)を解消するための
- *  最小限の修正(Node検証、production設定 STEPS=400・MIN_GAP=15でself-intersection
- *  4→0を確認)。詳細: docs/Soft_Clip_Centerline_Proposal_v6.json、
- *  docs/Soft_Clip_Centerline_Proposal_v6_Review.md
+ *  **v6での変更点(v5候補からの差分、3箇所)**: `upperArm/curve/6`のz異常修正、
+ *  `lowerArm/start`のy-0.20mm、`upperArm/curve/0`のy+0.15mm(いずれも自己交差解消)。
+ *  詳細: docs/Soft_Clip_Centerline_Proposal_v6_Review.md
+ *
+ *  **v7での変更点(v6からの差分、4箇所のみ)**: v6 Reviewで「次パスの課題」として
+ *  残されていたRearFlex/UpperArmの曲率の粗さ(v5候補Review §3・§4で指摘)を、
+ *  Node数値探索(Laplacian平滑化・3点移動平均の部分適用)で改善。
+ *  1. `rearFlex/curve/1`: curve0-curve2中点方向へLaplacian平滑化(alpha=0.3)。
+ *     旋回角密度の突出したスパイク(-387deg/mm)を-337deg/mmへ緩和。
+ *  2. `rearFlex/curve/3`: curve2-pocket/deepest中点方向へLaplacian平滑化(alpha=0.1、
+ *     控えめ)。alpha=0.3ではRibbon境界最小クリアランスが0.0335→0.0127mmまで悪化した
+ *     ため縮小。
+ *  3. `rearFlex/curve/4`: pocket/deepest-curve5中点方向へLaplacian平滑化(alpha=0.05、
+ *     最小限)。
+ *  4. `upperArm/curve/1`: curve0-curve2の3点移動平均を部分適用(beta=0.3)。
+ *     トレンドライン分析でcurve/1がcurve0→curve2の傾向線から突出した窪みと判明
+ *     (curve/2は傾向線にほぼ一致のため無変更、ピーク1形状は保持)。
+ *  `pocket/deepest`・`rearFlex/curve/2`(Evidence-linked/Small Change配慮)は無変更。
+ *  結果: self-intersection=0を維持しつつ、Ribbon境界の最小クリアランスが
+ *  0.0335mm→0.0440mm(+31%)に改善。詳細: docs/Soft_Clip_Centerline_Proposal_v7.json、
+ *  docs/Soft_Clip_Centerline_Proposal_v7_Review.md
  *
  *  **upperArm/curve/0..3(旧4点構成)の由来(v5候補で置換済み、参考)**: 元はProposal v3の
  *  Raw値からEditor上でshojiが3点移動平均で平滑化した値だったが、v5候補でRearFlex
@@ -715,28 +726,33 @@ const SOFT_CLIP_BAND_LOOP_CONTROL_POINTS: SoftClipBandLoopControlPoint[] = [
   { id: 'bridge/approach/0',  chainOrder: 4,          position: new THREE.Vector3(-0.06667295800350283, 2.830306266487419, 1.9) },
   { id: 'bridge/end',         chainOrder: 5,          position: new THREE.Vector3(-0.3027957008544402, 2.784901616962019, 1.9084141123734004) },
   { id: 'bridge/departure/0', chainOrder: 6,          position: new THREE.Vector3(-0.5499679785373885, 2.83, 1.9) },
-  // lowerArm/start: v6で変更(自己交差解消、上記v6コメント参照)。v5候補位置
-  // (y=2.8998480454435365)からy-0.20mm。
+  // lowerArm/start: v6で変更(自己交差解消)。v7では無変更。
   { id: 'lowerArm/start',     chainOrder: 8,          position: new THREE.Vector3(-0.7304564432703485, 2.6998480454435367, 1.9) },
   { id: 'rearFlex/curve/0',   chainOrder: 9,          position: new THREE.Vector3(-1.2656294676966109, 2.5182848414433976, 1.9) },
-  { id: 'rearFlex/curve/1',   chainOrder: 10,         position: new THREE.Vector3(-1.4537093187668275, 2.644017062559282, 1.9) },
+  // rearFlex/curve/1: v7で変更(曲率平滑化、上記v7コメント参照)。v6位置
+  // (x=-1.4537093187668275, y=2.644017062559282)からLaplacian(alpha=0.3)。
+  { id: 'rearFlex/curve/1',   chainOrder: 10,         position: new THREE.Vector3(-1.4113672011200866, 2.652527887722001, 1.9) },
   { id: 'rearFlex/curve/2',   chainOrder: 10.5,       position: new THREE.Vector3(-1.3595083855254386, 2.826488118093293, 1.9) },
-  { id: 'rearFlex/curve/3',   chainOrder: 10.75,      position: new THREE.Vector3(-0.7524819074155867, 3.05727409750886, 1.9) },
+  // rearFlex/curve/3: v7で変更(曲率平滑化、上記v7コメント参照)。v6位置
+  // (x=-0.7524819074155867, y=3.05727409750886)からLaplacian(alpha=0.1)。
+  { id: 'rearFlex/curve/3',   chainOrder: 10.75,      position: new THREE.Vector3(-0.7792519688956777, 3.053189338086682, 1.9) },
   { id: 'pocket/deepest',     chainOrder: 10.875,     position: new THREE.Vector3(-0.6808566589075552, 3.2063648884808638, 1.9) },
-  { id: 'rearFlex/curve/4',   chainOrder: 10.9375,    position: new THREE.Vector3(-0.737576409783926, 3.336913400183387, 1.9) },
+  // rearFlex/curve/4: v7で変更(曲率平滑化、上記v7コメント参照)。v6位置
+  // (x=-0.737576409783926, y=3.336913400183387)からLaplacian(alpha=0.05)。
+  { id: 'rearFlex/curve/4',   chainOrder: 10.9375,    position: new THREE.Vector3(-0.7486977701415286, 3.3376947539272375, 1.9) },
   { id: 'rearFlex/curve/5',   chainOrder: 10.96875,   position: new THREE.Vector3(-1.2391505749643992, 3.4987160616399406, 1.9) },
   { id: 'rearFlex/curve/6',   chainOrder: 10.984375,  position: new THREE.Vector3(-1.2916650723743408, 3.6735476360556722, 1.9) },
   { id: 'rearFlex/curve/7',   chainOrder: 10.9921875, position: new THREE.Vector3(-1.1601872161349602, 3.7741848469287094, 1.9) },
-  // upperArm/curve/0: v6で変更(自己交差解消、上記v6コメント参照)。v5候補位置
-  // (y=3.496894373489493)からy+0.15mm。
+  // upperArm/curve/0: v6で変更(自己交差解消)。v7では無変更。
   { id: 'upperArm/curve/0',   chainOrder: 11,         position: new THREE.Vector3(-0.6774557698425141, 3.6468943734894932, 1.9) },
-  { id: 'upperArm/curve/1',   chainOrder: 11.5,       position: new THREE.Vector3(-0.4581844035750978, 3.539531577665855, 1.9) },
+  // upperArm/curve/1: v7で変更(曲率平滑化、上記v7コメント参照)。v6位置
+  // (x=-0.4581844035750978, y=3.539531577665855)から3点移動平均の部分適用(beta=0.3)。
+  { id: 'upperArm/curve/1',   chainOrder: 11.5,       position: new THREE.Vector3(-0.4590675774886971, 3.553408247812592, 1.9) },
   { id: 'upperArm/curve/2',   chainOrder: 11.75,      position: new THREE.Vector3(-0.2477447764436741, 3.5709354833095848, 1.9) },
   { id: 'upperArm/curve/3',   chainOrder: 11.875,     position: new THREE.Vector3(-0.01558487021688204, 3.492690086221288, 1.9) },
   { id: 'upperArm/curve/4',   chainOrder: 11.9375,    position: new THREE.Vector3(0.21585214699099187, 3.4273620816661357, 1.9) },
   { id: 'upperArm/curve/5',   chainOrder: 11.96875,   position: new THREE.Vector3(0.47565999137364756, 3.55527099080158, 1.9) },
-  // upperArm/curve/6: z=1.9(shoji修正、上記v6コメント参照)。v5候補のz=1.6131370913305092は
-  // TransformControls誤操作によるZドラッグと判明。
+  // upperArm/curve/6: z=1.9(shoji修正、v6で反映)。v7では無変更。
   { id: 'upperArm/curve/6',   chainOrder: 11.984375,  position: new THREE.Vector3(0.87305848246888, 3.655845452332891, 1.9) },
   { id: 'upperArm/curve/7',   chainOrder: 11.9921875, position: new THREE.Vector3(1.1462071254305506, 3.5682213449628097, 1.9) },
   { id: 'upperArm/end',       chainOrder: 12,         position: new THREE.Vector3(1.3207478396262586, 3.3455760205743075, 1.9) },
@@ -806,7 +822,11 @@ function getSoftClipBandLoopRingAt(curve: THREE.CatmullRomCurve3, t: number): TH
  *    2箇所(`rearFlex/curve/3`↔`lowerArm/start`系統の再発、`rearFlex/curve/4`↔
  *    `upperArm/curve/0`)を、`lowerArm/start`のy-0.20mm・`upperArm/curve/0`のy+0.15mm
  *    調整で解消。Node検証(production設定 STEPS=400・MIN_GAP=15)でself-intersection
- *    4→0、NaN=0、退化フレーム=0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v6_Review.md */
+ *    4→0、NaN=0、退化フレーム=0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v6_Review.md
+ *  - v7(2026-08-08): self-intersection=0を維持したまま曲率品質を改善(RearFlex 3点
+ *    ・UpperArm 1点、Laplacian平滑化/3点移動平均の部分適用)。副産物としてRibbon境界の
+ *    最小クリアランスも0.0335mm→0.0440mm(+31%)に改善。self-intersection=0、NaN=0、
+ *    退化フレーム=0を確認済み。詳細: docs/Soft_Clip_Centerline_Proposal_v7_Review.md */
 export function getSoftClipBandLoopSweepGeometry(): THREE.BufferGeometry {
   const curve = getSoftClipBandLoopCenterline();
   const steps = SOFT_CLIP_BAND_LOOP_STEPS;
