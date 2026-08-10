@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview, SoftClipBandLoopPreview } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview, SoftClipBandLoopPreview, SoftClipBandLoopAttachedPreview, getSoftClipBandLoopDefaultAttachTransform, type SoftClipBandLoopAttachTransform } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode } from '../utils/debugMode';
@@ -785,6 +785,23 @@ export function SimScene({
     return { position, quaternion };
   }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
 
+  // Soft Clip Band Loop ↔ Shaft Integration — Attached Preview (Phase B0、shoji Audit
+  // 2026-08-10)用のPose。DraggableProsthesis→ProsthesisModelが内部で使うのと同じ
+  // computeProsthesisModelPose()をそのまま呼ぶだけ（新しい数式は追加していない）。
+  // headType==='SOFT_CLIP'（footType==='PISTON'）はsupportsNewPoseSolver対象外
+  // （下記、BELL限定）のため、poseFlagActive/poseOverrideの分岐は考慮不要
+  // （常にcomputeProsthesisModelPose()の値と一致する）。
+  const softClipAttachPose = useMemo(() => computeProsthesisModelPose({
+    product, shaftLength: selectedLength, basePos: basePos.clone(),
+    lateralOffset:  lateralOffset  + dragOffsetX,
+    verticalOffset: verticalOffset + dragOffsetY,
+    anteriorOffset: anteriorOffset + dragOffsetZ,
+    angleTilt, angleTiltZ,
+  }), [product, selectedLength, basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, angleTilt, angleTiltZ]);
+  // headOff式(len/2+0.15)はProsthesisModel内の同名ローカル定数と同一。新しい数式は追加
+  // していない（ProsthesisModel本体は無変更、位置式のみここで読み取り専用に再利用）。
+  const softClipAttachHeadOff = selectedLength / 2 + 0.15;
+
   // P4B-3 Step5（Feature Flag）: 対応footTypeはBELL（solveBellPose）のみ。FLAT/CLIP/PISTON用の
   // Adapterは未実装のため、それ以外のfootTypeではFlagの値に関わらず常にOLDを使う
   // （2026-07-28 shojiさん承認、Acceptance Criteriaの対象はBELL系に限定）。
@@ -860,6 +877,16 @@ export function SimScene({
   // 表示/非表示はReference/Candidate/Anchor個別に切替可能。
   const [anchorPose, setAnchorPose] = useState<GhostPoseInput | null>(null);
   const [poseVisibility, setPoseVisibility] = useState<PoseVisibility>({ reference: true, candidate: true, anchor: true });
+
+  // Soft Clip Band Loop ↔ Shaft Integration — Attached Preview (Phase B0、shoji Audit
+  // 2026-08-10)。translation/rotationはPreview parameter(Frozen Geometryではない)。
+  // 既定値はgetSoftClipBandLoopDefaultAttachTransform()(bridge/endを仮アンカーとして
+  // ローカル原点へ、rotation=0°)。?debug=coords かつ headType==='SOFT_CLIP' 限定のUIから
+  // shojiが数値調整してViewer上で目視判断する。Production SoftClipHead()・27制御点・
+  // Scoring・Pose Solver・既存のEditorツールには一切影響しない。
+  const [softClipAttachTransform, setSoftClipAttachTransform] = useState<SoftClipBandLoopAttachTransform>(
+    () => getSoftClipBandLoopDefaultAttachTransform(),
+  );
 
   const poseStats = useMemo(() => {
     return {
@@ -1007,6 +1034,90 @@ export function SimScene({
         </div>
       </div>
     )}
+    {coordDebug && product.headType === 'SOFT_CLIP' && (
+      <div
+        style={{
+          position: 'absolute', top: 8, right: 8, zIndex: Z_INDEX.modal,
+          background: 'rgba(0,0,0,0.78)', color: '#ccc',
+          fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
+          borderRadius: 4, lineHeight: 1.5, userSelect: 'none', minWidth: 220,
+          pointerEvents: 'auto',
+        }}
+      >
+        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>
+          Soft Clip Band Loop Attached Preview (B0)
+        </div>
+        <div style={{ color: '#ffd27f', marginBottom: 6, fontSize: 9 }}>
+          translation/rotationはPreview parameter（Frozen Geometryではない）。
+          <br />
+          bridge/endは仮アンカー（Evidence B相当、shoji Audit 2026-08-10）。
+        </div>
+        {([
+          { axis: 'x' as const, label: 'Tx (mm)' },
+          { axis: 'y' as const, label: 'Ty (mm)' },
+          { axis: 'z' as const, label: 'Tz (mm)' },
+        ]).map((row) => (
+          <label key={row.axis} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <span style={{ width: 56, display: 'inline-block' }}>{row.label}</span>
+            <input
+              type="number"
+              step={0.01}
+              value={softClipAttachTransform.translation[row.axis]}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (Number.isNaN(v)) return;
+                setSoftClipAttachTransform((t) => {
+                  const translation = t.translation.clone();
+                  translation[row.axis] = v;
+                  return { ...t, translation };
+                });
+              }}
+              style={{
+                width: 90, fontFamily: 'monospace', fontSize: 10, background: '#1a1a1a',
+                color: '#7fd3ff', border: '1px solid #555', borderRadius: 3, padding: '1px 4px',
+              }}
+            />
+          </label>
+        ))}
+        {([
+          { axis: 'x' as const, label: 'Rx (deg)' },
+          { axis: 'y' as const, label: 'Ry (deg)' },
+          { axis: 'z' as const, label: 'Rz (deg)' },
+        ]).map((row) => (
+          <label key={row.axis} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <span style={{ width: 56, display: 'inline-block' }}>{row.label}</span>
+            <input
+              type="number"
+              step={1}
+              value={softClipAttachTransform.rotationDeg[row.axis]}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (Number.isNaN(v)) return;
+                setSoftClipAttachTransform((t) => ({
+                  ...t,
+                  rotationDeg: { ...t.rotationDeg, [row.axis]: v },
+                }));
+              }}
+              style={{
+                width: 90, fontFamily: 'monospace', fontSize: 10, background: '#1a1a1a',
+                color: '#ff8800', border: '1px solid #555', borderRadius: 3, padding: '1px 4px',
+              }}
+            />
+          </label>
+        ))}
+        <button
+          type="button"
+          onClick={() => setSoftClipAttachTransform(getSoftClipBandLoopDefaultAttachTransform())}
+          style={{
+            marginTop: 6, fontFamily: 'monospace', fontSize: 9, padding: '2px 8px',
+            cursor: 'pointer', background: '#2a2a2a', color: '#7fd3ff',
+            border: '1px solid #555', borderRadius: 3,
+          }}
+        >
+          Reset (bridge/end anchor, 0°)
+        </button>
+      </div>
+    )}
     <Canvas
       camera={{ position: initCam.pos, fov: 38 }}
       gl={{
@@ -1120,6 +1231,25 @@ export function SimScene({
           {coordDebug && product.headType === 'SOFT_CLIP' && (
             <group position={[basePos.x - 10, basePos.y + 5, basePos.z]}>
               <SoftClipBandLoopPreview />
+            </group>
+          )}
+
+          {/* ── Soft Clip Band Loop Attached Preview（Phase B0、shoji Audit 2026-08-10、
+              ?debug=coords かつ headType==='SOFT_CLIP'時のみ）。上のSoftClipBandLoopPreview
+              (Editorローカル原点、±10mmオフセット単独表示)とは別に、SoftClipHead()と同じ
+              Shaft/Global pose(basePos+headOff、DraggableProsthesis→ProsthesisModelが使う
+              computeProsthesisModelPose()と同一)の子として、単一の剛体変換
+              (softClipAttachTransform、右上パネルでshojiが調整するPreview parameter)で
+              重ねて描画する。Production SoftClipHead()（Stem/Bridge/Wing）とは別描画で
+              共存表示するのみ（置換ではない）。27制御点・Sweep Geometryは無変更。 ── */}
+          {coordDebug && product.headType === 'SOFT_CLIP' && (
+            <group
+              position={[softClipAttachPose.position.x, softClipAttachPose.position.y, softClipAttachPose.position.z]}
+              quaternion={softClipAttachPose.quaternion}
+            >
+              <group position={[0, softClipAttachHeadOff, 0]}>
+                <SoftClipBandLoopAttachedPreview transform={softClipAttachTransform} />
+              </group>
             </group>
           )}
 

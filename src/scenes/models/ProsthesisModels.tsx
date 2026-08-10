@@ -1004,6 +1004,115 @@ function SoftClipBandLoopPreview({
   );
 }
 
+// ================================================================
+// SOFT CLIP BAND LOOP — ATTACHED PREVIEW (Phase B0, dev preview only)
+// ================================================================
+// 実装依頼: 「Soft Clip Band Loop ↔ Shaft Integration — Attached Preview (B0)」
+// (2026-08-10、shoji Audit指示。前提: docs記載の"Minimal Integration Proposal"に対する
+// shojiレビューで、Production統合(B1)の前にPreview限定のAttached表示を作ることが
+// 承認された)。
+//
+// **目的**: v7 Frozen Band Loop(27制御点、SOFT_CLIP_BAND_LOOP_CONTROL_POINTS)を、
+// SoftClipHead()と同じShaft/Global座標系の位置(headOff直下)へ単一の剛体変換
+// (translation→rotation)で重ねて表示し、shojiがViewer上で実物との整合を目視判断する
+// ためのdev preview。27制御点・Centerline・Sweep Geometryそのものは一切変更せず
+// 参照するのみ(既存のgetSoftClipBandLoopCenterline/getSoftClipBandLoopSweepGeometryを
+// そのまま再利用)。
+//
+// **Production SoftClipHead()には一切影響しない**(Strangler Pattern、Small Change)。
+// SimScene.tsx側で?debug=coords限定・headType==='SOFT_CLIP'限定でのみ描画され、旧
+// SoftClipBandLoopPreview(Editorローカル原点のまま、±10mmオフセット単独表示)とは
+// 別グループとして共存する(旧Previewも無変更のまま維持、写真形状比較用途に引き続き使う)。
+//
+// **`bridge/end`は仮アンカー(shoji Audit 2026-08-10: Evidence B相当の推定であり、
+// Shaft Connection Neckの正式接続点としてFrozen化してはいけない)**。translation/
+// rotationはPreview parameterであり、Frozen Geometryではない(SimScene.tsx側のUIで
+// shojiが数値調整・目視判断する。Viewer確認が取れるまではProduction統合を行わない、
+// B0→B1ゲート)。
+export interface SoftClipBandLoopAttachTransform {
+  /** ローカル(Band Loop Editor座標系)→Shaft座標系への平行移動(mm)。Preview parameter、
+   *  Frozen Geometryではない。 */
+  translation: THREE.Vector3;
+  /** 平行移動後に適用するEuler回転(度、XYZ順)。Preview parameter、既定は0°
+   *  (shoji Audit指示:「rotationは0°から始めてshojiがViewerで調整」、Production
+   *  Geometryへ直接採用しない)。 */
+  rotationDeg: { x: number; y: number; z: number };
+}
+
+/** `bridge/end`(chainOrder5)の座標をそのまま返す(新規座標の追加なし、既存27制御点
+ *  からの参照のみ)。Shaft Connection Neckとの対応はshoji Audit(2026-08-10)時点で
+ *  Evidence B相当の推定であり、あくまで「仮アンカー」の初期値算出に使う。 */
+export function getSoftClipBandLoopProvisionalAnchor(): THREE.Vector3 {
+  const p = SOFT_CLIP_BAND_LOOP_CONTROL_POINTS.find((cp) => cp.id === 'bridge/end');
+  if (!p) throw new Error('bridge/end control point not found in SOFT_CLIP_BAND_LOOP_CONTROL_POINTS');
+  return p.position.clone();
+}
+
+/** Attached Preview既定Transform。translation=-仮アンカー(bridge/endをローカル原点へ
+ *  移動)、rotation=0°(shoji Audit指示どおり)。呼び出し側(SimScene.tsx)のUIで
+ *  shojiが上書き調整できる(Preview parameterであり、ここでの値をFrozenとみなさない)。 */
+export function getSoftClipBandLoopDefaultAttachTransform(): SoftClipBandLoopAttachTransform {
+  return {
+    translation: getSoftClipBandLoopProvisionalAnchor().multiplyScalar(-1),
+    rotationDeg: { x: 0, y: 0, z: 0 },
+  };
+}
+
+/** Band Loop(27制御点・Sweep Meshとも無変更)をShaft座標系上に置くための単一Group。
+ *  translation→rotationの順で適用する剛体変換のみを行い、Centerline/制御点座標その
+ *  ものには一切触れない(Editorローカル座標系のまま、Groupごと動かす方式、shoji Audit
+ *  2026-08-10で承認された方式)。呼び出し側でSoftClipHead()と同じpose(basePos+headOff)
+ *  の子として配置することで、「Shaftに付いた状態」をViewerで比較できる(Production
+ *  SoftClipHead()とは別描画、同一シーン内に共存表示するのみで置換ではない)。 */
+function SoftClipBandLoopAttachedPreview({
+  transform,
+  showCenterline = true,
+  showControlPoints = true,
+  showSweepMesh = true,
+}: {
+  transform: SoftClipBandLoopAttachTransform;
+  showCenterline?: boolean;
+  showControlPoints?: boolean;
+  showSweepMesh?: boolean;
+}) {
+  const { centerlineObject, controlPoints } = useMemo(() => {
+    const curve = getSoftClipBandLoopCenterline();
+    const samples = curve.getPoints(400);
+    const geo = new THREE.BufferGeometry().setFromPoints(samples);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#00e5ff' }));
+    return {
+      centerlineObject: line,
+      controlPoints: getSoftClipBandLoopControlPoints(),
+    };
+  }, []);
+
+  const sweepGeo = useMemo(() => getSoftClipBandLoopSweepGeometry(), []);
+
+  const rotationRad: [number, number, number] = [
+    (transform.rotationDeg.x * Math.PI) / 180,
+    (transform.rotationDeg.y * Math.PI) / 180,
+    (transform.rotationDeg.z * Math.PI) / 180,
+  ];
+
+  return (
+    <group name="SoftClipBandLoopAttachedPreview" position={transform.translation} rotation={rotationRad}>
+      {showCenterline && <primitive object={centerlineObject} />}
+      {showControlPoints &&
+        controlPoints.map((p) => (
+          <mesh key={`attached-${p.id}`} position={p.position}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshBasicMaterial color={p.id === 'hook/end' || p.id === 'upperArm/end' ? '#00ff00' : '#ff8800'} />
+          </mesh>
+        ))}
+      {showSweepMesh && (
+        <mesh geometry={sweepGeo}>
+          <TitaniumMatDS />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 /** Soft Clip Pocket(Phase1)開発用プレビュー。GUIレビュー項目(Centerline Parameter
  *  Definition §8.1)に対応する表示トグルを個別に受け取る。
  *  Commit1(Centerline Construction): Centerline/Control Points。
@@ -1717,4 +1826,6 @@ export {
   SoftClipPocketPreview,
   // Soft Clip Band Loop (Hypothesis Geometry dev preview, docs/Soft_Clip_Centerline_Proposal_v6.json)
   SoftClipBandLoopPreview,
+  // Soft Clip Band Loop — Attached Preview (Phase B0, dev preview only, shoji Audit 2026-08-10)
+  SoftClipBandLoopAttachedPreview,
 };
