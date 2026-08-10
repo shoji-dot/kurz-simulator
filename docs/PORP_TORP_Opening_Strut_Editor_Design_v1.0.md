@@ -253,6 +253,16 @@ Reset・Export/Import・写真キャリブレーションボタン・全Camera P
 before initialization`を正しく検出した)。今後のバージョンアップ時もこのハーネスでの
 事前検証を行う。
 
+## 2026-08-10 追記: Candidate Shaft位置チェックポイント
+
+shojiが写真と照合してCandidate Shaftを`(cx=0.15, cy=0.43)`へ移動したJSONを共有(機能追加依頼では
+なく進捗共有)。EditorのCandidate初期値をこの値へ更新した(Opening形状側は前回から変更なし)。
+
+参考: この移動によりOpening↔Shaft(Slit candidate metric)のCandidate列は
+`h1-shaft=0.107mm / h2-shaft=0.0009mm(ほぼ接触) / h3-shaft=0.230mm`となった。hole2のスリット
+突起がShaft境界にほぼ接触する結果になっており、「hole2からShaftへ繋がるスリット」という意図と
+整合する形になっている(あくまでCandidate上の幾何学的観察であり、Evidence Aへの昇格ではない)。
+
 ## 実機確認手順（shoji指定、2026-08-08。次に行うのはこれのみで、追加実装ではない）
 
 Editorへの機能追加はここでいったん停止し、以下の順でshoji自身が実機確認する。目的は
