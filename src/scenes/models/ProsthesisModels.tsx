@@ -535,13 +535,17 @@ function SoftClipStem({ ghost }: { ghost?: boolean }) {
 // 統合)。旧`SoftClipWing`×2・`SoftClipBridge`はFrozen Band Loop(v7、27制御点)へ
 // 置換(Strangler Pattern、関数定義自体は削除せず残置——コード内でSafety/Scoring/
 // Pose Solver等からの外部参照が一切ない純粋描画要素であることをB1 Auditで確認済み)。
-// `SoftClipStem`は新Band Loopの27制御点(Hook/Pocket/LowerArm/RearFlex/UpperArm/
-// Bridge周辺のみ、"stem"に相当する区間はない)に対応する構造がなく、実測0.56mmのうち
-// 独立して按分されたEvidence基準の別部材のため無変更のまま維持する。
+//
+// **B1修正v2(2026-08-10、shoji実機Viewer指摘)**: 当初`SoftClipStem`(円錐状の小円柱)は
+// 新Band Loopの27制御点に対応する区間がない別部材として無変更のまま残していたが、
+// shojiが実機で「中部シャフトとBand Loopが接続していない」「Stemの円錐状パーツは
+// 不要」と指摘。Stemは中部シャフトとBand Loopを実際には橋渡ししておらず(両者の間に
+// 隙間が残ったまま浮いて見える)、視覚的に不要な部材と判断し描画を停止した(関数定義
+// 自体は削除せず残置、Strangler Pattern。中部シャフトとBand Loopの接続自体は
+// getSoftClipBandLoopDefaultAttachTransform()側のY方向オフセット修正で対応)。
 function SoftClipHead({ ghost }: { ghost?: boolean }) {
   return (
     <group>
-      <SoftClipStem ghost={ghost} />
       <SoftClipBandLoopAttached ghost={ghost} />
     </group>
   );
@@ -1055,23 +1059,29 @@ export function getSoftClipBandLoopProvisionalAnchor(): THREE.Vector3 {
 }
 
 /** Attached Preview既定Transform。translation=-仮アンカー(bridge/endをローカル原点へ
- *  移動)+Y方向CLIP_STEM_H補正、rotation=0°(shoji Audit指示どおり)。呼び出し側
+ *  移動)+Y方向オフセット補正、rotation=0°(shoji Audit指示どおり)。呼び出し側
  *  (SimScene.tsx・SoftClipBandLoopAttached)でshojiが上書き調整できる(Preview
  *  parameterであり、ここでの値をFrozenとみなさない)。
  *
- *  **B1修正(2026-08-10、shoji実機Viewer指摘「Problem1: ShaftがBand Loopを突き抜けて
- *  いる」への対応)**: 当初はbridge/endをy=0(headOff基準点、SoftClipStemの底面と同じ
- *  高さ)へ合わせていたが、これはSoftClipStem(高さCLIP_STEM_H=0.20mm、y=[0,0.20]で
- *  無変更のまま描画)の内部・背後にBand Loopの接続部が埋没する配置になっており、
- *  Stemの円柱がBand Loopを貫通して見える問題を引き起こしていた。修正として、
- *  Y方向にCLIP_STEM_H(0.20mm)だけ追加移動し、bridge/endをSoftClipStemの**上端**
- *  (y=CLIP_STEM_H、Neck上端)に合わせる(Stemの下端ではなく上端と接触させることで
- *  貫通を解消、Evidence基準の既存定数CLIP_STEM_Hを再利用しただけで新しい数値の
- *  捏造ではない)。X/Z方向・rotationは無変更。この値はまだshoji Viewer確認前の候補
- *  (Ty微調整の第一候補)であり、Frozenではない。 */
+ *  **B1修正v1(2026-08-10、「Shaft突き抜け」指摘への対応、Supersededでv2に置換)**:
+ *  当初はbridge/endをSoftClipStem上端(y=CLIP_STEM_H)へ合わせていたが、shoji実機
+ *  Viewer再確認で「中部シャフトとBand Loopが接続していない(隙間がある)」
+ *  「Stemの円錐状パーツは不要」と判明(v1のCLIP_STEM_Hオフセットはこの後v2で置換)。
+ *
+ *  **B1修正v2(2026-08-10、現行)**: `SoftClipHead()`から`SoftClipStem`の描画を停止した
+ *  ため、Stem基準のオフセットではなく、`ProsthesisModel`側の`headOff`式
+ *  (`len/2 + 0.15`、SoftClipHeadの局所y=0が物理的なShaft Middle上端より常に0.15mm
+ *  上にある)をそのまま打ち消す方向で合わせる。bridge/endを局所y=-0.15(物理的な
+ *  Shaft Middle上端と同じ高さ)に一致させることで、中部シャフトとBand Loopの接続部を
+ *  隙間なく合わせる(新しい数式ではなく、ProsthesisModel既存のheadOff定数0.15を
+ *  そのまま参照した打ち消し)。X/Z方向・rotationは無変更。この値はまだshoji Viewer
+ *  再確認前の候補であり、Frozenではない(隙間・埋没具合を見て追加のTy微調整が必要に
+ *  なる可能性あり)。 */
 export function getSoftClipBandLoopDefaultAttachTransform(): SoftClipBandLoopAttachTransform {
   const translation = getSoftClipBandLoopProvisionalAnchor().multiplyScalar(-1);
-  translation.y += CLIP_STEM_H;
+  // ProsthesisModelのheadOff = len/2 + 0.15 を打ち消す(新しい数式の追加ではなく、
+  // 既存のheadOff定数0.15をそのまま参照)。
+  translation.y += -0.15;
   return {
     translation,
     rotationDeg: { x: 0, y: 0, z: 0 },
