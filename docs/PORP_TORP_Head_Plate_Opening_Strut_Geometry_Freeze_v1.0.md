@@ -2,7 +2,7 @@
 
 **Status**: Completed（Final Audit & Geometry Freeze）
 **Date**: 2026-08-10
-**対象コミット**: `492d359`（`feat(porp-torp): BellTop() Opening polygon実装...`、本Freezeが凍結する最終状態。origin/main未push、shoji側でのローカルpush待ち）
+**対象コミット**: `492d359`（`feat(porp-torp): BellTop() Opening polygon実装...`、本Freezeが凍結する最終状態。`git fetch`で確認済み、shojiにより既にorigin/mainへpush済み。本文書自体のcommit`edf9a3f`はpush待ち）
 **対象ファイル/関数**: `src/scenes/models/ProsthesisModels.tsx` `BellTop()`（PORP/TORP共通ヘッドプレート、`headType:'BELL_TOP'`）
 **shoji方針**: Editor Candidate（写真トレース・実機確認済み）を実アプリで最終確認し「良いと思います」。Soft Clip Band Loopで確立したAudit→Freezeサイクルを本Geometryにも適用する。
 
