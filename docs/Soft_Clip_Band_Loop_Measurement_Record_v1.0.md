@@ -58,6 +58,18 @@ Confirmed/Pending区分を解消するための測定依頼テンプレート。
 全長「約6.0〜7.5mm」はshojiの見立て(Evidence B、直接計測ではない)であるため、
 §1-1で直接実測値があれば更新をお願いします。
 
+**Addendum(2026-08-10、shoji確認・Production側修正、本表の値は無変更)**: 上表の
+「Band Loop 幅(断面長辺) 0.25mm」「Band Loop 厚さ(断面短辺) 0.10mm」は、実測値
+そのものとして**引き続き有効**(Evidence A+、変更なし)。2026-08-10のAuditで、
+Production実装(`ProsthesisModels.tsx`の`SOFT_CLIP_BAND_LOOP_WIDTH_MM`/
+`SOFT_CLIP_BAND_LOOP_THICKNESS_MM`)がこの2つの実測値をSweep断面のlocal axis
+(wHat/nHat)へ割り当てる**向き**を実物と逆に実装していたことが判明し、値の割り当て
+方向のみを修正した(commit `39d8f3a`)。**測定値自体を修正したものではなく、コード側の
+軸割り当て誤りの修正**である。詳細は`docs/Soft_Clip_Band_Loop_Geometry_Freeze_v1.0.md`
+§6 Addendumを参照。本表の「幅」「厚さ」という名称は、実測時の呼称(断面長辺/断面短辺)を
+維持しており、Production側のlocal axis名(wHat/nHat)とは一致しない場合がある点に
+注意(名称の一致よりも3D空間上でどちらの方向の寸法かが本質、Freeze v1.0 §6.1参照)。
+
 **Pocket Depth Definition(固定、2026-07-31確定)**: 後から同じ測定が再現できるよう、
 Pocket Depthの定義を以下に固定する。
 
