@@ -530,13 +530,19 @@ function SoftClipStem({ ghost }: { ghost?: boolean }) {
   );
 }
 
+// B1 Production Integration(2026-08-10、shoji Audit承認+Viewer確認PASS、
+// `Soft_Clip_Band_Loop_Geometry_Freeze_v1.0.md`のFrozen Band Loopを正式にProductionへ
+// 統合)。旧`SoftClipWing`×2・`SoftClipBridge`はFrozen Band Loop(v7、27制御点)へ
+// 置換(Strangler Pattern、関数定義自体は削除せず残置——コード内でSafety/Scoring/
+// Pose Solver等からの外部参照が一切ない純粋描画要素であることをB1 Auditで確認済み)。
+// `SoftClipStem`は新Band Loopの27制御点(Hook/Pocket/LowerArm/RearFlex/UpperArm/
+// Bridge周辺のみ、"stem"に相当する区間はない)に対応する構造がなく、実測0.56mmのうち
+// 独立して按分されたEvidence基準の別部材のため無変更のまま維持する。
 function SoftClipHead({ ghost }: { ghost?: boolean }) {
   return (
     <group>
-      <SoftClipStem   ghost={ghost} />
-      <SoftClipBridge ghost={ghost} />
-      <SoftClipWing side={ 1} ghost={ghost} />
-      <SoftClipWing side={-1} ghost={ghost} />
+      <SoftClipStem ghost={ghost} />
+      <SoftClipBandLoopAttached ghost={ghost} />
     </group>
   );
 }
@@ -1109,6 +1115,43 @@ function SoftClipBandLoopAttachedPreview({
           <TitaniumMatDS />
         </mesh>
       )}
+    </group>
+  );
+}
+
+// ================================================================
+// SOFT CLIP BAND LOOP — PRODUCTION (Phase B1、2026-08-10)
+// ================================================================
+// shoji Audit承認+実機Viewer確認PASS(B0のSoftClipBandLoopAttachedPreviewに対して)を受け、
+// SoftClipHead()から呼ばれるProduction用コンポーネント。SoftClipBandLoopAttachedPreview
+// (dev debug可視化: centerline線・control point球を含む)とは異なり、meshのみを描画する
+// (通常の訓練シーンでcontrol point球等のデバッグ表示が見えてしまうことを避けるため)。
+// Geometry生成はgetSoftClipBandLoopSweepGeometry()をそのまま呼ぶのみで新規Geometryロジック
+// は追加していない。マテリアルはB0でshojiが視覚確認した見え方と一致させるため
+// TitaniumMatDS(double-sided、Attached Previewと同一)を使う。
+function SoftClipBandLoopMesh({ ghost }: { ghost?: boolean }) {
+  const sweepGeo = useMemo(() => getSoftClipBandLoopSweepGeometry(), []);
+  return (
+    <mesh geometry={sweepGeo}>
+      <TitaniumMatDS ghost={ghost} />
+    </mesh>
+  );
+}
+
+/** SoftClipHead()から呼ばれる、Band Loopを正しい位置(B0でshojiがViewer確認したTransform)
+ *  へ配置するGroup。TransformはgetSoftClipBandLoopDefaultAttachTransform()
+ *  (translation=-仮アンカー"bridge/end"、rotation=0°,0°,0°)をそのまま使う——B1のために
+ *  rotation再計算・anchor変更等は一切行っていない(shoji指示どおり、B0の値をそのまま移植)。 */
+function SoftClipBandLoopAttached({ ghost }: { ghost?: boolean }) {
+  const transform = getSoftClipBandLoopDefaultAttachTransform();
+  const rotationRad: [number, number, number] = [
+    (transform.rotationDeg.x * Math.PI) / 180,
+    (transform.rotationDeg.y * Math.PI) / 180,
+    (transform.rotationDeg.z * Math.PI) / 180,
+  ];
+  return (
+    <group name="SoftClipBandLoopProduction" position={transform.translation} rotation={rotationRad}>
+      <SoftClipBandLoopMesh ghost={ghost} />
     </group>
   );
 }
