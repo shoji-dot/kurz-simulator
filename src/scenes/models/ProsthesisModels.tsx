@@ -781,10 +781,31 @@ export function getSoftClipPocketVariableWidthSweepGeometry(): THREE.BufferGeome
 // 影響しない(Strangler Pattern、Small Change、Pocket Phase1と同じ位置づけ)。
 // 開発用プレビュー([[SoftClipBandLoopPreview]])からのみ、?debug=coords限定で参照される。**
 
-/** Band Loop断面: 幅(Evidence A+、Measurement Record v1.0 §0)。 */
-export const SOFT_CLIP_BAND_LOOP_WIDTH_MM = 0.25;
-/** Band Loop断面: 厚さ(Evidence A+、Measurement Record v1.0 §0)。 */
-export const SOFT_CLIP_BAND_LOOP_THICKNESS_MM = 0.10;
+// **断面方向の入れ替え(2026-08-10、shoji Audit承認、Case A/B数値比較による)**:
+// 実測値そのもの(大きい方≈0.24mm・小さい方≈0.10mm、Evidence A+、Measurement Record
+// v1.0 §0)は変更していない。変更したのは「どちらの値をwHat軸(cross(nHat,tangent)、
+// centerline接線に応じて向きが変わる)に、どちらをnHat軸(固定ローカルZ)に割り当てるか」
+// のみ。Node検証スクリプト(bandloop_check/check4_caseAB.mjs、リポジトリ外)でCase A
+// (旧: wHat=0.25/nHat=0.10)とCase B(新: wHat=0.10/nHat=0.25)を同一Centerline・同一
+// Shaft位置・同一rotationで比較した結果:
+//   - Z方向(nHat軸、常に固定ローカルZ): Case Aの厚さ0.10mmはShaft直径0.20mmより
+//     小さく片側0.05mmが露出・貫通(全周貫通頂点12/1604)。Case Bの0.25mmはShaft直径
+//     0.20mmを上回り完全にカバー(貫通頂点0/1604)。
+//   - X方向(bridge/end接続点付近、centerline接線がWorld X軸に近いため): Case A・
+//     Case Bともに断面のX方向extentはほぼゼロ(t=0.167〜0.227で0.0005〜0.0705mm)。
+//     Case BはwHat軸の値を0.25→0.10に縮小したため、X方向extentはCase Aよりむしろ
+//     悪化している(値はほぼ半減)。この部分はCenterline/Sweep frameの構造的制約が
+//     原因であり、断面方向の入れ替えでは解決しない(shoji Audit結論、対応未定)。
+// 上記を踏まえ、shojiの承認によりZ方向の改善(Case B)を採用。X方向の露出は残存する
+// 既知の限界として記録する。
+/** Band Loop断面: wHat軸(cross(nHat,tangent)、centerline接線に応じて向きが変わる方向)
+ *  の全幅(mm)。Evidence A+の実測値のうち**小さい方**(≈0.10mm、Measurement Record
+ *  v1.0 §0)を割り当てる(2026-08-10 入れ替え後、上記コメント参照)。 */
+export const SOFT_CLIP_BAND_LOOP_WIDTH_MM = 0.10;
+/** Band Loop断面: nHat軸(固定ローカルZ、SOFT_CLIP_BAND_LOOP_PLANE_NORMAL方向)の全幅
+ *  (mm)。Evidence A+の実測値のうち**大きい方**(≈0.24mm、Measurement Record v1.0 §0)
+ *  を割り当てる(2026-08-10 入れ替え後、上記コメント参照)。 */
+export const SOFT_CLIP_BAND_LOOP_THICKNESS_MM = 0.25;
 
 interface SoftClipBandLoopControlPoint {
   id: string;
