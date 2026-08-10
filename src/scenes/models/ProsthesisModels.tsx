@@ -277,14 +277,27 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 // ── BELL TOP head plate (TTP-VARIAC PORP) ────────────────────────
 //   Structure (ChatGPT + real photo analysis 2026-06-24):
 //   - Outer oval ring (portrait: rx=1.30=short2.6mm, ry=1.80=long3.6mm)
-//   - 3 fenestrations:
-//       [1] Top:    small oval, center(0, +0.52)
-//       [2] BotL:   large oval, center(-0.26, -0.20)
-//       [3] BotR:   large oval, center(+0.26, -0.20)
-//   - Elastic locking strut = material between holes (T-shape):
-//       Horizontal bar: y=0.24→0.32 (between top hole and bottom holes)
-//       Vertical connector: x=-0.04→+0.04 (between left and right holes)
+//   - 3 fenestrations (Candidate polygon boundaries, see below)
 //   - Shaft fixation pin on strut (small cylinder protrusion on top face)
+//
+//   2026-08-10 revision (shoji, Editor v1.3 Candidate → Production):
+//   hole1/hole2/hole3 boundaries replaced from ellipse approximation to the
+//   polygon boundaries shoji traced against calibrated top-down photos in
+//   `PORP_TORP_HeadPlate_Opening_Strut_Editor_v1.html` (Candidate JSON,
+//   timestamp 2026-08-10T01:00:38.439Z). Points are taken verbatim from the
+//   Candidate export (no re-fit to ellipse, no smoothing/averaging).
+//   Candidate Shaft was found at (0.1084, 0.3617) relative to the disc's
+//   original (Evidence A) coordinate frame; per shoji's instruction, the
+//   physical Shaft Axis/Pin/Collar are NOT moved (Pose Solver/Coordinate
+//   Integration untouched). Instead the disc + all 3 holes are translated by
+//   -(0.1084, 0.3617) so the shaft-relative geometry matches the Candidate
+//   while the shaft itself stays at this group's local origin, exactly as
+//   before. This is a pure coordinate re-expression, not a topology change:
+//   Shape → Path(hole) → ExtrudeGeometry is unchanged.
+//   Status: unverified-candidate (shoji visual judgment, not Evidence A).
+//   Geometry validated 2026-08-10 (shapely + earcut, sandbox): all 3 holes
+//   simple/valid, no self-intersection, no mutual overlap, fully inside the
+//   translated disc, earcut triangulated area matches disc−holes to 100.000%.
 // ================================================================
 function BellTop({ ghost }: { ghost?: boolean }) {
   const discGeo = useMemo<THREE.BufferGeometry>(() => {
@@ -298,29 +311,112 @@ function BellTop({ ghost }: { ghost?: boolean }) {
     };
 
     // ── Outer portrait oval ─────────────────────────────────────────────
-    // 20× caliper confirmed: H 71.6mm → 3.58mm (ry=1.80), W 51.5mm → 2.575mm (rx=1.30)
-    // Disc geometric center offset from shaft: (+0.14, -0.24) [unchanged]
-    const shape = new THREE.Shape(ellipsePoints(+0.14, -0.24, 1.30, 1.80));
+    // 20× caliper confirmed: H 71.6mm → 3.58mm (ry=1.80), W 51.5mm → 2.575mm (rx=1.30) [Evidence A, unchanged]
+    // Disc geometric center: originally (+0.14, -0.24) relative to shaft (Evidence A).
+    // 2026-08-10: re-expressed relative to Candidate Shaft position (0.1084, 0.3617) so the
+    // shaft (pin/collar/shaft rod, unmoved) lands back at this group's local origin (0,0).
+    // rx/ry/outer-ring shape itself: unchanged.
+    const shape = new THREE.Shape(ellipsePoints(0.031574, -0.601665, 1.30, 1.80));
 
-    // ── Fenestration 1: UPPER (horizontal ellipse) ───────────────────────
-    // Caliper: W 25.6/20=1.28mm → rx=0.64; H 11.8/20=0.59mm → ry=0.295
-    // Top rim 6.2/20=0.31mm: disc_top(+1.56)−hole_top(+1.25)=0.31 ✓
-    // Disc-space center: (0, +1.195) → shaft-space: (+0.14, +0.955)
-    const hole1 = new THREE.Path(ellipsePoints(+0.14, +0.955, 0.64, 0.295));
+    // ── Fenestration 1: UPPER ─────────────────────────────────────────
+    // Baseline ellipse (Evidence A, caliper): center shaft-space (+0.14, +0.955), rx=0.64, ry=0.295.
+    // 2026-08-10: boundary replaced with Candidate polygon (20 pts, shoji photo-traced), shifted by
+    // -(0.1084, 0.3617) to keep shaft at local origin. Not Evidence A — see file-header note above.
+    // 2026-08-10 追記: shoji visual review in the live 3D app found hand-traced jaggedness; applied one
+    // pass of mild closed-curve smoothing (weighted moving average, w=0.75 self / 0.125+0.125 neighbors)
+    // to reduce local zigzag while preserving traced shape (area change ≈ -3%, re-validated: simple,
+    // no self-intersection, inside disc, no hole-hole overlap, earcut 100% area match).
+    const hole1 = new THREE.Path([
+      new THREE.Vector2(0.704746, 0.443782),
+      new THREE.Vector2(0.638291, 0.597000),
+      new THREE.Vector2(0.558913, 0.684377),
+      new THREE.Vector2(0.412464, 0.797597),
+      new THREE.Vector2(0.187868, 0.889897),
+      new THREE.Vector2(0.002038, 0.916356),
+      new THREE.Vector2(-0.185638, 0.875745),
+      new THREE.Vector2(-0.426232, 0.744679),
+      new THREE.Vector2(-0.600370, 0.593307),
+      new THREE.Vector2(-0.648366, 0.462242),
+      new THREE.Vector2(-0.616369, 0.315178),
+      new THREE.Vector2(-0.520993, 0.185343),
+      new THREE.Vector2(-0.345008, 0.131194),
+      new THREE.Vector2(-0.202251, 0.178575),
+      new THREE.Vector2(-0.075493, 0.251799),
+      new THREE.Vector2(0.085723, 0.268413),
+      new THREE.Vector2(0.251247, 0.187804),
+      new THREE.Vector2(0.405695, 0.118272),
+      new THREE.Vector2(0.557682, 0.137348),
+      new THREE.Vector2(0.688748, 0.269029),
+    ]);
     shape.holes.push(hole1);
 
-    // ── Fenestration 2: LOWER-LEFT (vertical ellipse) ───────────────────
-    // Caliper: W 14.9/20=0.745mm → rx=0.37; H 25.9/20=1.295mm → ry=0.65
-    // Disc-space center: (-0.68, -0.65) → shaft-space: (-0.54, -0.89)
-    // Strut to hole3: 0.37mm horizontal gap ✓
-    const hole2 = new THREE.Path(ellipsePoints(-0.54, -0.89, 0.37, 0.65));
+    // ── Fenestration 2: LOWER-LEFT ────────────────────────────────────
+    // Baseline ellipse (Evidence A, caliper): center shaft-space (-0.54, -0.89), rx=0.37, ry=0.65.
+    // Strut to hole3: 0.37mm horizontal gap [Evidence A, unchanged — do not recompute from below].
+    // 2026-08-10: boundary replaced with Candidate polygon (24 pts, shoji photo-traced). This
+    // opening's upper portion wraps toward the Shaft (candidate h2↔shaft ≈ 0.019mm gap) — this is
+    // the "slit" structure shoji identified from photos; it is expressed purely via this polygon's
+    // boundary, no separate Slit primitive was added. Not Evidence A.
+    // 2026-08-10 追記: same mild smoothing pass applied as hole1 (w=0.75). The Shaft-wrap portion
+    // (upper part of this hole, nearest the Collar) remains intact after smoothing — re-validated
+    // it still overlaps/touches the r=0.10 Shaft collar reference circle, same as before smoothing.
+    const hole2 = new THREE.Path([
+      new THREE.Vector2(-0.271143, -0.936445),
+      new THREE.Vector2(-0.254300, -0.700987),
+      new THREE.Vector2(-0.300016, -0.457044),
+      new THREE.Vector2(-0.360826, -0.248090),
+      new THREE.Vector2(-0.251883, -0.115863),
+      new THREE.Vector2(-0.139232, -0.067748),
+      new THREE.Vector2(-0.047632, -0.120500),
+      new THREE.Vector2(0.088755, -0.089058),
+      new THREE.Vector2(0.142957, 0.017206),
+      new THREE.Vector2(0.074405, 0.124458),
+      new THREE.Vector2(-0.080839, 0.114623),
+      new THREE.Vector2(-0.182999, 0.006374),
+      new THREE.Vector2(-0.488081, -0.093689),
+      new THREE.Vector2(-0.736457, -0.206205),
+      new THREE.Vector2(-0.928672, -0.370539),
+      new THREE.Vector2(-1.022995, -0.567931),
+      new THREE.Vector2(-1.024992, -0.825068),
+      new THREE.Vector2(-0.984777, -1.064123),
+      new THREE.Vector2(-0.917416, -1.261656),
+      new THREE.Vector2(-0.796831, -1.398753),
+      new THREE.Vector2(-0.629147, -1.464623),
+      new THREE.Vector2(-0.499869, -1.407614),
+      new THREE.Vector2(-0.418975, -1.286564),
+      new THREE.Vector2(-0.329259, -1.125449),
+    ]);
     shape.holes.push(hole2);
 
-    // ── Fenestration 3: LOWER-RIGHT (large vertical ellipse / D-shape) ──
-    // Caliper: W 19.5/20=0.975mm → rx=0.49; H 41.4/20=2.07mm → ry=1.035
-    // Strut below hole1: 0.15mm; bottom rim: 0.31mm ✓
-    // Disc-space center: (+0.55, -0.285) → shaft-space: (+0.69, -0.525)
-    const hole3 = new THREE.Path(ellipsePoints(+0.69, -0.525, 0.49, 1.035));
+    // ── Fenestration 3: LOWER-RIGHT ───────────────────────────────────
+    // Baseline ellipse (Evidence A, caliper): center shaft-space (+0.69, -0.525), rx=0.49, ry=1.035.
+    // Strut below hole1: 0.15mm [Evidence A, unchanged — do not recompute from below].
+    // 2026-08-10: boundary replaced with Candidate polygon (22 pts, shoji photo-traced). Not Evidence A.
+    // 2026-08-10 追記: same mild smoothing pass applied as hole1/hole2 (w=0.75).
+    const hole3 = new THREE.Path([
+      new THREE.Vector2(0.589485, -1.757215),
+      new THREE.Vector2(0.716335, -1.558546),
+      new THREE.Vector2(0.827046, -1.343679),
+      new THREE.Vector2(0.904226, -1.064436),
+      new THREE.Vector2(0.962783, -0.767095),
+      new THREE.Vector2(0.931512, -0.451940),
+      new THREE.Vector2(0.797386, -0.289186),
+      new THREE.Vector2(0.534570, -0.178706),
+      new THREE.Vector2(0.286636, -0.187881),
+      new THREE.Vector2(0.118059, -0.279602),
+      new THREE.Vector2(-0.063430, -0.341574),
+      new THREE.Vector2(-0.089277, -0.490289),
+      new THREE.Vector2(-0.065954, -0.698344),
+      new THREE.Vector2(-0.090056, -0.993972),
+      new THREE.Vector2(-0.179996, -1.245998),
+      new THREE.Vector2(-0.325003, -1.466142),
+      new THREE.Vector2(-0.477070, -1.664229),
+      new THREE.Vector2(-0.469706, -1.884746),
+      new THREE.Vector2(-0.319766, -2.033679),
+      new THREE.Vector2(-0.075325, -2.100282),
+      new THREE.Vector2(0.189110, -2.067052),
+      new THREE.Vector2(0.399330, -1.923074),
+    ]);
     shape.holes.push(hole3);
 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.10, bevelEnabled: false });
