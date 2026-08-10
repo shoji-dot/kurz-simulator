@@ -1055,11 +1055,25 @@ export function getSoftClipBandLoopProvisionalAnchor(): THREE.Vector3 {
 }
 
 /** Attached Preview既定Transform。translation=-仮アンカー(bridge/endをローカル原点へ
- *  移動)、rotation=0°(shoji Audit指示どおり)。呼び出し側(SimScene.tsx)のUIで
- *  shojiが上書き調整できる(Preview parameterであり、ここでの値をFrozenとみなさない)。 */
+ *  移動)+Y方向CLIP_STEM_H補正、rotation=0°(shoji Audit指示どおり)。呼び出し側
+ *  (SimScene.tsx・SoftClipBandLoopAttached)でshojiが上書き調整できる(Preview
+ *  parameterであり、ここでの値をFrozenとみなさない)。
+ *
+ *  **B1修正(2026-08-10、shoji実機Viewer指摘「Problem1: ShaftがBand Loopを突き抜けて
+ *  いる」への対応)**: 当初はbridge/endをy=0(headOff基準点、SoftClipStemの底面と同じ
+ *  高さ)へ合わせていたが、これはSoftClipStem(高さCLIP_STEM_H=0.20mm、y=[0,0.20]で
+ *  無変更のまま描画)の内部・背後にBand Loopの接続部が埋没する配置になっており、
+ *  Stemの円柱がBand Loopを貫通して見える問題を引き起こしていた。修正として、
+ *  Y方向にCLIP_STEM_H(0.20mm)だけ追加移動し、bridge/endをSoftClipStemの**上端**
+ *  (y=CLIP_STEM_H、Neck上端)に合わせる(Stemの下端ではなく上端と接触させることで
+ *  貫通を解消、Evidence基準の既存定数CLIP_STEM_Hを再利用しただけで新しい数値の
+ *  捏造ではない)。X/Z方向・rotationは無変更。この値はまだshoji Viewer確認前の候補
+ *  (Ty微調整の第一候補)であり、Frozenではない。 */
 export function getSoftClipBandLoopDefaultAttachTransform(): SoftClipBandLoopAttachTransform {
+  const translation = getSoftClipBandLoopProvisionalAnchor().multiplyScalar(-1);
+  translation.y += CLIP_STEM_H;
   return {
-    translation: getSoftClipBandLoopProvisionalAnchor().multiplyScalar(-1),
+    translation,
     rotationDeg: { x: 0, y: 0, z: 0 },
   };
 }
