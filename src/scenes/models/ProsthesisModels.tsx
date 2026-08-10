@@ -1058,56 +1058,34 @@ export function getSoftClipBandLoopProvisionalAnchor(): THREE.Vector3 {
   return p.position.clone();
 }
 
-/** Attached Preview既定Transform。呼び出し側(SimScene.tsx・SoftClipBandLoopAttached)で
- *  shojiが上書き調整できる(Preview parameterであり、ここでの値をFrozenとみなさない)。
+/** Attached Preview既定Transform。translation=-仮アンカー(bridge/endをローカル原点へ
+ *  移動)+Y方向オフセット補正、rotation=0°(shoji Audit指示どおり)。呼び出し側
+ *  (SimScene.tsx・SoftClipBandLoopAttached)でshojiが上書き調整できる(Preview
+ *  parameterであり、ここでの値をFrozenとみなさない)。
  *
  *  **B1修正v1(2026-08-10、「Shaft突き抜け」指摘への対応、Supersededでv2に置換)**:
  *  当初はbridge/endをSoftClipStem上端(y=CLIP_STEM_H)へ合わせていたが、shoji実機
  *  Viewer再確認で「中部シャフトとBand Loopが接続していない(隙間がある)」
  *  「Stemの円錐状パーツは不要」と判明(v1のCLIP_STEM_Hオフセットはこの後v2で置換)。
  *
- *  **B1修正v2(2026-08-10、Supersededでv3に置換)**: `SoftClipStem`の描画を停止し、
- *  translation.y=-0.15(ProsthesisModelのheadOff=len/2+0.15を打ち消し、bridge/endを
- *  物理的なShaft Middle上端に一致)のみで接続を試みたが、rotation=0°のままだった
- *  ため次のv3課題(下記)が残っていた。
- *
- *  **B1修正v3(2026-08-10、現行)**: shoji実機Viewer再々確認で「中部シャフトがBand Loop
- *  に埋没している」と判明。Node検証スクリプト(`bandloop_check/check.mjs`)でy=-0.15を
- *  translation.y=-0.15・rotation=0°の状態を数値検証したところ、Hook領域
- *  (centerline y最小=-0.823、bridge/end基準で-0.673mm)がShaft Middle円柱
- *  (半径0.10mm、y≦-0.15の範囲に存在)へ最短0.05mmまで接近=**実際に貫通していることを
- *  確認**(Width/Thicknessの値の問題ではない——SOFT_CLIP_BAND_LOOP_WIDTH_MM=0.25mm・
- *  THICKNESS_MM=0.10mmはshoji申告の目視推定値0.24mm/0.1mmとほぼ一致しており、
- *  この2定数は変更していない)。原因はrotation=0°のままだと、Editorローカル座標系での
- *  Band Loopの「平面」(元々z≈一定の平面Curve)がShaft軸(Y軸)を含む向きのまま
- *  (=ループが軸に対して「縦向き」)残ってしまい、Hook等ループ各部のY方向の起伏
- *  (bridge/end比で-0.67mm〜+0.84mm)がそのままShaft軸近傍のY範囲と重なってしまう
- *  ことだった。X軸+90°回転を適用したところ、centerlineのY範囲が[-0.150,-0.141]まで
- *  ほぼ平坦になり(ループがShaft上端にほぼ水平に「乗る」向きへ変化)、Shaft円柱との
- *  最短距離が0.125mm(半径0.10mmより大、貫通なし)まで改善することをNode検証スクリプト
- *  (`bandloop_check/check2.mjs`)で確認済み。bridge/endは引き続きlocal(0,-0.15,0)
- *  (物理的なShaft Middle上端)に一致させたまま、その回転後の位置を打ち消すよう
- *  translationを再計算している(anchor自体・27制御点は無変更)。
- *
- *  **重要な留保**: X軸+90°回転は「貫通を解消する」という幾何学的制約のみから導いた
- *  候補であり、Hook/Pocket/UpperArm等の向き(実物としてどちらを向くべきか)は未検証
- *  (Evidence B相当、-90°回転や別軸回転が正しい可能性も残る)。Frozenではなく、
- *  shoji Viewer確認が必須。 */
+ *  **B1修正v2(2026-08-10、現行)**: `SoftClipHead()`から`SoftClipStem`の描画を停止した
+ *  ため、Stem基準のオフセットではなく、`ProsthesisModel`側の`headOff`式
+ *  (`len/2 + 0.15`、SoftClipHeadの局所y=0が物理的なShaft Middle上端より常に0.15mm
+ *  上にある)をそのまま打ち消す方向で合わせる。bridge/endを局所y=-0.15(物理的な
+ *  Shaft Middle上端と同じ高さ)に一致させることで、中部シャフトとBand Loopの接続部を
+ *  隙間なく合わせる(新しい数式ではなく、ProsthesisModel既存のheadOff定数0.15を
+ *  そのまま参照した打ち消し)。X/Z方向・rotationは無変更。この値はまだshoji Viewer
+ *  再確認前の候補であり、Frozenではない(隙間・埋没具合を見て追加のTy微調整が必要に
+ *  なる可能性あり)。 */
 export function getSoftClipBandLoopDefaultAttachTransform(): SoftClipBandLoopAttachTransform {
-  const rotationDeg = { x: 90, y: 0, z: 0 };
-  const rotationEuler = new THREE.Euler(
-    (rotationDeg.x * Math.PI) / 180,
-    (rotationDeg.y * Math.PI) / 180,
-    (rotationDeg.z * Math.PI) / 180,
-    'XYZ',
-  );
-  const anchor = getSoftClipBandLoopProvisionalAnchor();
-  const rotatedAnchor = anchor.clone().applyEuler(rotationEuler);
-  // 物理的なShaft Middle上端(local y=-0.15、ProsthesisModelのheadOff=len/2+0.15を
-  // 打ち消す値)。回転後のbridge/endがこの点に一致するようtranslationを逆算する。
-  const targetAnchorLocal = new THREE.Vector3(0, -0.15, 0);
-  const translation = targetAnchorLocal.clone().sub(rotatedAnchor);
-  return { translation, rotationDeg };
+  const translation = getSoftClipBandLoopProvisionalAnchor().multiplyScalar(-1);
+  // ProsthesisModelのheadOff = len/2 + 0.15 を打ち消す(新しい数式の追加ではなく、
+  // 既存のheadOff定数0.15をそのまま参照)。
+  translation.y += -0.15;
+  return {
+    translation,
+    rotationDeg: { x: 0, y: 0, z: 0 },
+  };
 }
 
 /** Band Loop(27制御点・Sweep Meshとも無変更)をShaft座標系上に置くための単一Group。
