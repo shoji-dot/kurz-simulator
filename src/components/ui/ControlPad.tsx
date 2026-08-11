@@ -57,6 +57,11 @@ export function ControlPad() {
   const rotate = (axis: 'tilt' | 'tiltZ', sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
     useSimStore.getState().rotateSelectedObject(axis, sign * rotateStepDeg(info.fast, info.fine));
   };
+  // Phase1-B Step4: shaft roll（interactionShaftRollDeg、PlacementStateの外側）。
+  // 既存のROTATION_STEP_DEG/FINE/FAST定数をそのまま再利用する。
+  const rotateShaftRoll = (sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
+    useSimStore.getState().rotateShaftRoll(sign * rotateStepDeg(info.fast, info.fine));
+  };
 
   // 折りたたみ時: 小さな展開チップのみ表示（3Dビューを塞がない）
   if (!expanded) {
@@ -119,6 +124,15 @@ export function ControlPad() {
         <HoldButton ariaLabel="後傾（前後傾斜を後方向へ）" label="後傾" tone="neutral" onTick={rotate('tilt', -1)} style={{ fontSize: 12 }} />
         <HoldButton ariaLabel="左傾（左右傾斜を左方向へ）" label="左傾" tone="neutral" onTick={rotate('tiltZ', -1)} style={{ fontSize: 12 }} />
         <HoldButton ariaLabel="右傾（左右傾斜を右方向へ）" label="右傾" tone="neutral" onTick={rotate('tiltZ', 1)} style={{ fontSize: 12 }} />
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '8px 0 4px' }} />
+
+      {/* ── Shaft Roll（Phase1-B Step4、interactionShaftRollDeg） ── */}
+      <div style={sectionLabelStyle}>シャフト回転</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+        <HoldButton ariaLabel="シャフトを反時計回りに回転" label="↺" tone="neutral" onTick={rotateShaftRoll(-1)} style={{ fontSize: 14 }} />
+        <HoldButton ariaLabel="シャフトを時計回りに回転" label="↻" tone="neutral" onTick={rotateShaftRoll(1)} style={{ fontSize: 14 }} />
       </div>
     </div>
   );
