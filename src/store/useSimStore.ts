@@ -101,6 +101,14 @@ interface SimStore {
   safetyScore: number | null;
   safetyFeedback: SafetyFeedback[]; // Phase21.2: 型のみSafetyFeedback[]へ同期（describeSafetyAlert()のAPI変更に追従、ロジック変更なし）
 
+  /**
+   * Phase1-B Step5: Direct Manipulation UXのshaft roll角度（度、±180クランプ）。
+   * PlacementStateの外側に置く「並置」パターン（interactionFlagsと同じ）。描画側でのみ
+   * post-multiplyとして反映し、computeScore()/computeSafety()の入力には一切渡さない
+   * （Implementation Prompt §3 #1）。Case切替・resetSimulationで0にリセットする（§3 #2）。
+   */
+  interactionShaftRollDeg: number;
+
   setScreen: (s: Screen) => void;
   setLearningTab: (t: LearningTab) => void;
   setSimStep: (s: SimStep) => void;
@@ -114,6 +122,9 @@ interface SimStore {
   /** Phase22.2 GUI Follow-up P1: Shift+矢印キー・将来のボタンUIから共通で呼ぶ、単一軸の
    *  回転微調整関数。angleTilt(前後傾斜)/angleTiltZ(左右傾斜)へ±180クランプ付きで加算するのみ。 */
   rotateSelectedObject: (axis: 'tilt' | 'tiltZ', deltaDeg: number) => void;
+  /** Phase1-B Step5: ControlPadのshaft roll(↺/↻)ボタンから呼ぶ、単一軸の回転微調整関数。
+   *  interactionShaftRollDegへ±180クランプ付きで加算するのみ。PlacementStateには一切触れない。 */
+  rotateShaftRoll: (deltaDeg: number) => void;
   /** Phase17.2: サイズ/位置/角度いずれかの操作イベント発火時に呼ぶ。値の一致では判定しない。 */
   markSizeTouched: () => void;
   markPositionTouched: () => void;
@@ -167,6 +178,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
   safetyAlerts: [],
   safetyScore: null,
   safetyFeedback: [],
+  interactionShaftRollDeg: 0,
 
   setScreen: (s) => set({ screen: s }),
   setLearningTab: (t) => set({ learningTab: t }),
@@ -179,6 +191,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     safetyAlerts: [],
     safetyScore: null,
     safetyFeedback: [],
+    interactionShaftRollDeg: 0,
   }),
   setSelectedProduct: (p) => set({ selectedProduct: p }),
   updatePlacement: (p) => set((s) => ({ placement: { ...s.placement, ...p } })),
@@ -202,6 +215,9 @@ export const useSimStore = create<SimStore>((set, get) => ({
       interactionFlags: s.interactionFlags.angleTouched ? s.interactionFlags : { ...s.interactionFlags, angleTouched: true },
     };
   }),
+  rotateShaftRoll: (deltaDeg) => set((s) => ({
+    interactionShaftRollDeg: clampAngleDeg(s.interactionShaftRollDeg + deltaDeg),
+  })),
   markSizeTouched: () => set((s) =>
     s.interactionFlags.sizeTouched ? s : { interactionFlags: { ...s.interactionFlags, sizeTouched: true } }
   ),
@@ -443,6 +459,7 @@ export const useSimStore = create<SimStore>((set, get) => ({
     safetyAlerts: [],
     safetyScore: null,
     safetyFeedback: [],
+    interactionShaftRollDeg: 0,
   }),
 
 
