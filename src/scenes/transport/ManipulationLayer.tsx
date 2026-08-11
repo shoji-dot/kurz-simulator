@@ -16,9 +16,10 @@
  * （設計指示: 「新規Layerは実質Manipulation Adapter1層のみ、新規Store API不要」）。
  */
 
-import { useRef } from 'react';
+import { useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { TransformControls } from '@react-three/drei';
+import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { ProsthesisModel } from '../models/ProsthesisModels';
 import type { KurzProduct } from '../../data/products';
 import { TRANSLATION_SNAP_MM } from '../transformControlsConfig';
@@ -176,4 +177,150 @@ export function commitTransportPoseToOffsets(
     dragOffsetY: clampToExistingOffsetRange(delta.y),
     dragOffsetZ: clampToExistingOffsetRange(delta.z),
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Phase1-B Step2: スクリーン空間ドラッグ（Direct Manipulation UX）
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * Perspective Cameraからのレイと「ドラッグ開始時点のオブジェクト位置を通りカメラ方向を向く
+ * 平面」の交点差分を、ワールド座標系のdeltaとして求める screen-space drag の共通ヘルパー。
+ *
+ * groupRefは常にローカル位置[0,0,0]始点の専用wrapper groupを指す前提（DraggableProsthesis.
+ * handleMouseUpが読み取るTransformControls内部wrapperと同じ前例、SimScene.tsx参照。
+ * 「常に(0,0,0)始点、ドラッグ量がそのままwrapper.positionに累積される」パターンを、
+ * TransformControlsの代わりに素のpointerイベント+Raycasterで再現する）。
+ *
+ * ワールドdeltaは、group.parentのmatrixWorldの回転成分のみ（Matrix3、平行移動を含まない）を
+ * 使ってローカル座標系へ変換する。Vector3.transformDirection()は結果を正規化してしまう
+ * （距離が失われる）ため使わず、Matrix3.applyMatrix3()で大きさを保持したまま変換する。
+ * ドラッグ中はReact stateを経由せずgroup.positionを直接書き換え（TransformControlsと同じ
+ * imperative更新、60fps更新をReact再レンダーの外で行う）、pointerUp時に一度だけ蓄積済みの
+ * ローカルdeltaをonDragEndへ渡す。
+ */
+export function useScreenSpaceDrag(
+  groupRef:           RefObject<THREE.Group | null>,
+  onDragActiveChange: (active: boolean) => void,
+  onDragEnd:          (localDelta: THREE.Vector3) => void,
+) {
+  const { camera, gl } = useThree();
+
+  const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return; // 左クリックのみ（右ドラッグ=Pan等の既存操作と競合させない）
+    e.stopPropagation();
+    const group = groupRef.current;
+    if (!group || !group.parent) return;
+
+    const worldPos = new THREE.Vector3();
+    group.getWorldPosition(worldPos);
+
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, worldPos);
+
+    const parentInverse = new THREE.Matrix4().copy(group.parent.matrixWorld).invert();
+    const parentInverseRotation = new THREE.Matrix3().setFromMatrix4(parentInverse);
+
+    const raycaster = new THREE.Raycaster();
+    const raycastToPlane = (clientX: number, clientY: number): THREE.Vector3 | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const out = new THREE.Vector3();
+      return raycaster.ray.intersectPlane(plane, out) ? out : null;
+    };
+
+    const startPoint = raycastToPlane(e.clientX, e.clientY);
+    if (!startPoint) return;
+
+    try { gl.domElement.setPointerCapture(e.pointerId); } catch { /* 一部環境で未対応、無視 */ }
+    onDragActiveChange(true);
+
+    const handleMove = (ev: PointerEvent) => {
+      const point = raycastToPlane(ev.clientX, ev.clientY);
+      if (!point) return;
+      const worldDelta = point.clone().sub(startPoint);
+      const localDelta = worldDelta.clone().applyMatrix3(parentInverseRotation);
+      group.position.copy(localDelta);
+    };
+
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      try { gl.domElement.releasePointerCapture(e.pointerId); } catch { /* 無視 */ }
+      onDragActiveChange(false);
+      const finalDelta = group.position.clone();
+      group.position.set(0, 0, 0);
+      onDragEnd(finalDelta);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
+
+  return { onPointerDown };
+}
+
+export interface DirectTransportProsthesisProps {
+  product:               KurzProduct;
+  selectedLength:        number;
+  transportPose:         TransportPose;
+  onTransportPoseChange: (pose: TransportPose) => void;
+  /** Phase1-B Step5 state（PlacementStateの外側）。描画にのみ反映する。 */
+  shaftRollDeg:          number;
+  /** ドラッグ中(true)/非ドラッグ中(false)。呼び出し元でOrbitControlsとの競合防止に使う。 */
+  onDragActiveChange:    (active: boolean) => void;
+  /**
+   * ドラッグ解放（pointerUp）時に呼ぶ。TransportPoseの更新自体はここで完了させるが、
+   * PlacementStateへのCommit実行そのもの（manipulation.committedをtrueにする）は呼び出し元
+   * （SimScene.tsx既存のuseEffect、commitTransportPoseToOffsets）に委ねる。ここでは
+   * 「Commitを要求する」だけ。
+   */
+  onRelease:             () => void;
+}
+
+/**
+ * Phase1-B Step2: Transport段階のDirect Manipulation版描画コンポーネント。
+ * 既存TransportProsthesis（TransformControlsギズモ + Select/Grasp 2ボタン前提）とは別に、
+ * Prosthesisを直接クリック（onPointerDown）した瞬間から把持・ドラッグでき、pointerUpで
+ * そのままonReleaseを呼ぶ（Select/Graspの中間ステップを持たない）。TransportPose/
+ * commitTransportPoseToOffsets()の意味・使い方は既存のTransportProsthesisと同一。
+ */
+export function DirectTransportProsthesis({
+  product, selectedLength, transportPose, onTransportPoseChange, shaftRollDeg,
+  onDragActiveChange, onRelease,
+}: DirectTransportProsthesisProps) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  const { onPointerDown } = useScreenSpaceDrag(
+    groupRef,
+    onDragActiveChange,
+    (localDelta) => {
+      const newPos = transportPose.position.clone().add(localDelta);
+      onTransportPoseChange({ position: newPos, quaternion: transportPose.quaternion });
+      onRelease();
+    },
+  );
+
+  return (
+    <group ref={groupRef} position={[0, 0, 0]} onPointerDown={onPointerDown}>
+      <group
+        position={[transportPose.position.x, transportPose.position.y, transportPose.position.z]}
+        quaternion={transportPose.quaternion}
+      >
+        <ProsthesisModel
+          product={product}
+          shaftLength={selectedLength}
+          headType={product.headType}
+          poseOverride={{ position: ZERO_VEC, quaternion: IDENTITY_QUAT }}
+          interactionHitTarget
+          shaftRollDeg={shaftRollDeg}
+        />
+      </group>
+    </group>
+  );
 }
