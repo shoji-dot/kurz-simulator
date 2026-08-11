@@ -60,6 +60,7 @@ import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX } from './transformControlsConfig';
 import {
   TransportProsthesis,
+  DirectTransportProsthesis,
   createInitialTransportPose,
   commitTransportPoseToOffsets,
   useScreenSpaceDrag,
@@ -317,6 +318,14 @@ interface SimSceneProps {
   /** manipulation.committed が false→true になった直後、Release/Commit実行完了を親へ通知する
    *  （SimulationMode側でUI表示を切り替えるためのコールバック、任意）。 */
   onManipulationCommitted?: () => void;
+  /**
+   * Phase1-B Step6: DIRECT_MANIPULATION_UX flag ON時、Transport段階でProsthesisを
+   * クリック→ドラッグ→pointerUp（解放）した瞬間に呼ばれる。呼び出し元（SimulationMode.tsx）
+   * はここでmanipulation.committedをtrueにする（実際のPlacementStateへのCommit処理自体は
+   * 既存のuseEffect（commitTransportPoseToOffsets）がmanipulation.committedの変化を検知して
+   * 行う、無変更）。
+   */
+  onDirectRelease?: () => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -697,6 +706,7 @@ export function SimScene({
   panMode = false,
   manipulation = { ...INITIAL_MANIPULATION_STATE, committed: true },
   onManipulationCommitted,
+  onDirectRelease,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -1389,6 +1399,20 @@ export function SimScene({
               directManipulation={DIRECT_MANIPULATION_UX}
               shaftRollDeg={interactionShaftRollDeg}
               onDragActiveChange={setDirectDragActive}
+            />
+          ) : DIRECT_MANIPULATION_UX ? (
+            // Phase1-B Step6: Transport段階もDirect Manipulation UXへ切り替え。Prosthesis
+            // クリックで直接把持→ドラッグ→pointerUp(解放)がそのままonDirectReleaseを呼び、
+            // 呼び出し元(SimulationMode.tsx)がmanipulation.committedをtrueにする
+            // （実際のPlacementStateへのCommitは既存useEffectのまま、無変更）。
+            <DirectTransportProsthesis
+              product={product}
+              selectedLength={selectedLength}
+              transportPose={transportPose}
+              onTransportPoseChange={setTransportPose}
+              shaftRollDeg={interactionShaftRollDeg}
+              onDragActiveChange={setDirectDragActive}
+              onRelease={() => onDirectRelease?.()}
             />
           ) : (
             <TransportProsthesis

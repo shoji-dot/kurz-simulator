@@ -36,6 +36,7 @@ import type { DangerAlert, SafetyFeedback } from '../engine/safety';
 import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
+import { DIRECT_MANIPULATION_UX } from '../scenes/transformControlsConfig';
 import { ViewPresetPanel } from './ViewPresetPanel';
 import { shiftViewForSim, SURGICAL_VIEWS } from '../scenes/ViewPresets';
 import {
@@ -1087,6 +1088,7 @@ function PlacementStep() {
           scopePositionMode={microscopePositionMode}
           panMode={simPanMode}
           manipulation={{ instrumentSelected, isGrasped, committed: manipulationCommitted }}
+          onDirectRelease={() => setManipulationCommitted(true)}
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
@@ -1248,12 +1250,29 @@ function PlacementStep() {
             </div>
           )}
 
+          {/* ── Phase1-B: Direct Manipulation UX（既定、DIRECT_MANIPULATION_UX=true）──
+              committed(=留置済み)になるまでは3Dビュー上にプロステーシスが「術野の外」にある。
+              Prosthesisを直接クリック→ドラッグ→離す（release）だけで留置される
+              （Select/Grasp/Releaseボタンの中間ステップは廃止、SimScene.tsx側の
+              DirectTransportProsthesis + onDirectReleaseが実際のCommitを行う）。 */}
+          {DIRECT_MANIPULATION_UX && !manipulationCommitted && (
+            <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px solid rgba(0,180,216,0.35)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-primary)' }}>
+                🔧 プロステーシス留置
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                プロステーシスは現在、術野の外（Transport位置）にあります。3Dビューでプロステーシスを直接クリックしてドラッグし、留置位置で離してください。
+              </div>
+            </div>
+          )}
+
           {/* ── Phase1 Interaction/Transport Layer: Instrument Select → Grasp → Release ──
+              DIRECT_MANIPULATION_UX flag OFF時のみ表示する旧UI（a2247d5相当、完全復帰用）。
               committed(=Release実行済み)になるまでは3Dビュー上にプロステーシスが「術野の外」
               にあり、既存のPlacement操作（3Dドラッグ/矢印キー/ControlPad/理想位置ボタン等）は
               まだ対象となる実体を持たない。Releaseが押されるとPlacementState（dragOffsetX/Y/Z）
               へ一度だけCommitされ（SimScene.tsx側）、以降はこのカードが消えて既存UIのみになる。 */}
-          {!manipulationCommitted && (
+          {!DIRECT_MANIPULATION_UX && !manipulationCommitted && (
             <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px solid rgba(0,180,216,0.35)' }}>
               <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-primary)' }}>
                 🔧 器具操作
