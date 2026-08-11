@@ -57,11 +57,12 @@ import {
 import { poseToThree } from './debug/poseThreeAdapter';
 import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
-import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
+import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX } from './transformControlsConfig';
 import {
   TransportProsthesis,
   createInitialTransportPose,
   commitTransportPoseToOffsets,
+  useScreenSpaceDrag,
   INITIAL_MANIPULATION_STATE,
   type TransportPose,
   type ManipulationState,
@@ -533,6 +534,17 @@ interface DraggableProsthesisProps {
   /** P4B-3 Step5（Feature Flag）: 指定時、ProsthesisModelへそのまま転送する。CartilageSliceの
    *  poseOverrideと同時に渡すことで、両者を同時にOLD/NEWへ切り替える（中間状態を作らない）。 */
   poseOverride?:  { position: THREE.Vector3; quaternion: THREE.Quaternion };
+  /**
+   * Phase1-B Step3: true時、TransformControlsギズモの代わりにProsthesis直接クリック→
+   * スクリーン空間ドラッグ（ManipulationLayer.tsxのuseScreenSpaceDrag）を有効にする。
+   * 既存のTransformControls/キーボード矢印キー経路は削除せず、ギズモの表示・有効化のみ
+   * 抑制する（DIRECT_MANIPULATION_UX flag OFF時は常にfalse、旧経路に完全復帰）。
+   */
+  directManipulation?: boolean;
+  /** Phase1-B Step5 state（PlacementStateの外側）。描画にのみ反映する。 */
+  shaftRollDeg?:       number;
+  /** ドラッグ中(true)/非ドラッグ中(false)。呼び出し元でOrbitControlsとの競合防止に使う。 */
+  onDragActiveChange?: (active: boolean) => void;
 }
 
 function DraggableProsthesis({
@@ -542,8 +554,31 @@ function DraggableProsthesis({
   dragOffsetX, dragOffsetY, dragOffsetZ,
   dragMode,
   poseOverride,
+  directManipulation = false,
+  shaftRollDeg = 0,
+  onDragActiveChange,
 }: DraggableProsthesisProps) {
   const tcRef = useRef<any>(null);
+  const dragGroupRef = useRef<THREE.Group>(null);
+
+  // Phase1-B Step3: Placement済みプロステーシスの直接クリック→ドラッグ。ドラッグ終了時、
+  // 既存DraggableProsthesis.handleMouseUpと同じ意味論・同じ±3mmクランプでdragOffsetX/Y/Zへ
+  // 直接反映する（TransformControlsギズモを経由しない別入力機構、Implementation Prompt §7 Step3）。
+  const { onPointerDown: onDirectDragPointerDown } = useScreenSpaceDrag(
+    dragGroupRef,
+    onDragActiveChange ?? (() => {}),
+    (localDelta) => {
+      const { placement } = useSimStore.getState();
+      useSimStore.getState().updatePlacement({
+        dragOffsetX: clamp3(placement.dragOffsetX + localDelta.x),
+        dragOffsetY: clamp3(placement.dragOffsetY + localDelta.y),
+        dragOffsetZ: clamp3(placement.dragOffsetZ + localDelta.z),
+      });
+      // Implementation Prompt §7 Step3: ドラッグ終了時にmarkPositionTouched()を呼ぶこと
+      // （既存の採点起動条件を壊さないため）。
+      useSimStore.getState().markPositionTouched();
+    },
+  );
 
   // Issue-024（真因）: children方式＋tc.objectからの読み取り自体は正しく機能していた
   // （診断ログでtc.object・onMouseDown・onObjectChangeが全て正常に動作し、位置も正しく
@@ -571,6 +606,11 @@ function DraggableProsthesis({
 
   // TC は常にマウントしたまま。viewモード時はハンドルを非表示＆操作無効にする。
   const isMove = dragMode === 'move';
+  // Phase1-B Step3: directManipulation時はTransformControlsギズモを「ユーザーUXとして
+  // 使用しない」（Implementation Prompt §6）。isMove自体（矢印キー操作の判定に使う、上の
+  // useEffect参照）は変更しない — 矢印キー微調整は既存のまま維持し、ギズモの表示・有効化
+  // のみ抑制する。
+  const gizmoActive = isMove && !directManipulation;
 
   // Phase22.2 GUI Follow-up P1: 矢印キー操作をSTEP6 GUI確認結果を受けて再設計。
   // 通常=translate(移動)、Shift=rotate(回転)、Ctrl=微細移動、Ctrl+Shift=微細回転
@@ -611,26 +651,34 @@ function DraggableProsthesis({
       ref={tcRef}
       mode="translate"
       space="world"
-      showX={isMove}
-      showY={isMove}
-      showZ={isMove}
-      enabled={isMove}
+      showX={gizmoActive}
+      showY={gizmoActive}
+      showZ={gizmoActive}
+      enabled={gizmoActive}
       size={0.65}
       translationSnap={TRANSLATION_SNAP_MM}
       onMouseUp={handleMouseUp}
     >
-      <ProsthesisModel
-        product={product}
-        shaftLength={selectedLength}
-        headType={product.headType}
-        basePos={basePos.clone()}
-        lateralOffset={lateralOffset   + dragOffsetX}
-        verticalOffset={verticalOffset + dragOffsetY}
-        anteriorOffset={anteriorOffset + dragOffsetZ}
-        angleTilt={angleTilt}
-        angleTiltZ={angleTiltZ}
-        poseOverride={poseOverride}
-      />
+      <group
+        ref={dragGroupRef}
+        position={[0, 0, 0]}
+        onPointerDown={directManipulation ? onDirectDragPointerDown : undefined}
+      >
+        <ProsthesisModel
+          product={product}
+          shaftLength={selectedLength}
+          headType={product.headType}
+          basePos={basePos.clone()}
+          lateralOffset={lateralOffset   + dragOffsetX}
+          verticalOffset={verticalOffset + dragOffsetY}
+          anteriorOffset={anteriorOffset + dragOffsetZ}
+          angleTilt={angleTilt}
+          angleTiltZ={angleTiltZ}
+          poseOverride={poseOverride}
+          interactionHitTarget={directManipulation}
+          shaftRollDeg={shaftRollDeg}
+        />
+      </group>
     </TransformControls>
   );
 }
@@ -663,6 +711,15 @@ export function SimScene({
   const bellHeadAvailable = stapStatus === 'intact' || stapStatus === 'suprastructure';
   const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
   const basePos = (isTotal || !bellHeadAvailable) ? STAPES_FOOTPLATE : STAPES_HEAD;
+
+  // Phase1-B Step5 state（PlacementStateの外側、interactionFlagsと同じ並置パターン）。
+  // 描画にのみ反映する（Safety/Score/GroundTruthには渡さない、Implementation Prompt §3 #1）。
+  const interactionShaftRollDeg = useSimStore((s) => s.interactionShaftRollDeg);
+
+  // Phase1-B Step3/6: Direct Manipulation UXでProsthesisを直接ドラッグ中かどうか。
+  // OrbitControlsとの競合防止のみに使うローカル状態（DIRECT_MANIPULATION_UX flag OFF時は
+  // どのコンポーネントからも呼ばれないため常にfalseのまま、既存挙動に影響しない）。
+  const [directDragActive, setDirectDragActive] = useState(false);
 
   // ── Phase1 Interaction/Transport Layer ──────────────────────────────────
   // transportPose（Transport段階の自由position）はbasePosに依存する初期値を持つため、
@@ -1329,6 +1386,9 @@ export function SimScene({
               dragOffsetZ={dragOffsetZ}
               dragMode={dragMode}
               poseOverride={poseFlagActive ? candidateGhost : undefined}
+              directManipulation={DIRECT_MANIPULATION_UX}
+              shaftRollDeg={interactionShaftRollDeg}
+              onDragActiveChange={setDirectDragActive}
             />
           ) : (
             <TransportProsthesis
@@ -1395,7 +1455,10 @@ export function SimScene({
         // TransformControlsとジェスチャーが競合しないよう、既存のdragMode==='view'判定に
         // !isGraspedを追加する（dragMode自体の意味・既定値は無変更。manipulation未指定時は
         // isGrasped=falseのため、この条件は従来のdragMode==='view'と完全に同じ結果になる）。
-        enabled={dragMode === 'view' && !manipulation.isGrasped}
+        // Phase1-B Step3/6: Direct Manipulation UXでのドラッグ中(directDragActive)も同様に
+        // OrbitControlsと競合するため無効化する（flag OFF時はdirectDragActiveが常にfalseの
+        // ため、この条件追加は既存挙動に影響しない）。
+        enabled={dragMode === 'view' && !manipulation.isGrasped && !directDragActive}
         mouseButtons={{
           // Phase22.2 GUI Follow-up P1: 通常/内視鏡モードでもpanMode(既存prop)を尊重するよう拡張。
           // 元の条件（viewMode==='microscope' && scopePositionMode && panMode）はmicroscope固定/移動中

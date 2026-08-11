@@ -32,3 +32,9 @@ export const HOLD_STEP_FAST_MM = 0.50;
 export const ROTATION_STEP_FAST_DEG = 5;
 /** ControlPadのHoldButton押しっぱなし時の反復間隔（ミリ秒）。 */
 export const HOLD_REPEAT_INTERVAL_MS = 90;
+
+// Phase1-B Step6: Direct Manipulation UX（Prosthesis直接クリック→ドラッグ）のfeature flag。
+// App.tsxのFEATURE_DRILL_ENABLEDと同じ命名・運用パターン。
+// 再有効化する場合はDIRECT_MANIPULATION_UXをfalseに変更する（旧TransformControlsギズモ +
+// Select/Grasp/Releaseボタン経路（a2247d5相当）へ完全復帰する）。
+export const DIRECT_MANIPULATION_UX = true;
