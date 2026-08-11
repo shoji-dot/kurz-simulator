@@ -998,6 +998,13 @@ function PlacementStep() {
     return init;
   });
   const [dragMode, setDragMode] = useState<DragMode>('view');
+  // Phase1 Interaction/Transport Layer（Instrument Select→Grasp→Transport→Release）用の
+  // 最小状態。DragMode（既存のmove/view切替、同じくローカルuseState）と同じ前例に従い、
+  // グローバルstoreへは置かない。PlacementStepが再マウントされるたび（症例切替のたび）に
+  // false/falseへ戻る＝Transportは毎回新しい症例の開始時に外部位置からやり直す想定。
+  const [instrumentSelected, setInstrumentSelected] = useState(false);
+  const [isGrasped, setIsGrasped] = useState(false);
+  const [manipulationCommitted, setManipulationCommitted] = useState(false);
   const [viewMode, setViewMode] = useState<SimViewMode>('normal');
   const [vis3dOpen, setVis3dOpen] = useState(false);
   const [adjPanelOpen, setAdjPanelOpen] = useState(false);
@@ -1079,6 +1086,7 @@ function PlacementStep() {
           onCameraChange={(p, t) => setCamInfo({ pos: p, target: t })}
           scopePositionMode={microscopePositionMode}
           panMode={simPanMode}
+          manipulation={{ instrumentSelected, isGrasped, committed: manipulationCommitted }}
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
@@ -1237,6 +1245,49 @@ function PlacementStep() {
           {getAnchorBasis(selectedCase) && (
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
               再建経路: <strong style={{ color: 'var(--color-primary)' }}>{getAnchorBasis(selectedCase)}</strong>
+            </div>
+          )}
+
+          {/* ── Phase1 Interaction/Transport Layer: Instrument Select → Grasp → Release ──
+              committed(=Release実行済み)になるまでは3Dビュー上にプロステーシスが「術野の外」
+              にあり、既存のPlacement操作（3Dドラッグ/矢印キー/ControlPad/理想位置ボタン等）は
+              まだ対象となる実体を持たない。Releaseが押されるとPlacementState（dragOffsetX/Y/Z）
+              へ一度だけCommitされ（SimScene.tsx側）、以降はこのカードが消えて既存UIのみになる。 */}
+          {!manipulationCommitted && (
+            <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px solid rgba(0,180,216,0.35)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-primary)' }}>
+                🔧 器具操作
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.5 }}>
+                プロステーシスは現在、術野の外（Transport位置）にあります。器具を選択→把持→3Dビューでドラッグして移動→解放の順に操作してください。
+              </div>
+              <Button
+                variant={instrumentSelected ? 'ghost' : 'primary'}
+                size="sm"
+                disabled={instrumentSelected}
+                style={{ width: '100%', marginBottom: 6 }}
+                onClick={() => setInstrumentSelected(true)}
+              >
+                {instrumentSelected ? '✓ 器具選択済み（鑷子）' : '① 器具を選択（鑷子）'}
+              </Button>
+              <Button
+                variant={isGrasped ? 'ghost' : 'primary'}
+                size="sm"
+                disabled={!instrumentSelected || isGrasped}
+                style={{ width: '100%', marginBottom: 6 }}
+                onClick={() => setIsGrasped(true)}
+              >
+                {isGrasped ? '✓ 把持中 — 3Dビューでドラッグして移動' : '② 把持する'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!isGrasped}
+                style={{ width: '100%' }}
+                onClick={() => setManipulationCommitted(true)}
+              >
+                ③ 解放（留置位置へ）
+              </Button>
             </div>
           )}
 

@@ -58,6 +58,14 @@ import { poseToThree } from './debug/poseThreeAdapter';
 import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG } from './transformControlsConfig';
+import {
+  TransportProsthesis,
+  createInitialTransportPose,
+  commitTransportPoseToOffsets,
+  INITIAL_MANIPULATION_STATE,
+  type TransportPose,
+  type ManipulationState,
+} from './transport/ManipulationLayer';
 
 // ── カメラ視点 保存/復元 ────────────────────────────────────────
 const _SIM_KEY     = 'kurz_cam_sim';
@@ -299,6 +307,15 @@ interface SimSceneProps {
   scopePositionMode?: boolean;
   /** 顕微鏡移動中: 回転↔平行移動切替 */
   panMode?: boolean;
+  /**
+   * Phase1 Interaction/Transport Layer（Instrument Select→Grasp→Transport→Release）の現在状態。
+   * 未指定時は committed:true 相当（＝常に既存DraggableProsthesis経路のみ描画）として扱うため、
+   * これを渡さない既存の呼び出し元（StepFlowMode.tsx等）は完全に無変更のまま動作する。
+   */
+  manipulation?: ManipulationState;
+  /** manipulation.committed が false→true になった直後、Release/Commit実行完了を親へ通知する
+   *  （SimulationMode側でUI表示を切り替えるためのコールバック、任意）。 */
+  onManipulationCommitted?: () => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -630,6 +647,8 @@ export function SimScene({
   surgicalCase, product, placement, showIdeal = false, showCartilage = false, vis = {}, dragMode = 'view', onStructureClick, viewMode = 'normal', showDebugMarkers = false, onCameraChange,
   microscopeFov, microscopeLight, microscopeFilter, scopePositionMode = false,
   panMode = false,
+  manipulation = { ...INITIAL_MANIPULATION_STATE, committed: true },
+  onManipulationCommitted,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -644,6 +663,25 @@ export function SimScene({
   const bellHeadAvailable = stapStatus === 'intact' || stapStatus === 'suprastructure';
   const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
   const basePos = (isTotal || !bellHeadAvailable) ? STAPES_FOOTPLATE : STAPES_HEAD;
+
+  // ── Phase1 Interaction/Transport Layer ──────────────────────────────────
+  // transportPose（Transport段階の自由position）はbasePosに依存する初期値を持つため、
+  // basePos計算と同じSimScene内にローカルstateとして保持する（ManipulationLayer.tsx側は
+  // 純粋関数＋描画コンポーネントのみで、この状態自体は持たない）。DragMode（既存の
+  // move/view切替）と同じ「操作メカニクスの状態はUIに近い場所に置く」という前例に従う。
+  const [transportPose, setTransportPose] = useState<TransportPose>(() => createInitialTransportPose(basePos));
+  // manipulation.committed が false→true になった瞬間に一度だけ、Transport→Placementの
+  // Commit（唯一の変換点）を実行するためのガード。
+  const hasCommittedRef = useRef(false);
+  useEffect(() => {
+    if (!manipulation.committed || hasCommittedRef.current) return;
+    hasCommittedRef.current = true;
+    const offsets = commitTransportPoseToOffsets(transportPose, basePos);
+    // 既存のPlacementState setterをそのまま使う（意味・クランプ範囲とも無変更）。
+    useSimStore.getState().updatePlacement(offsets);
+    useSimStore.getState().markPositionTouched();
+    onManipulationCommitted?.();
+  }, [manipulation.committed, transportPose, basePos, onManipulationCommitted]);
 
   // ── Phase20.4c: 実際の配置点でSafety Score算出（DANGER_ZONES近接判定）を都度更新 ──
   // basePos + オフセット = プロステーシス基準点（Placement Frame）。DraggableProsthesis/
@@ -1271,22 +1309,37 @@ export function SimScene({
             />
           )}
 
-          {/* ── ドラッグ可能プロステーシス ── */}
-          <DraggableProsthesis
-            product={product}
-            selectedLength={selectedLength}
-            basePos={basePos.clone()}
-            lateralOffset={lateralOffset}
-            anteriorOffset={anteriorOffset}
-            verticalOffset={verticalOffset}
-            angleTilt={angleTilt}
-            angleTiltZ={angleTiltZ}
-            dragOffsetX={dragOffsetX}
-            dragOffsetY={dragOffsetY}
-            dragOffsetZ={dragOffsetZ}
-            dragMode={dragMode}
-            poseOverride={poseFlagActive ? candidateGhost : undefined}
-          />
+          {/* ── ドラッグ可能プロステーシス（Placement段階）／Transportプロステーシス（Transport段階） ──
+              Phase1 Interaction/Transport Layer: manipulation.committed が false の間は既存
+              DraggableProsthesis（PlacementState連動）を一切マウントせず、TransportProsthesis
+              （ManipulationLayer.tsx、PlacementStateには無関係な一時transportPoseのみで動作）を
+              代わりに描画する。committed=true になった瞬間から下は完全に既存経路のみ（無変更）。 */}
+          {manipulation.committed ? (
+            <DraggableProsthesis
+              product={product}
+              selectedLength={selectedLength}
+              basePos={basePos.clone()}
+              lateralOffset={lateralOffset}
+              anteriorOffset={anteriorOffset}
+              verticalOffset={verticalOffset}
+              angleTilt={angleTilt}
+              angleTiltZ={angleTiltZ}
+              dragOffsetX={dragOffsetX}
+              dragOffsetY={dragOffsetY}
+              dragOffsetZ={dragOffsetZ}
+              dragMode={dragMode}
+              poseOverride={poseFlagActive ? candidateGhost : undefined}
+            />
+          ) : (
+            <TransportProsthesis
+              product={product}
+              selectedLength={selectedLength}
+              transportPose={transportPose}
+              onTransportPoseChange={setTransportPose}
+              instrumentSelected={manipulation.instrumentSelected}
+              isGrasped={manipulation.isGrasped}
+            />
+          )}
         {/* ── デバッグランドマーク（showDebugMarkers=true のとき表示）── */}
           {showDebugMarkers && (
             <>
@@ -1338,7 +1391,11 @@ export function SimScene({
         minDistance={8}
         maxDistance={85}
         autoRotate={false}
-        enabled={dragMode === 'view'}
+        // Phase1 Interaction/Transport Layer: 把持中(isGrasped)はTransportProsthesis側の
+        // TransformControlsとジェスチャーが競合しないよう、既存のdragMode==='view'判定に
+        // !isGraspedを追加する（dragMode自体の意味・既定値は無変更。manipulation未指定時は
+        // isGrasped=falseのため、この条件は従来のdragMode==='view'と完全に同じ結果になる）。
+        enabled={dragMode === 'view' && !manipulation.isGrasped}
         mouseButtons={{
           // Phase22.2 GUI Follow-up P1: 通常/内視鏡モードでもpanMode(既存prop)を尊重するよう拡張。
           // 元の条件（viewMode==='microscope' && scopePositionMode && panMode）はmicroscope固定/移動中
