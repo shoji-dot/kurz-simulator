@@ -1716,6 +1716,20 @@ interface ProsthesisProps {
    * 未指定時は従来通りcomputeProsthesisModelPose()を使う（Flag OFF＝既存動作は完全無変更）。
    */
   poseOverride?:    { position: THREE.Vector3; quaternion: THREE.Quaternion };
+  /**
+   * Phase1-B Step1: Prosthesis直接クリック検出用の、不可視・拡大raycastヒットターゲット。
+   * true時のみ描画（既定undefined＝従来通り何も追加しない）。視覚的には何も変わらない
+   * （opacity 0、depthWrite無効）。実メッシュ（シャフト等）のジオメトリ・Frozen Geometryには
+   * 一切触れない、レイキャスト専用の追加要素。
+   */
+  interactionHitTarget?: boolean;
+  /**
+   * Phase1-B Step5: Shaft roll（Interaction Layerの外側state、PlacementStateではない）を
+   * 描画にのみ反映するための角度（度）。pose.quaternionに対しlocal +Y軸（shaft軸）まわりの
+   * quaternionをpost-multiplyするだけで、computeProsthesisModelPose()等Frozen関数の計算には
+   * 一切影響しない。未指定/0時は従来通り（quaternionはpose由来のまま）。
+   */
+  shaftRollDeg?:    number;
 }
 
 /**
@@ -1760,6 +1774,8 @@ export function ProsthesisModel({
   angleTiltZ      = 0,
   ghost           = false,
   poseOverride,
+  interactionHitTarget,
+  shaftRollDeg,
 }: ProsthesisProps) {
 
   // P4B-3: 姿勢計算はcomputeProsthesisModelPose()へ委譲（数式は無変更、抽出のみ）。
@@ -1775,11 +1791,29 @@ export function ProsthesisModel({
   const headOff  = len / 2 + 0.15;
   const footOff  = -(len / 2);
 
+  // Phase1-B Step5: shaft roll はここでのみ合成する（pose自体・computeProsthesisModelPose()は
+  // 無変更）。local +Y（shaft軸）まわりのpost-multiply。0/未指定時はpose.quaternionをそのまま使う。
+  const renderQuaternion = shaftRollDeg
+    ? pose.quaternion.clone().multiply(
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (shaftRollDeg * Math.PI) / 180),
+      )
+    : pose.quaternion;
+
   return (
     <group
       position={[mid.x, mid.y, mid.z]}
-      quaternion={pose.quaternion}
+      quaternion={renderQuaternion}
     >
+      {/* Phase1-B Step1: 不可視・拡大raycastヒットターゲット（interactionHitTarget=true時のみ）。
+          視覚的には何も変わらない（opacity:0, depthWrite:false）。Frozen Geometry（実メッシュ）
+          には触れず、レイキャスト専用の追加要素として並置する。 */}
+      {interactionHitTarget && (
+        <mesh position={[0, (headOff + footOff) / 2, 0]}>
+          <cylinderGeometry args={[0.9, 0.9, headOff - footOff + 0.6, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
+
       {/* Head plate */}
       <group position={[0, headOff, 0]}>
         <HeadPlate headType={headType} ghost={ghost} />
