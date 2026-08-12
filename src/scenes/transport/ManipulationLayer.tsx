@@ -16,11 +16,11 @@
  * （設計指示: 「新規Layerは実質Manipulation Adapter1層のみ、新規Store API不要」）。
  */
 
-import { useRef, type RefObject } from 'react';
+import { useRef, useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
 import { TransformControls } from '@react-three/drei';
-import { useThree, type ThreeEvent } from '@react-three/fiber';
-import { ProsthesisModel } from '../models/ProsthesisModels';
+import { useThree, useFrame, type ThreeEvent } from '@react-three/fiber';
+import { ProsthesisModel, computeProsthesisModelPose } from '../models/ProsthesisModels';
 import type { KurzProduct } from '../../data/products';
 import { TRANSLATION_SNAP_MM } from '../transformControlsConfig';
 
@@ -28,6 +28,25 @@ import { TRANSLATION_SNAP_MM } from '../transformControlsConfig';
 export interface TransportPose {
   position:   THREE.Vector3;
   quaternion: THREE.Quaternion;
+}
+
+/**
+ * Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
+ * PlacementState.angleTilt/angleTiltZとは無関係の独立値（Transport段階でのみ意味を持つ）。
+ * Range内Release時にのみ、この数値がそのままPlacementState.angleTilt/angleTiltZへコピーされる
+ * （quaternionの分解は一切行わない、角度→quaternionの一方向変換のみで完結させる）。
+ */
+export interface TransportTilt {
+  tilt:  number;
+  tiltZ: number;
+}
+
+export const INITIAL_TRANSPORT_TILT: TransportTilt = { tilt: 0, tiltZ: 0 };
+
+/** ControlPadがTransport段階でPosition/Tiltを操作するための共通インターフェース。 */
+export interface TransportControls {
+  translate: (axis: 'x' | 'y' | 'z', deltaMm: number) => void;
+  rotate:    (axis: 'tilt' | 'tiltZ', deltaDeg: number) => void;
 }
 
 /** Instrument Select → Grasp → Release の3フラグのみ。DragMode（move/view）とは別軸で、
@@ -62,6 +81,41 @@ export function createInitialTransportPose(basePos: THREE.Vector3): TransportPos
 
 const ZERO_VEC     = new THREE.Vector3(0, 0, 0);
 const IDENTITY_QUAT = new THREE.Quaternion();
+
+/**
+ * Phase1-B ControlPad Transport対応: ControlPad Positionボタン用の純粋関数。
+ * transportPose.positionのみをX/Y/Z軸に沿って単純加算する（既存座標系、basePos.x=lateral/
+ * basePos.y=vertical/basePos.z=anteriorと同じ軸の意味）。quaternionはそのまま保持する。
+ * 元のtransportPoseはmutationしない（新しいTransportPoseを返す）。
+ */
+export function nudgeTransportPosition(
+  transportPose: TransportPose,
+  axis:          'x' | 'y' | 'z',
+  deltaMm:       number,
+): TransportPose {
+  const position = transportPose.position.clone();
+  position[axis] += deltaMm;
+  return { position, quaternion: transportPose.quaternion };
+}
+
+/** Phase1-B ControlPad Transport対応: TransportTiltの±180°クランプ。既存の
+ *  clampAngleDeg（useSimStore.ts）と同じ境界値をこのモジュール内で独立して持つ
+ *  （store層はscenes層に依存しない方針のため、意図的に重複させている既存の前例を踏襲）。 */
+function clampTransportTiltDeg(v: number): number {
+  return Math.max(-180, Math.min(180, v));
+}
+
+/**
+ * Phase1-B ControlPad Transport対応: ControlPad Tiltボタン用の純粋関数。
+ * tilt/tiltZのみを±180°クランプ付きで加算する。元のTransportTiltはmutationしない。
+ */
+export function nudgeTransportTilt(
+  current: TransportTilt,
+  axis:    'tilt' | 'tiltZ',
+  deltaDeg: number,
+): TransportTilt {
+  return { ...current, [axis]: clampTransportTiltDeg(current[axis] + deltaDeg) };
+}
 
 /**
  * Grasp中に表示する簡易インストゥルメント・マーカー（実物の鑷子/鉗子形状の再現ではない、
@@ -179,6 +233,25 @@ export function commitTransportPoseToOffsets(
   };
 }
 
+/**
+ * Phase1-B Releaseワープ修正（Conditional Commit方式）: transportPoseがbasePosから見て
+ * 3軸ともすでに±3mm以内（＝commitTransportPoseToOffsets()のclampが実質no-opになる）かどうかを
+ * 判定する。commitTransportPoseToOffsets()自体は無変更のまま「判定用に呼ぶ」だけで、
+ * clamp後の値と生のdelta（同じtransportPose.position.clone().sub(basePos)、Vector3.subは
+ * 単純な成分ごとの減算のため丸め誤差は発生しない）を成分ごとに比較する。
+ * 一致していればclampは何もしていない＝この時点でcommitしても表示位置とPlacement位置が
+ * 完全に一致することが保証される。不一致（＝いずれかの軸でclampが発火した）ならこの
+ * Releaseはcommitしない（呼び出し側でTransportを継続する）。
+ */
+export function isTransportPoseWithinPlacementRange(
+  transportPose: TransportPose,
+  basePos:       THREE.Vector3,
+): boolean {
+  const offsets = commitTransportPoseToOffsets(transportPose, basePos);
+  const raw = transportPose.position.clone().sub(basePos);
+  return offsets.dragOffsetX === raw.x && offsets.dragOffsetY === raw.y && offsets.dragOffsetZ === raw.z;
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // Phase1-B Step2: スクリーン空間ドラッグ（Direct Manipulation UX）
 // ════════════════════════════════════════════════════════════════════════
@@ -270,17 +343,34 @@ export interface DirectTransportProsthesisProps {
   selectedLength:        number;
   transportPose:         TransportPose;
   onTransportPoseChange: (pose: TransportPose) => void;
+  /** Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
+   *  PlacementStateには一切書き込まない。描画プレビューにのみ使う。 */
+  transportTilt:         TransportTilt;
   /** Phase1-B Step5 state（PlacementStateの外側）。描画にのみ反映する。 */
   shaftRollDeg:          number;
   /** ドラッグ中(true)/非ドラッグ中(false)。呼び出し元でOrbitControlsとの競合防止に使う。 */
   onDragActiveChange:    (active: boolean) => void;
   /**
-   * ドラッグ解放（pointerUp）時に呼ぶ。TransportPoseの更新自体はここで完了させるが、
-   * PlacementStateへのCommit実行そのもの（manipulation.committedをtrueにする）は呼び出し元
-   * （SimScene.tsx既存のuseEffect、commitTransportPoseToOffsets）に委ねる。ここでは
-   * 「Commitを要求する」だけ。
+   * Conditional Commit判定用（Releaseワープ修正）。isTransportPoseWithinPlacementRange()の
+   * 判定にbasePosが必要なため、呼び出し元（SimScene.tsx）から渡す。PlacementStateとは無関係の
+   * 既存アンカー座標（basePos自体は無変更）。
    */
-  onRelease:             () => void;
+  basePos:               THREE.Vector3;
+  /**
+   * Release（pointerUp）時点でtransportPoseがbasePosから見て±3mm以内（＝
+   * commitTransportPoseToOffsets()のclampがno-opになる）の場合にのみ呼ばれる。
+   * 範囲外の場合は呼ばれず、Transport状態が継続する（onTransportPoseChangeによる位置更新
+   * 自体はrange外Releaseでも常に行われるため、Prosthesisはその場に留まる）。
+   * ここで渡すoffsetsは「表示されていたtransportPoseをbasePos基準に読み替えただけの値」で、
+   * clampは実質no-opのため、そのままPlacementStateへ書き込んでも表示位置と一致する。
+   * Phase1-B ControlPad Transport対応（T2方式）: angleTilt/angleTiltZ（transportTiltの
+   * 現在値をそのままコピーしたもの）も同じpayloadに含め、Position/Tiltを1回の
+   * updatePlacement()へまとめられるようにする。
+   */
+  onRelease:             (offsets: {
+    dragOffsetX: number; dragOffsetY: number; dragOffsetZ: number;
+    angleTilt:   number; angleTiltZ:  number;
+  }) => void;
 }
 
 /**
@@ -289,29 +379,108 @@ export interface DirectTransportProsthesisProps {
  * Prosthesisを直接クリック（onPointerDown）した瞬間から把持・ドラッグでき、pointerUpで
  * そのままonReleaseを呼ぶ（Select/Graspの中間ステップを持たない）。TransportPose/
  * commitTransportPoseToOffsets()の意味・使い方は既存のTransportProsthesisと同一。
+ *
+ * Releaseワープ修正（Conditional Commit方式）: onTransportPoseChangeは常に呼ぶ（Transport中の
+ * 自由移動は常に保証、basePosから3mmを超えるReleaseでもTransportPoseはそのReleaseした場所に
+ * 留まる）。onRelease（実際のPlacement commit要求）は、isTransportPoseWithinPlacementRange()が
+ * trueの場合、つまりcommitTransportPoseToOffsets()のclampが実質no-opになる場合にのみ呼ぶ。
+ * これにより、実際にcommitされる瞬間は必ず「表示位置＝commit後のPlacement位置」が一致する。
+ *
+ * Phase1-B ControlPad Transport対応（T2方式）: Tiltの描画は、transportPose.quaternionへの
+ * 単純post-multiplyではなく、computeProsthesisModelPose()（Frozen、読み取り専用呼び出し）を
+ * transportPose.positionをbasePosとして使って呼び出し、その.quaternionのみを使う。これにより
+ * Range内Release時、Placement後（DraggableProsthesis）が同じ関数・同じ実効入力（basePos=
+ * transportPose.position、angleTilt/angleTiltZ=transportTilt）で計算するquaternionと
+ * byte-identicalな結果になる（回転のWYSIWYGを保証）。.positionは使わない（Position描画は
+ * 既存どおりtransportPose.positionをそのまま使う、shaft midpoint計算は導入しない）。
+ *
+ * Phase1-B Release回転ジャンプ修正: 上記のquaternion計算をReact state（transportPose、
+ * ドラッグ終了時にしか更新されない）ではなく、ドラッグ中も常に最新のimperative位置に基づいて
+ * 毎フレーム再計算する（useFrame + ref、Reactの再レンダーを経由しない）。useScreenSpaceDrag
+ * （Frozen）はドラッグ中の中間位置をコールバックで公開しないため、ドラッグ中の「現在位置」は
+ * 外側wrapper（groupRef.current.position、useScreenSpaceDrag.handleMoveが直接書き換える）を
+ * 直接参照する以外に取得手段がない。基準位置はbasePosRefで保持し、ドラッグ終了時
+ * （onDragEndコールバック内）にReact stateの更新と同期して書き換えることで、React stateの
+ * コミットタイミング（非同期）に依存せず回転計算を連続させる。
+ *
+ * Phase1-B Release位置ジャンプ修正: 上記のrotation修正後もpositionだけがinner groupの
+ * JSX position prop（transportPose.position、React state）経由のままだったため、Release時に
+ * 「外側wrapperのimperative即時reset（Frozen handleUp）」と「React stateのcommit（非同期）」の
+ * 間に挟まるフレームで、position=旧transportPose.position・quaternion=新（useFrame既に反映済み）
+ * という不整合な組み合わせが一瞬描画されていた（＝元位置へ一瞬戻って見える）。
+ * positionもquaternionと全く同じ経路（basePosRef + groupRef.current.position由来のlivePos）で
+ * 同一useFrame内・同一フレームでimperativeに反映することで、この不整合を解消する。
+ * inner groupのJSX position propは削除し（二重管理を避ける）、position/quaternionとも
+ * useFrameのみが書き込む単一の情報源に統一する。
+ *
+ * 既知の制限（Phase1-B、未解決）: 上記の修正後もRelease直後にprosthesisが一瞬元位置方向へ
+ * 戻って見える、という軽微な視覚的現象が実機で再現している。ただしposition/quaternion/
+ * worldPos/screenPosは診断ログ・録画のフレーム単位確認のいずれでもRelease前後で連続してお
+ * り、原因は特定できていない（FrozenなuseScreenSpaceDrag.handleUpとReact/Three.jsの
+ * render timingの間に、診断では捉えられていない短時間の中間状態が残っている可能性はある）。
+ * Phase1-Bのスコープではこれ以上の追跡は行わない。
  */
 export function DirectTransportProsthesis({
-  product, selectedLength, transportPose, onTransportPoseChange, shaftRollDeg,
-  onDragActiveChange, onRelease,
+  product, selectedLength, transportPose, onTransportPoseChange, transportTilt, shaftRollDeg,
+  onDragActiveChange, basePos, onRelease,
 }: DirectTransportProsthesisProps) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef      = useRef<THREE.Group>(null);
+  const innerGroupRef = useRef<THREE.Group>(null);
+
+  /** ドラッグ中/非ドラッグ中を問わない「position/quaternion計算用の現在の基準位置」。
+   *  transportPose.position（React state）の変化（ControlPad操作・Case切替等）には
+   *  下のuseEffectで追従し、ドラッグ終了時はonDragEndコールバック内で同期的に更新する
+   *  （React stateの非同期コミットを待たない、Release直後の位置・回転ジャンプを防ぐため）。 */
+  const basePosRef = useRef(transportPose.position.clone());
+  /** useFrame内で毎フレーム再利用する一時Vector3（allocation回避、mutationのみに使う）。 */
+  const livePosRef = useRef(new THREE.Vector3());
+
+  useEffect(() => {
+    basePosRef.current = transportPose.position.clone();
+  }, [transportPose.position]);
 
   const { onPointerDown } = useScreenSpaceDrag(
     groupRef,
     onDragActiveChange,
     (localDelta) => {
       const newPos = transportPose.position.clone().add(localDelta);
-      onTransportPoseChange({ position: newPos, quaternion: transportPose.quaternion });
-      onRelease();
+      const newTransportPose: TransportPose = { position: newPos, quaternion: transportPose.quaternion };
+      // basePosRefをReact state更新と同じタイミングで同期する（range内/range外を問わず、
+      // onTransportPoseChangeは常に呼ばれるため、常にnewTransportPose.positionへ合わせる）。
+      basePosRef.current = newPos.clone();
+      // 範囲内・範囲外を問わず常に更新する（Transport中の自由移動を保証、範囲外Releaseでも
+      // Releaseした場所にそのまま留まる。元の位置へ戻す実装はしない）。
+      onTransportPoseChange(newTransportPose);
+      const inRange = isTransportPoseWithinPlacementRange(newTransportPose, basePos);
+      if (inRange) {
+        onRelease({
+          ...commitTransportPoseToOffsets(newTransportPose, basePos),
+          angleTilt:  transportTilt.tilt,
+          angleTiltZ: transportTilt.tiltZ,
+        });
+      }
+      // range外: onReleaseを呼ばない＝manipulation.committedはfalseのまま、Transport継続
+      // （transportTiltも呼び出し元でそのまま保持される、ここでは変更しない）。
     },
   );
 
+  useFrame(() => {
+    if (!innerGroupRef.current) return;
+    // position/quaternionとも同じlivePos（basePosRef + 外側wrapperのimperative drag offset）
+    // を基準に、同一フレーム内でimperativeに反映する（二重管理・タイミングずれを避ける）。
+    const livePos = livePosRef.current.copy(basePosRef.current).add(groupRef.current?.position ?? ZERO_VEC);
+    const quaternion = computeProsthesisModelPose({
+      product, shaftLength: selectedLength,
+      basePos: livePos,
+      angleTilt: transportTilt.tilt, angleTiltZ: transportTilt.tiltZ,
+    }).quaternion;
+    innerGroupRef.current.position.copy(livePos);
+    innerGroupRef.current.quaternion.copy(quaternion);
+  });
+
   return (
     <group ref={groupRef} position={[0, 0, 0]} onPointerDown={onPointerDown}>
-      <group
-        position={[transportPose.position.x, transportPose.position.y, transportPose.position.z]}
-        quaternion={transportPose.quaternion}
-      >
+      <group ref={innerGroupRef}>
         <ProsthesisModel
           product={product}
           shaftLength={selectedLength}

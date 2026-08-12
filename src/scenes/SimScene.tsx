@@ -25,7 +25,7 @@
  *   OrbitControls はドラッグ中に無効化
  */
 
-import { Suspense, useRef, useEffect, useMemo, useState } from 'react';
+import { Suspense, useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -64,8 +64,13 @@ import {
   createInitialTransportPose,
   commitTransportPoseToOffsets,
   useScreenSpaceDrag,
+  nudgeTransportPosition,
+  nudgeTransportTilt,
   INITIAL_MANIPULATION_STATE,
+  INITIAL_TRANSPORT_TILT,
   type TransportPose,
+  type TransportTilt,
+  type TransportControls,
   type ManipulationState,
 } from './transport/ManipulationLayer';
 
@@ -326,6 +331,14 @@ interface SimSceneProps {
    * 行う、無変更）。
    */
   onDirectRelease?: () => void;
+  /**
+   * Phase1-B ControlPad Transport対応: SimSceneがTransport段階のPosition/Tilt操作用
+   * コールバック（transportPose/transportTiltを更新するだけの薄いラッパー）を生成した際に
+   * 親（SimulationMode.tsx）へ公開する。マウント時に1回呼ばれ、アンマウント時にnullで
+   * 呼ばれる（cleanup）。transportPose/transportTilt自体の所有権はSimSceneに残したまま、
+   * ControlPad（sibling）から更新できるようにするための最小限の経路。
+   */
+  onTransportControlsReady?: (controls: TransportControls | null) => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -707,6 +720,7 @@ export function SimScene({
   manipulation = { ...INITIAL_MANIPULATION_STATE, committed: true },
   onManipulationCommitted,
   onDirectRelease,
+  onTransportControlsReady,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -737,6 +751,9 @@ export function SimScene({
   // 純粋関数＋描画コンポーネントのみで、この状態自体は持たない）。DragMode（既存の
   // move/view切替）と同じ「操作メカニクスの状態はUIに近い場所に置く」という前例に従う。
   const [transportPose, setTransportPose] = useState<TransportPose>(() => createInitialTransportPose(basePos));
+  // Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
+  // PlacementStateには一切書き込まない、transportPoseと同じライフサイクルのローカルstate。
+  const [transportTilt, setTransportTilt] = useState<TransportTilt>(INITIAL_TRANSPORT_TILT);
   // manipulation.committed が false→true になった瞬間に一度だけ、Transport→Placementの
   // Commit（唯一の変換点）を実行するためのガード。
   const hasCommittedRef = useRef(false);
@@ -749,6 +766,23 @@ export function SimScene({
     useSimStore.getState().markPositionTouched();
     onManipulationCommitted?.();
   }, [manipulation.committed, transportPose, basePos, onManipulationCommitted]);
+
+  // Phase1-B ControlPad Transport対応: ControlPad（sibling、SimulationMode.tsx側）から
+  // transportPose/transportTiltを更新するための薄いコールバック。関数形state更新
+  // （setTransportPose(prev => ...)/setTransportTilt(prev => ...)）を使うため、closure内で
+  // transportPose/transportTiltの値を直接参照しない＝stale closureは発生しない。
+  // useCallback([])で恒等性を安定させ、useEffectがマウント時に1回だけ発火するようにする。
+  const translateTransport = useCallback((axis: 'x' | 'y' | 'z', deltaMm: number) => {
+    setTransportPose(prev => nudgeTransportPosition(prev, axis, deltaMm));
+  }, []);
+  const rotateTransport = useCallback((axis: 'tilt' | 'tiltZ', deltaDeg: number) => {
+    setTransportTilt(prev => nudgeTransportTilt(prev, axis, deltaDeg));
+  }, []);
+  useEffect(() => {
+    const controls: TransportControls = { translate: translateTransport, rotate: rotateTransport };
+    onTransportControlsReady?.(controls);
+    return () => onTransportControlsReady?.(null);
+  }, [translateTransport, rotateTransport, onTransportControlsReady]);
 
   // ── Phase20.4c: 実際の配置点でSafety Score算出（DANGER_ZONES近接判定）を都度更新 ──
   // basePos + オフセット = プロステーシス基準点（Placement Frame）。DraggableProsthesis/
@@ -1403,16 +1437,40 @@ export function SimScene({
           ) : DIRECT_MANIPULATION_UX ? (
             // Phase1-B Step6: Transport段階もDirect Manipulation UXへ切り替え。Prosthesis
             // クリックで直接把持→ドラッグ→pointerUp(解放)がそのままonDirectReleaseを呼び、
-            // 呼び出し元(SimulationMode.tsx)がmanipulation.committedをtrueにする
-            // （実際のPlacementStateへのCommitは既存useEffectのまま、無変更）。
+            // 呼び出し元(SimulationMode.tsx)がmanipulation.committedをtrueにする。
+            //
+            // Releaseワープ修正（Conditional Commit方式）: DirectTransportProsthesis内部の
+            // isTransportPoseWithinPlacementRange()判定により、basePosから±3mm以内での
+            // Releaseの場合にのみこのonReleaseが呼ばれる（範囲外Releaseでは呼ばれず、
+            // manipulation.committedはfalseのままTransportが継続する）。
+            // ここで受け取るoffsetsは「表示されていたtransportPoseをbasePos基準に読み替えた
+            // だけの値」（clampは実質no-op）のため、そのままupdatePlacementしても表示位置と
+            // 一致する。DraggableProsthesisへ切り替わる前（onDirectRelease呼び出しで
+            // manipulation.committedがtrueになる前）に同期的にstoreへ書き込むことで、
+            // 切替直後のstale frame（旧dragOffsetX/Y/Z=0での一瞬の誤描画）を防ぐ。
+            // 既存のuseEffect（commitTransportPoseToOffsets呼び出し、無変更）もこの後
+            // 発火するが、同じ範囲内の値を再計算するだけの冪等な冗長実行になる
+            // （commitTransportPoseToOffsets()の戻り値にangleTilt/angleTiltZは含まれない
+            // ため、この再実行がangleTilt/angleTiltZを上書きすることはない）。
+            //
+            // Phase1-B ControlPad Transport対応（T2方式）: onReleaseのoffsetsに
+            // angleTilt/angleTiltZ（transportTiltの値をそのままコピー）も含まれるため、
+            // Position/Tiltをまとめて1回のupdatePlacement()で同期的に書き込む。
             <DirectTransportProsthesis
               product={product}
               selectedLength={selectedLength}
               transportPose={transportPose}
               onTransportPoseChange={setTransportPose}
+              transportTilt={transportTilt}
               shaftRollDeg={interactionShaftRollDeg}
               onDragActiveChange={setDirectDragActive}
-              onRelease={() => onDirectRelease?.()}
+              basePos={basePos}
+              onRelease={(offsets) => {
+                useSimStore.getState().updatePlacement(offsets);
+                useSimStore.getState().markPositionTouched();
+                useSimStore.getState().markAngleTouched();
+                onDirectRelease?.();
+              }}
             />
           ) : (
             <TransportProsthesis

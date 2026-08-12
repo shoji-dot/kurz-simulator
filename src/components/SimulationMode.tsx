@@ -37,6 +37,7 @@ import { surgicalCases, type SurgicalCase } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
 import { DIRECT_MANIPULATION_UX } from '../scenes/transformControlsConfig';
+import type { TransportControls } from '../scenes/transport/ManipulationLayer';
 import { ViewPresetPanel } from './ViewPresetPanel';
 import { shiftViewForSim, SURGICAL_VIEWS } from '../scenes/ViewPresets';
 import {
@@ -1006,6 +1007,10 @@ function PlacementStep() {
   const [instrumentSelected, setInstrumentSelected] = useState(false);
   const [isGrasped, setIsGrasped] = useState(false);
   const [manipulationCommitted, setManipulationCommitted] = useState(false);
+  // Phase1-B ControlPad Transport対応: SimScene（子）が公開するTransport操作用コールバックを
+  // 保持し、sibling（ControlPad）へ橋渡しする。transportPose/transportTilt自体の所有権は
+  // SimSceneに残したまま（liftしない）、この薄いコールバックのみを中継する。
+  const [transportControls, setTransportControls] = useState<TransportControls | null>(null);
   const [viewMode, setViewMode] = useState<SimViewMode>('normal');
   const [vis3dOpen, setVis3dOpen] = useState(false);
   const [adjPanelOpen, setAdjPanelOpen] = useState(false);
@@ -1089,6 +1094,7 @@ function PlacementStep() {
           panMode={simPanMode}
           manipulation={{ instrumentSelected, isGrasped, committed: manipulationCommitted }}
           onDirectRelease={() => setManipulationCommitted(true)}
+          onTransportControlsReady={setTransportControls}
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
@@ -1236,7 +1242,7 @@ function PlacementStep() {
             操作パネル位置を統一。dragModeに関わらず常時表示（translateSelectedObject/
             rotateSelectedObjectはTransformControlsの選択状態と独立した純粋なstore操作のため）。 */}
         <div style={{ position: 'absolute', bottom: 16, left: 12, zIndex: Z_INDEX.toolbar }}>
-          <ControlPad />
+          <ControlPad manipulationCommitted={manipulationCommitted} transportControls={transportControls} />
         </div>
       </div>
 

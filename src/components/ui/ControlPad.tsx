@@ -24,6 +24,7 @@
 import { useState } from 'react';
 import { HoldButton } from './HoldButton';
 import { useSimStore } from '../../store/useSimStore';
+import type { TransportControls } from '../../scenes/transport/ManipulationLayer';
 import {
   KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, HOLD_STEP_FAST_MM,
   ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, ROTATION_STEP_FAST_DEG,
@@ -48,14 +49,38 @@ function DirLabel({ icon, text }: { icon: string; text: string }) {
   );
 }
 
-export function ControlPad() {
+export interface ControlPadProps {
+  /**
+   * Phase1-B ControlPad Transport対応: falseの間（Transport段階、Direct Manipulation UX）は
+   * Position/Tilt操作をPlacementStateではなくtransportControls経由でtransportPose/
+   * transportTiltへ反映する。既定値true（＝従来どおりPlacementStateへ直接反映）のため、
+   * このpropを渡さない既存の呼び出し元（StepFlowMode.tsx等）は完全に無変更のまま動作する。
+   */
+  manipulationCommitted?: boolean;
+  /** Transport段階でPosition/Tiltを操作するためのコールバック（SimScene経由）。
+   *  manipulationCommitted=falseかつこれが未設定の場合は、既存のPlacementState経路へ
+   *  フォールバックする（安全側のデフォルト、クラッシュしない）。 */
+  transportControls?: TransportControls | null;
+}
+
+export function ControlPad({ manipulationCommitted = true, transportControls }: ControlPadProps = {}) {
   const [expanded, setExpanded] = useState(false);
 
   const translate = (axis: 'x' | 'y' | 'z', sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
-    useSimStore.getState().translateSelectedObject(axis, sign * moveStepMm(info.fast, info.fine));
+    const deltaMm = sign * moveStepMm(info.fast, info.fine);
+    if (!manipulationCommitted && transportControls) {
+      transportControls.translate(axis, deltaMm);
+    } else {
+      useSimStore.getState().translateSelectedObject(axis, deltaMm);
+    }
   };
   const rotate = (axis: 'tilt' | 'tiltZ', sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
-    useSimStore.getState().rotateSelectedObject(axis, sign * rotateStepDeg(info.fast, info.fine));
+    const deltaDeg = sign * rotateStepDeg(info.fast, info.fine);
+    if (!manipulationCommitted && transportControls) {
+      transportControls.rotate(axis, deltaDeg);
+    } else {
+      useSimStore.getState().rotateSelectedObject(axis, deltaDeg);
+    }
   };
   // Phase1-B Step4: shaft roll（interactionShaftRollDeg、PlacementStateの外側）。
   // 既存のROTATION_STEP_DEG/FINE/FAST定数をそのまま再利用する。

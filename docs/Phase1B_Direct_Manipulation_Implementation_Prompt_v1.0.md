@@ -276,3 +276,34 @@ rotateShaftRoll: (deltaDeg: number) => void;
   報告する（過去に記録と実態が食い違った事例あり）
 - 実装完了の報告は「TypeCheck/Build PASS」までであり、「Phase 1-B完成」とは称さない
   （実機GUI確認＝shojiの目視判断が別ゲートとして必須）
+
+## 12. Known Limitations（実装後、2026-08-12追記）
+
+### Release後の軽微な位置戻り（未解決、追跡停止）
+
+Rotation Bug（Release時の最大約180°反転）とPosition imperative化前の大きなReleaseジャンプは
+解消済み（§7 Step2/3実装、`ManipulationLayer.tsx` `DirectTransportProsthesis`）。一方、修正後も
+実機ではRelease直後にprosthesisが一瞬元位置方向へ戻って見える軽微な視覚的現象が再現する。
+
+調査済み・除外できた原因:
+- OrbitControls damping: 再現ケースでカメラtransformの変化なし、`onChange`ログなし
+- EAC透過描画（opacity 0.20/depthWrite false/renderOrder 1）: EAC表示OFFでも現象は再現、主因から除外
+- Prosthesis側のcomponent切替（DirectTransportProsthesis→DraggableProsthesis）: range外Release
+  だったため切替自体が発生していないケースでも再現
+- ProsthesisModels.tsx側の内部状態: `useFrame`/`useState`等は存在せず、Release状態によるgeometry
+  offset変更は確認されず
+- 回転量による視覚的錯覚: 大きく速いドラッグだけでなく、大きくゆっくり移動した場合・小さい回転量でも
+  再現するため、回転錯視だけでは説明できない
+
+実測データ:
+- position/quaternion/worldPos/screenPosは、Release直前・直後・数百〜数千フレーム後のいずれも
+  診断ログ上で連続しており、不整合な中間状態は捕捉できなかった
+- 実機録画（30fps、656フレーム、約21.9秒、1626×894）のうち現象を認識した5〜7秒区間をフレーム単位で
+  確認したが、明確なジャンプ・変形・消失・二重描画は確認できなかった
+
+**決定**: 上記の通り主要な原因候補（カメラ・透過描画・component切替・Geometry内部状態・回転錯視）は
+いずれも再現条件を変えた比較検証で除外できたが、現行の診断手段では捕捉できていない短時間の
+render timing上の状態が存在する可能性は排除できていない。
+Phase 1-Bはこの現象を**「原因未特定」のまま放置するのではなく、現時点で得られているEvidenceに対して
+これ以上の実装変更を行うことの費用対効果が低いと判断し、既知の制限として明示的に追跡を停止する**。
+再調査は、後続Phaseでこの現象が実運用上の問題として顕在化した場合にのみ行う。
