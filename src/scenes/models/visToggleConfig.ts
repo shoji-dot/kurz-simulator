@@ -20,7 +20,6 @@ export const SIM_VIS_ITEMS: { key: StructureKey; label: string; color: string; i
   { key: 'innerEar',      label: '内耳',      color: '#60b8e0' },
   { key: 'facialNerve',   label: '顔面神経',  color: '#f5d820' },
   { key: 'chordaTympani', label: '鼓索神経',  color: '#f0b830' },
-  { key: 'eac',           label: '外耳道',    color: '#d8c8a0' },
   { key: 'roundWindow',   label: '正円窓',    color: '#5888a8' },
 ];
 

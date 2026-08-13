@@ -951,7 +951,7 @@ export function SimScene({
   // 距離を計算する（checkProximityToDangerは圏外を除外するため「あと何mmで警告か」が分からない）。
   const nearestDangerZone = useMemo(() => findNearestDangerZone(dangerZonePoint), [dangerZonePoint]);
 
-  // vis をマージ。耳小骨（ossicles/malleus/incus/stapes）と auricle は
+  // vis をマージ。耳小骨（ossicles/malleus/incus/stapes）・auricle・外耳道(eac)は
   // RealAnatomy 側では描画しない（hidden）。耳小骨は下で症例別に直接レンダリングし、
   // ユーザーの表示切替（vis）をそこへ反映する。
   const mergedVis: VisibilityMap = {
@@ -962,6 +962,7 @@ export function SimScene({
     incus:    'hidden',
     stapes:   'hidden',
     auricle:  'hidden',
+    eac:      'hidden',
   };
 
   // 症例別 耳小骨 ステータス(stapesは上のbasePos計算で既に取得済みのstapStatusを再利用)
