@@ -25,7 +25,7 @@
  *   OrbitControls はドラッグ中に無効化
  */
 
-import { Suspense, useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { Suspense, useRef, useEffect, useMemo, useState, useCallback, type RefObject } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -37,8 +37,10 @@ import {
 import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview, SoftClipBandLoopPreview, SoftClipBandLoopAttachedPreview, getSoftClipBandLoopDefaultAttachTransform, type SoftClipBandLoopAttachTransform } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
-import { isCoordDebugMode } from '../utils/debugMode';
+import { isCoordDebugMode, isSceneDumpDebugMode, isCollisionVerifyDebugMode } from '../utils/debugMode';
 import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } from './debug/CoordinateDebugOverlay';
+import { SceneDumpPanel, SceneDumpTracker, type SceneDumpResult } from './debug/SceneDumpOverlay';
+import { CollisionVerifyPanel, CollisionVerifyTracker, CollisionBoundaryWarpTracker, type CollisionVerifyCaseResult } from './debug/CollisionVerifyOverlay';
 import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
@@ -57,7 +59,10 @@ import {
 import { poseToThree } from './debug/poseThreeAdapter';
 import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
-import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX } from './transformControlsConfig';
+import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX, COLLISION_CONSTRAINT_ENABLED } from './transformControlsConfig';
+import { useAnatomyCollisionIndex, type AnatomyCollisionKey } from '../engine/collision/anatomyCollisionIndex';
+import { buildProsthesisCollisionProxy } from '../engine/collision/prosthesisCollisionGeometry';
+import { testCollision } from '../engine/collision/collisionTest';
 import {
   TransportProsthesis,
   DirectTransportProsthesis,
@@ -339,6 +344,16 @@ interface SimSceneProps {
    * ControlPad（sibling）から更新できるようにするための最小限の経路。
    */
   onTransportControlsReady?: (controls: TransportControls | null) => void;
+  /**
+   * [TEST-ONLY, 一時] Phase C-2実機検証（Architect依頼2026-08-14、Collision Boundary Warp）。
+   * ボタン押下のたびにインクリメントされる値を渡すと、「側頭骨の外側・Collision発生直前
+   * （まだ非衝突）」のlateralOffsetを二分探索で求めてPlacementStateへ書き込み、
+   * onDirectReleaseと同じ意味でmanipulation.committedをtrueにする（呼び出し元に委譲）。
+   * 未指定時は何もしない（既存呼び出し元に影響なし）。Phase C検証完了後に削除する。
+   */
+  collisionBoundaryWarpRequestId?: number;
+  /** Collision Boundary Warpの結果メッセージ（成功/失敗）を親へ通知する（表示はSimulationMode側）。 */
+  onCollisionBoundaryWarpResult?: (message: string, success: boolean) => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -567,6 +582,13 @@ interface DraggableProsthesisProps {
   shaftRollDeg?:       number;
   /** ドラッグ中(true)/非ドラッグ中(false)。呼び出し元でOrbitControlsとの競合防止に使う。 */
   onDragActiveChange?: (active: boolean) => void;
+  /**
+   * Phase C-2（Prosthesis-Anatomy Collision Constraint）: Anatomy側worldTransform取得用の
+   * 読み取り専用ref。SceneDump診断（Phase Occlusion調査）で追加済みのanatomyGroupRefをそのまま
+   * 再利用する。未指定時はCollision Constraintを評価しない（安全側フォールバック、既存呼び出し
+   * 元がこのpropを渡さなくてもクラッシュしない）。
+   */
+  anatomyRootRef?: RefObject<THREE.Group | null>;
 }
 
 function DraggableProsthesis({
@@ -579,22 +601,72 @@ function DraggableProsthesis({
   directManipulation = false,
   shaftRollDeg = 0,
   onDragActiveChange,
+  anatomyRootRef,
 }: DraggableProsthesisProps) {
   const tcRef = useRef<any>(null);
   const dragGroupRef = useRef<THREE.Group>(null);
+
+  // Phase C-2（Collision Constraint）: 直前フレームまでCollisionしていなかった、dragGroupRef
+  // ローカル座標系でのdelta。ドラッグ開始のたびに(0,0,0)へリセットする（Architect指示「前回の
+  // DragのlastValidを次のDragへ持ち越さない」というInvariant）。Collision Test自体はuseFrame側
+  // （下部）で行う。useScreenSpaceDrag本体・handleMove・handleUpは無変更。
+  const lastValidLocalDeltaRef = useRef(new THREE.Vector3(0, 0, 0));
+  const anatomyIndex = useAnatomyCollisionIndex();
+
+  // onDragActiveChangeのラッパー: ドラッグ開始(false→true)の瞬間にlastValidLocalDeltaRefを
+  // リセットする以外は、既存の呼び出し元（呼び出し元propそのまま）へ完全に委譲する。
+  // useScreenSpaceDrag自体・その呼び出し方は無変更。
+  const handleDragActiveChange = (active: boolean) => {
+    if (active) lastValidLocalDeltaRef.current.set(0, 0, 0);
+    onDragActiveChange?.(active);
+  };
+
+  // Phase C-2: 与えられたdragGroupRefローカルdelta（candidate）がCollision-freeかを判定する。
+  // useFrame（毎フレーム補正）とonDragEnd（Release時ガード、下記）の両方から呼ぶ共通ロジック。
+  // 理由（重要な発見）: useScreenSpaceDragのhandleUp（pointerupのDOMイベント、Frozen）は
+  // 「最後のpointermove直後、次のrAFティックより前」に同期的に発火する。つまりuseFrame側の
+  // 補正が1フレーム遅れて効くのに対し、pointerupはその補正前のgroup.positionを読んでしまう
+  // レースコンディションが存在する（Architectが指摘したTransport側の非対称性と同種の問題が
+  // Placement Drag側にも存在すると判明）。そのためRelease時にも同じ判定をもう一度行う。
+  const evaluateDragCandidate = (dragLocalDelta: THREE.Vector3): boolean => {
+    const anatomyRoot = anatomyRootRef?.current;
+    const candidatePose = composeDragCandidatePose({
+      product, shaftLength: selectedLength, basePos,
+      lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
+      shaftRollDeg, dragLocalDelta,
+    });
+    const proxy = buildProsthesisCollisionProxy({
+      product, shaftLength: selectedLength,
+      position: candidatePose.position, quaternion: candidatePose.quaternion,
+    });
+
+    if (!proxy || !anatomyRoot) {
+      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック）
+    }
+
+    anatomyRoot.updateWorldMatrix(true, false);
+    const result = testCollision(proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyRoot.matrixWorld);
+    return !result.collided;
+  };
 
   // Phase1-B Step3: Placement済みプロステーシスの直接クリック→ドラッグ。ドラッグ終了時、
   // 既存DraggableProsthesis.handleMouseUpと同じ意味論・同じ±3mmクランプでdragOffsetX/Y/Zへ
   // 直接反映する（TransformControlsギズモを経由しない別入力機構、Implementation Prompt §7 Step3）。
   const { onPointerDown: onDirectDragPointerDown } = useScreenSpaceDrag(
     dragGroupRef,
-    onDragActiveChange ?? (() => {}),
+    handleDragActiveChange,
     (localDelta) => {
+      // Phase C-2: Release時ガード（上記コメント参照）。collisionしていればlastValidへ差し替える
+      // （localDelta自体は変更しない＝useScreenSpaceDrag/handleUpの計算式には一切触れない）。
+      const releaseCandidateNonColliding = evaluateDragCandidate(localDelta);
+      const effectiveDelta = (COLLISION_CONSTRAINT_ENABLED && directManipulation && !releaseCandidateNonColliding)
+        ? lastValidLocalDeltaRef.current
+        : localDelta;
       const { placement } = useSimStore.getState();
       useSimStore.getState().updatePlacement({
-        dragOffsetX: clamp3(placement.dragOffsetX + localDelta.x),
-        dragOffsetY: clamp3(placement.dragOffsetY + localDelta.y),
-        dragOffsetZ: clamp3(placement.dragOffsetZ + localDelta.z),
+        dragOffsetX: clamp3(placement.dragOffsetX + effectiveDelta.x),
+        dragOffsetY: clamp3(placement.dragOffsetY + effectiveDelta.y),
+        dragOffsetZ: clamp3(placement.dragOffsetZ + effectiveDelta.z),
       });
       // Implementation Prompt §7 Step3: ドラッグ終了時にmarkPositionTouched()を呼ぶこと
       // （既存の採点起動条件を壊さないため）。
@@ -668,6 +740,34 @@ function DraggableProsthesis({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isMove]);
+
+  // Phase C-2（Prosthesis-Anatomy Collision Constraint、Placement Drag）: dragGroupRef.position
+  // （useScreenSpaceDrag.handleMoveがpointermoveのたびに書き込むraw local delta、Frozen対象の
+  // 内部実装は無変更）を毎フレーム読み取り、Collision Testし、衝突していればlastValidへ補正する。
+  //
+  //   pointermove → useScreenSpaceDrag.handleMove → dragGroupRef.position = candidate（Frozen）
+  //                                                        ↓
+  //                                        このuseFrame（新規、DraggableProsthesis内のみ）
+  //                                                        ↓
+  //                              Collision Test → No Collision: lastValid更新
+  //                                             → Collision   : dragGroupRef.position = lastValid
+  //
+  // useScreenSpaceDrag/handleMove/handleUpの計算式・イベント購読は一切変更していない
+  // （同じObject3D=dragGroupRefを外側から読み書きするのみ）。Architect承認2026-08-14。
+  useFrame(() => {
+    if (!COLLISION_CONSTRAINT_ENABLED || !directManipulation) return;
+    const group = dragGroupRef.current;
+    if (!group) return;
+    const candidate = group.position;
+    if (candidate.equals(lastValidLocalDeltaRef.current)) return; // 変化なし（非ドラッグ中含む）
+
+    if (evaluateDragCandidate(candidate)) {
+      lastValidLocalDeltaRef.current.copy(candidate);
+    } else {
+      group.position.copy(lastValidLocalDeltaRef.current);
+    }
+  });
+
   return (
     <TransformControls
       ref={tcRef}
@@ -710,6 +810,45 @@ function clamp3(v: number): number {
   return Math.max(-3, Math.min(3, v));
 }
 
+// Phase C-2: Placement Dragで対象とするAnatomy。Bone単体から開始し、実機検証を経てから
+// Malleus/Stapesを追加する（Architect指示、Phase C-6で拡張予定）。
+const DRAG_COLLISION_TARGETS: AnatomyCollisionKey[] = ['bone'];
+
+/**
+ * composeDragCandidatePose(): Placement Drag中のCandidate World Poseを計算する。
+ * 「committed placement（store確定値、computeProsthesisModelPose()）+ dragGroupRefのraw local
+ * delta（useScreenSpaceDrag.handleMoveが書き込む、まだstore未反映）」を合成する
+ * （Architect指示: computeProsthesisModelPose()の生の戻り値ではなく、この合成後の値が
+ * Candidate Poseである）。shaftRollDegの後乗せもProsthesisModels.tsx:1796-1800と同じ式を
+ * ここで再現する（Frozen対象のcomputeProsthesisModelPose自体は無変更、値だけ再利用）。
+ */
+function composeDragCandidatePose(params: {
+  product: KurzProduct;
+  shaftLength: number;
+  basePos: THREE.Vector3;
+  lateralOffset: number;
+  anteriorOffset: number;
+  verticalOffset: number;
+  angleTilt: number;
+  angleTiltZ: number;
+  shaftRollDeg: number;
+  /** dragGroupRef.position（ドラッグ中のraw local delta、未確定値）。 */
+  dragLocalDelta: THREE.Vector3;
+}): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
+  const committed = computeProsthesisModelPose({
+    product: params.product, shaftLength: params.shaftLength, basePos: params.basePos,
+    lateralOffset: params.lateralOffset, anteriorOffset: params.anteriorOffset, verticalOffset: params.verticalOffset,
+    angleTilt: params.angleTilt, angleTiltZ: params.angleTiltZ,
+  });
+  const position = committed.position.clone().add(params.dragLocalDelta);
+  const quaternion = params.shaftRollDeg
+    ? committed.quaternion.clone().multiply(
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (params.shaftRollDeg * Math.PI) / 180),
+      )
+    : committed.quaternion;
+  return { position, quaternion };
+}
+
 // ══════════════════════════════════════════════════════════════════
 // SimScene
 // ══════════════════════════════════════════════════════════════════
@@ -721,6 +860,8 @@ export function SimScene({
   onManipulationCommitted,
   onDirectRelease,
   onTransportControlsReady,
+  collisionBoundaryWarpRequestId,
+  onCollisionBoundaryWarpResult,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -1002,6 +1143,36 @@ export function SimScene({
   const coordGroupRef = useRef<THREE.Group>(null);
   const coordPanelRef = useRef<HTMLDivElement | null>(null);
 
+  // ── Scene Dump Diagnostic（Occlusion原因診断、一時計装、?debug=scenedump限定） ──────────
+  // [Claude Code 実装依頼] Prosthesis–Anatomy Occlusion 原因診断対応。診断専用の読み取り専用
+  // instrumentationで、Anatomy/Prosthesisの描画・Material設定には一切触れない。
+  const [sceneDumpDebug] = useState(() => isSceneDumpDebugMode());
+  const anatomyGroupRef = useRef<THREE.Group>(null);
+  const prosthesisGroupRef = useRef<THREE.Group>(null);
+  const [sceneDumpCaptureRequestId, setSceneDumpCaptureRequestId] = useState(0);
+  const [sceneDumpCaptureLabel, setSceneDumpCaptureLabel] = useState('manual');
+  const [lastSceneDumpResult, setLastSceneDumpResult] = useState<SceneDumpResult | null>(null);
+  const [sceneDumpHistory, setSceneDumpHistory] = useState<readonly { label: string; at: string }[]>([]);
+  const [sceneDumpAutoCapture, setSceneDumpAutoCapture] = useState(false);
+  const requestSceneDumpCapture = (label: string) => {
+    setSceneDumpCaptureLabel(label);
+    setSceneDumpCaptureRequestId((n) => n + 1);
+  };
+  // どのProsthesis representationが実際に描画されているか（下のJSX分岐と同一の判定式）。
+  // Item 4「Drag中/Release後でrepresentationが違うか」の検証にそのまま使う。
+  const activeProsthesisRepresentation = manipulation.committed
+    ? 'DraggableProsthesis'
+    : (DIRECT_MANIPULATION_UX ? 'DirectTransportProsthesis' : 'TransportProsthesis');
+
+  // ── Collision Engine 単独検証（Phase C-1、?debug=collision限定） ────────────────────────
+  // [Architect承認 2026-08-14] Manipulation Layer（DraggableProsthesis/DirectTransportProsthesis/
+  // TransportProsthesis/TransformControls/useScreenSpaceDrag）には一切接続しない、Collision
+  // Engine（anatomyCollisionIndex/prosthesisCollisionGeometry/collisionTest）単体の動作確認専用。
+  // anatomyGroupRef（既存、Scene Dump診断用に追加済み）をそのまま再利用する。
+  const [collisionVerifyDebug] = useState(() => isCollisionVerifyDebugMode());
+  const [collisionVerifyRequestId, setCollisionVerifyRequestId] = useState(0);
+  const [collisionVerifyResults, setCollisionVerifyResults] = useState<CollisionVerifyCaseResult[] | null>(null);
+
   // Phase20.4c: coordDebug時のみSafety Score/Alertsを表示（GUIでの動作確認用、既存UIには影響なし）。
   const safetyScore  = useSimStore((s) => s.safetyScore);
   const safetyAlerts = useSimStore((s) => s.safetyAlerts);
@@ -1046,6 +1217,26 @@ export function SimScene({
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
     {coordDebug && (
       <CoordinateDebugPanel sceneLabel="SimScene" panelRef={coordPanelRef} zIndex={Z_INDEX.modal} />
+    )}
+    {sceneDumpDebug && (
+      <SceneDumpPanel
+        zIndex={Z_INDEX.modal}
+        onRequestCapture={(label) => {
+          requestSceneDumpCapture(label);
+          setSceneDumpHistory((h) => [...h, { label, at: new Date().toISOString() }].slice(-8));
+        }}
+        lastResult={lastSceneDumpResult}
+        history={sceneDumpHistory}
+        autoCaptureWhileDragging={sceneDumpAutoCapture}
+        onToggleAutoCapture={setSceneDumpAutoCapture}
+      />
+    )}
+    {collisionVerifyDebug && (
+      <CollisionVerifyPanel
+        zIndex={Z_INDEX.modal}
+        onRequestVerify={() => setCollisionVerifyRequestId((n) => n + 1)}
+        results={collisionVerifyResults}
+      />
     )}
     {coordDebug && (
       <div
@@ -1299,7 +1490,9 @@ export function SimScene({
         */}
         <group ref={coordGroupRef} rotation={[Math.PI, -Math.PI / 2, 0]}>
           {/* ── GLBリアルモデル ── */}
-          <group position={GLB_OFFSET}>
+          {/* anatomyGroupRef: Scene Dump診断（?debug=scenedump）専用の読み取り専用ref。
+              このgroup自体の描画・Materialには一切影響しない（Occlusion原因診断のsubtree特定用）。 */}
+          <group position={GLB_OFFSET} ref={anatomyGroupRef}>
             <RealAnatomy vis={mergedVis} onStructureClick={onStructureClick} />
             {showMalleus   && <group onDoubleClick={(e) => { e.stopPropagation(); onStructureClick?.('malleus'); }}><RealMalleus opacityOverride={malOpacity}  /></group>}
             {showIncus     && <group onDoubleClick={(e) => { e.stopPropagation(); onStructureClick?.('incus');   }}><RealIncus   opacityOverride={incOpacity}  /></group>}
@@ -1416,6 +1609,11 @@ export function SimScene({
               DraggableProsthesis（PlacementState連動）を一切マウントせず、TransportProsthesis
               （ManipulationLayer.tsx、PlacementStateには無関係な一時transportPoseのみで動作）を
               代わりに描画する。committed=true になった瞬間から下は完全に既存経路のみ（無変更）。 */}
+          {/* prosthesisGroupRef: Scene Dump診断（?debug=scenedump）専用の読み取り専用ref。
+              DraggableProsthesis/DirectTransportProsthesis/TransportProsthesisのいずれが実際に
+              マウントされていてもこのgroupが親になる（Occlusion原因診断のsubtree特定用、
+              描画・Material・既存の分岐ロジックには一切影響しない）。 */}
+          <group ref={prosthesisGroupRef}>
           {manipulation.committed ? (
             <DraggableProsthesis
               product={product}
@@ -1434,6 +1632,7 @@ export function SimScene({
               directManipulation={DIRECT_MANIPULATION_UX}
               shaftRollDeg={interactionShaftRollDeg}
               onDragActiveChange={setDirectDragActive}
+              anatomyRootRef={anatomyGroupRef}
             />
           ) : DIRECT_MANIPULATION_UX ? (
             // Phase1-B Step6: Transport段階もDirect Manipulation UXへ切り替え。Prosthesis
@@ -1483,6 +1682,7 @@ export function SimScene({
               isGrasped={manipulation.isGrasped}
             />
           )}
+          </group>
         {/* ── デバッグランドマーク（showDebugMarkers=true のとき表示）── */}
           {showDebugMarkers && (
             <>
@@ -1504,6 +1704,40 @@ export function SimScene({
             </>
           )}
         </group>
+        {/* Collision Engine 単独検証（Phase C-1、?debug=collision限定）: useGLTFを使うため
+            Suspense境界の内側に置く必要がある。coordGroupRef（回転グループ）の外側の兄弟として
+            配置し、Manipulation Layer・TransformControls等には一切依存しない。 */}
+        {collisionVerifyDebug && (
+          <CollisionVerifyTracker
+            anatomyRootRef={anatomyGroupRef}
+            verifyRequestId={collisionVerifyRequestId}
+            onResults={setCollisionVerifyResults}
+          />
+        )}
+        {/* [TEST-ONLY, 一時] Phase C-2実機検証（Architect依頼2026-08-14、Collision Boundary
+            Warp）。collisionBoundaryWarpRequestIdが指定されている場合のみマウントする
+            （既存呼び出し元がpropを渡さなければ何も変わらない）。 */}
+        {typeof collisionBoundaryWarpRequestId === 'number' && (
+          <CollisionBoundaryWarpTracker
+            anatomyRootRef={anatomyGroupRef}
+            warpRequestId={collisionBoundaryWarpRequestId}
+            product={product}
+            basePos={basePos}
+            shaftLength={selectedLength}
+            idealLateralOffset={surgicalCase.idealLateralOffset}
+            onWarp={(warpedLateralOffset) => {
+              useSimStore.getState().updatePlacement({
+                lateralOffset: warpedLateralOffset,
+                anteriorOffset: 0, verticalOffset: 0,
+                angleTilt: 0, angleTiltZ: 0,
+                dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+              });
+              useSimStore.getState().markPositionTouched();
+              onDirectRelease?.();
+            }}
+            onResult={(message, success) => onCollisionBoundaryWarpResult?.(message, success)}
+          />
+        )}
       </Suspense>
 
       {/* ギズモ v2: X=右(Lateral), Y=上(Superior), Z=前(Anterior) */}
@@ -1523,6 +1757,19 @@ export function SimScene({
         />
       )}
       {coordDebug && <CoordinateDebugScene3D anatomyRootRef={coordGroupRef} />}
+      {sceneDumpDebug && (
+        <SceneDumpTracker
+          captureRequestId={sceneDumpCaptureRequestId}
+          captureLabel={sceneDumpCaptureLabel}
+          anatomyRootRef={anatomyGroupRef}
+          prosthesisRootRef={prosthesisGroupRef}
+          activeRepresentation={activeProsthesisRepresentation}
+          manipulationCommitted={manipulation.committed}
+          directDragActive={directDragActive}
+          onCaptured={setLastSceneDumpResult}
+          autoCaptureWhileDragging={sceneDumpAutoCapture}
+        />
+      )}
 
       <OrbitControls
         makeDefault

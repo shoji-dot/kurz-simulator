@@ -38,3 +38,9 @@ export const HOLD_REPEAT_INTERVAL_MS = 90;
 // 再有効化する場合はDIRECT_MANIPULATION_UXをfalseに変更する（旧TransformControlsギズモ +
 // Select/Grasp/Releaseボタン経路（a2247d5相当）へ完全復帰する）。
 export const DIRECT_MANIPULATION_UX = true;
+
+// Phase C-2（Prosthesis-Anatomy Collision Constraint、Placement Drag）: Collision Constraint
+// 自体のkill-switch。DIRECT_MANIPULATION_UXと同じ命名・運用パターン。falseにすると
+// DraggableProsthesisのCollision Constraint（useFrame補正）が完全に無効化され、Phase C-2
+// 導入前の挙動（dragGroupRefがCollision Testを一切経由しない）に即座に戻せる。
+export const COLLISION_CONSTRAINT_ENABLED = true;

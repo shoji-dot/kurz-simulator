@@ -1007,6 +1007,11 @@ function PlacementStep() {
   const [instrumentSelected, setInstrumentSelected] = useState(false);
   const [isGrasped, setIsGrasped] = useState(false);
   const [manipulationCommitted, setManipulationCommitted] = useState(false);
+  // [TEST-ONLY, 一時] Phase C-2実機検証（Architect依頼2026-08-14、Collision Boundary Warp）。
+  // requestIdはボタン押下のたびにインクリメントするbump pattern（SimScene側と同じ規約）。
+  // Phase C検証完了後、対応するSimScene/CollisionVerifyOverlay側のコードとまとめて削除する。
+  const [collisionBoundaryWarpRequestId, setCollisionBoundaryWarpRequestId] = useState(0);
+  const [collisionBoundaryWarpStatus, setCollisionBoundaryWarpStatus] = useState<string | null>(null);
   // Phase1-B ControlPad Transport対応: SimScene（子）が公開するTransport操作用コールバックを
   // 保持し、sibling（ControlPad）へ橋渡しする。transportPose/transportTilt自体の所有権は
   // SimSceneに残したまま（liftしない）、この薄いコールバックのみを中継する。
@@ -1095,6 +1100,8 @@ function PlacementStep() {
           manipulation={{ instrumentSelected, isGrasped, committed: manipulationCommitted }}
           onDirectRelease={() => setManipulationCommitted(true)}
           onTransportControlsReady={setTransportControls}
+          collisionBoundaryWarpRequestId={collisionBoundaryWarpRequestId}
+          onCollisionBoundaryWarpResult={(message) => setCollisionBoundaryWarpStatus(message)}
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
@@ -1269,6 +1276,55 @@ function PlacementStep() {
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 プロステーシスは現在、術野の外（Transport位置）にあります。3Dビューでプロステーシスを直接クリックしてドラッグし、留置位置で離してください。
               </div>
+              {/* [TEST-ONLY, 一時] Phase C-2 Placement Drag Collision Constraint検証用。
+                  ±3mm以内へのTransport→Release精密操作が手動テストでは難しいため、理想位置へ
+                  スナップした上でmanipulationCommittedを直接trueにするショートカット。
+                  isTransportPoseWithinPlacementRange()等Transport/Release本体のロジックには
+                  一切触れていない（ManipulationLayer.tsx無変更）。Phase C検証完了後に削除する。 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                style={{ width: '100%', marginTop: 8, borderStyle: 'dashed' }}
+                onClick={() => {
+                  updatePlacement({
+                    lateralOffset: selectedCase.idealLateralOffset,
+                    anteriorOffset: 0, verticalOffset: 0,
+                    angleTilt: selectedCase.idealAngle, angleTiltZ: 0,
+                    dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+                  });
+                  setManipulationCommitted(true);
+                }}
+              >
+                🧪 [TEST] 理想位置で配置を強制確定
+              </Button>
+              {/* [TEST-ONLY, 一時] Phase C-2実機検証用（Architect依頼2026-08-14）。上のボタンは
+                  理想位置(Bone内部相当)へ直接ワープするため「外側から近づいて止まる」挙動を
+                  再現できない。こちらは「側頭骨の外側・Collision発生直前(まだ非衝突)」の位置を
+                  二分探索で機械的に求めてワープする（SimScene.tsx/CollisionVerifyOverlay.tsx
+                  のCollisionBoundaryWarpTracker参照）。isTransportPoseWithinPlacementRange()等
+                  Transport/Release本体のロジックには一切触れていない。Phase C検証完了後に削除する。 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                style={{ width: '100%', marginTop: 8, borderStyle: 'dashed' }}
+                onClick={() => {
+                  setCollisionBoundaryWarpStatus('探索中…');
+                  setCollisionBoundaryWarpRequestId((n) => n + 1);
+                }}
+              >
+                🧪 [TEST] Collision境界直前へワープ（Bone手前・非衝突）
+              </Button>
+            </div>
+          )}
+
+          {/* [TEST-ONLY, 一時] Collision Boundary Warpのステータス表示。上のボタンを含むカードとは
+              あえて別ブロックにしている: ワープ成功時はonWarp内でmanipulationCommittedがtrueになり
+              上のカード（!manipulationCommitted条件）が同じレンダーで消えるため、カード内に置くと
+              成功/失敗メッセージが1フレームも表示されずに消えてしまう（実機確認で発覚した不具合、
+              2026-08-14修正）。manipulationCommittedの値に関わらず独立して表示させることで解消する。 */}
+          {DIRECT_MANIPULATION_UX && collisionBoundaryWarpStatus && (
+            <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px dashed rgba(0,180,216,0.35)', fontSize: 10, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
+              🧪 [TEST] Collision Boundary Warp: {collisionBoundaryWarpStatus}
             </div>
           )}
 
