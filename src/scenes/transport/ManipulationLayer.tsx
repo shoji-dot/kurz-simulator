@@ -466,15 +466,24 @@ export function DirectTransportProsthesis({
 
   useFrame(() => {
     if (!innerGroupRef.current) return;
-    // position/quaternionとも同じlivePos（basePosRef + 外側wrapperのimperative drag offset）
-    // を基準に、同一フレーム内でimperativeに反映する（二重管理・タイミングずれを避ける）。
+    // livePos（basePosRef + 外側wrapperのimperative drag offset）は、Drag中の「今どこにいるか」を
+    // 表す絶対位置で、quaternion計算（UMBO方向再計算、無変更）にのみ必要。
+    // 2026-08-15修正（STEP2二重並進Root Cause対応、Architect承認）: innerGroupRef.positionには
+    // livePosではなくbasePosRef.currentのみを設定する。innerGroupRefはgroupRef（親、
+    // useScreenSpaceDrag.handleMoveがdrag delta自体を書き込む対象）の子であるため、
+    // Three.jsのシーングラフが親のposition（drag delta）を自動的に合成する。ここでlivePos
+    // （= basePosRef + drag delta）をそのまま子のpositionにも設定すると、同じdrag deltaが
+    // 親と子で二重に加算され、Drag中はWorld Position = Base + 2*deltaとなる
+    // （Release時はhandleUpがgroupRef.positionを(0,0,0)へ戻すため一重に戻り、見た目上
+    // 位置が戻ったように見えていた）。basePosRef.currentのみを設定すれば、drag deltaは
+    // 親groupRefの実transformを通じて1回だけ反映される。
     const livePos = livePosRef.current.copy(basePosRef.current).add(groupRef.current?.position ?? ZERO_VEC);
     const quaternion = computeProsthesisModelPose({
       product, shaftLength: selectedLength,
       basePos: livePos,
       angleTilt: transportTilt.tilt, angleTiltZ: transportTilt.tiltZ,
     }).quaternion;
-    innerGroupRef.current.position.copy(livePos);
+    innerGroupRef.current.position.copy(basePosRef.current);
     innerGroupRef.current.quaternion.copy(quaternion);
   });
 
