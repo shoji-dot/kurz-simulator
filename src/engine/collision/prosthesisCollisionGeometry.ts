@@ -49,7 +49,36 @@ const BELL_TOP_HEAD_PLATE_OFFSET_Z_MM = -0.601665;
 export interface CollisionSphere {
   center: THREE.Vector3;
   radius: number;
+  /**
+   * [Foot-specific Contact Tolerance、Architect承認2026-08-15] どのProsthesis部位の球かを
+   * collisionTest.ts側へ伝えるための識別子（任意、未指定time=従来通りの二値判定のまま）。
+   * Foot #0/#1/#2 Deep Dive〜Foot Proxy Design Evaluation〜Constraint Semantics調査
+   * （2026-08-15、project_kurz_collision_constraintメモリ参照）で、既存Placement Scoring
+   * （useSimStore.ts computeScore()）がFoot-底板接触を理想状態として設計している一方、
+   * Collision Constraintは幾何学的交差を一律forbiddenとしており、両者の意味論が矛盾して
+   * いることが確認された。Shaft/HeadはこのTolerance適用対象外（従来のintersects即NG判定を
+   * 維持、C-2で安定しているCollision Constraintを変更しないため）。
+   */
+  role?: 'shaft' | 'foot' | 'head';
 }
+
+/**
+ * [Diagnostic / Provisional Contact Tolerance、Architect承認2026-08-15]
+ * Foot球のみに適用する、Bone表面への許容貫入深度（mm）。collisionTest.ts側で
+ * role==='foot'の球についてのみ、単純な交差判定（intersectsSphere）ではなく
+ * 「貫入深度がこの値を超えたらcollided」という深度考慮判定に切り替えるために使う。
+ *
+ * 重要: これは臨床的に正しいと確認された安全閾値ではない。Penetration Threshold Evidence
+ * Study（2026-08-15、project_kurz_collision_constraintメモリ参照）で、Placement Scoringの
+ * 位置偏差バンド（0.3/0.6/1.0mm）・既存設計文書・Candidate B実測値のいずれからも、臨床的に
+ * 妥当な閾値をEvidenceのみから導出することはできないと確認済み。Architect指示により、
+ * 「値そのものを最終値と扱わない」ことを明示した上でのDiagnostic Parameterとして、
+ * C-2のCollisionBoundaryWarpTracker（CollisionVerifyOverlay.tsx）が既に使っている
+ * marginMm=0.15（境界からの安全側オフセット、同じCollision Constraint機能ファミリー内の
+ * 既存precedent）に倣った暫定初期値を置く。実機検証の結果を見ながら、Architectが数値のみを
+ * 更新する前提（Foot Proxy geometry自体・Collision Engine構造には触れない）。
+ */
+export const FOOT_CONTACT_TOLERANCE_MM = 0.15;
 
 /**
  * ProsthesisCollisionProxy: Render Meshの近似（Simplified Collision Proxy）。
@@ -74,11 +103,33 @@ export interface BuildProsthesisCollisionProxyParams {
    * （Architect指示#7「Collision対象は実際にRenderされる最終Quaternion」）。
    */
   quaternion: THREE.Quaternion;
+  /**
+   * [Phase C-3 STEP3/Phase B、Architect承認2026-08-15] position/quaternionは
+   * SimScene.tsxのcoordGroupRef（rotation=[π,-π/2,0]）配下のローカル座標系の値であり、
+   * それ自体はまだWorld Spaceではない。呼び出し側が実際のScene Graphから取得した
+   * coordGroupRef.matrixWorldをそのまま渡すこと（固定値のハードコードはしない、
+   * Ground Truth Transform Investigation STEP3で実測・確定済み）。
+   */
+  ancestorMatrix: THREE.Matrix4;
 }
 
 const HEAD_SPHERE_MARGIN_MM = 0; // Head Plate Sphereフォールバック（BELL_TOP以外）用、マージンなし
 const SHAFT_SPHERE_COUNT: number = 5;
 const FOOT_SPHERE_COUNT = 3;
+
+/**
+ * [Candidate B、Architect承認2026-08-15、Geometry-derived Diagnostic Candidate]
+ * Foot sphere（rim→apex、i=0〜2）個別半径。STEP 4A〜4C（実Bell Foot形状とProxyの形状差を
+ * 数学的に算出）で導出した値をそのまま使用する。#0（rim側）はBELL_RIM_RADIUS_MMと同一
+ * （実測リム半径と一致するため変更理由なし）。#1/#2はBell Footが先細りする実形状を反映した
+ * 縮小値（#2=apex側が最も縮小、24.2%）。
+ *
+ * 重要: これは最終確定値ではない。Safety Marginを含まない幾何学的最小値（Architect指示
+ * 「Safety Marginは今回まだ設定しない」）であり、実機でRotation Collision Constraintの
+ * 挙動（過剰拘束が解消されるか、Collision方向で正しく停止するか、Boneへの明らかな
+ * 突き抜けが発生しないか）を検証するためのDiagnostic Candidateとして扱う。
+ */
+const CANDIDATE_B_FOOT_SPHERE_RADII_MM: readonly number[] = [BELL_RIM_RADIUS_MM, 0.7704, 0.6028];
 
 /** ローカル(0, y, 0)をワールド座標へ変換するヘルパー（ProsthesisModelのgroup合成と同じ規約）。 */
 function localYToWorld(y: number, worldMatrix: THREE.Matrix4): THREE.Vector3 {
@@ -92,7 +143,7 @@ function localYToWorld(y: number, worldMatrix: THREE.Matrix4): THREE.Vector3 {
 export function buildProsthesisCollisionProxy(
   params: BuildProsthesisCollisionProxyParams,
 ): ProsthesisCollisionProxy | null {
-  const { product, shaftLength, position, quaternion } = params;
+  const { product, shaftLength, position, quaternion, ancestorMatrix } = params;
 
   if (product.footType !== 'BELL') {
     // Phase 1スコープ外（FLAT/CLIP/PISTON/FLEXIBAL）。Phase C-6以降で拡張。
@@ -109,7 +160,12 @@ export function buildProsthesisCollisionProxy(
   const shaftLen = Math.max(0.01, len - BELL_HEIGHT_MM);
   const shaftMidY = BELL_HEIGHT_MM / 2;
 
-  const worldMatrix = new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3(1, 1, 1));
+  // [Phase C-3 STEP3/Phase B] position/quaternionはcoordGroupRefローカル系の値のため、
+  // ancestorMatrix（呼び出し側が渡すcoordGroupRef.matrixWorld）を先に乗じてから使う。
+  // ancestorMatrixを書き換えないようclone()してからmultiply()する。
+  const worldMatrix = ancestorMatrix
+    .clone()
+    .multiply(new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3(1, 1, 1)));
 
   const spheres: CollisionSphere[] = [];
 
@@ -120,17 +176,21 @@ export function buildProsthesisCollisionProxy(
     spheres.push({
       center: localYToWorld(shaftStartY + t * shaftLen, worldMatrix),
       radius: shaftRadius,
+      role: 'shaft',
     });
   }
 
-  // ── Foot（BellFoot近似）: rim(Y=footOff)〜apex(Y=footOff+BELL_HEIGHT_MM)を
-  //    BELL_RIM_RADIUS_MM一律の球で覆う（Bell実形状は先細りだが、安全側＝リム半径一律を
-  //    採用、Architect指示「初期値としては安全側を優先してよい」）。 ──
+  // ── Foot（BellFoot近似）: rim(Y=footOff)〜apex(Y=footOff+BELL_HEIGHT_MM)を、
+  //    Candidate B（STEP 4A〜4C由来、上記CANDIDATE_B_FOOT_SPHERE_RADII_MM参照）の
+  //    球ごと個別半径で覆う。2026-08-15まではBELL_RIM_RADIUS_MM一律だったが、Rotation
+  //    Candidate CollisionをProxy要素別に分解した結果Foot#0〜#2のみが全candidateで
+  //    collided:trueとなることが実機で確認され、Architect承認によりCandidate Bへ変更。 ──
   for (let i = 0; i < FOOT_SPHERE_COUNT; i++) {
     const t = i / (FOOT_SPHERE_COUNT - 1);
     spheres.push({
       center: localYToWorld(footOff + t * BELL_HEIGHT_MM, worldMatrix),
-      radius: BELL_RIM_RADIUS_MM,
+      radius: CANDIDATE_B_FOOT_SPHERE_RADII_MM[i],
+      role: 'foot',
     });
   }
 
@@ -162,6 +222,7 @@ export function buildProsthesisCollisionProxy(
     spheres.push({
       center: localYToWorld(headOff, worldMatrix),
       radius: headRadius,
+      role: 'head',
     });
   }
 

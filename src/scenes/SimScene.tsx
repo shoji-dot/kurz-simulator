@@ -26,7 +26,7 @@
  */
 
 import { Suspense, useRef, useEffect, useMemo, useState, useCallback, type RefObject } from 'react';
-import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { Canvas, useThree, useFrame, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls, GizmoHelper, GizmoViewport, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -40,7 +40,7 @@ import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode, isSceneDumpDebugMode, isCollisionVerifyDebugMode } from '../utils/debugMode';
 import { CoordinateDebugPanel, CoordinateDebugTracker, CoordinateDebugScene3D } from './debug/CoordinateDebugOverlay';
 import { SceneDumpPanel, SceneDumpTracker, type SceneDumpResult } from './debug/SceneDumpOverlay';
-import { CollisionVerifyPanel, CollisionVerifyTracker, CollisionBoundaryWarpTracker, type CollisionVerifyCaseResult } from './debug/CollisionVerifyOverlay';
+import { CollisionVerifyPanel, CollisionVerifyTracker, CollisionBoundaryWarpTracker, RotationBoundaryWarpTracker, type CollisionVerifyCaseResult } from './debug/CollisionVerifyOverlay';
 import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
@@ -61,7 +61,7 @@ import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX, COLLISION_CONSTRAINT_ENABLED } from './transformControlsConfig';
 import { useAnatomyCollisionIndex, type AnatomyCollisionKey } from '../engine/collision/anatomyCollisionIndex';
-import { buildProsthesisCollisionProxy } from '../engine/collision/prosthesisCollisionGeometry';
+import { buildProsthesisCollisionProxy, FOOT_CONTACT_TOLERANCE_MM } from '../engine/collision/prosthesisCollisionGeometry';
 import { testCollision } from '../engine/collision/collisionTest';
 import {
   TransportProsthesis,
@@ -171,7 +171,11 @@ export const SIM_DEFAULT_VIS: VisibilityMap = {
   roundWindow:   'solid',
 };
 
-export type DragMode = 'move' | 'view';
+// Phase1-C（Direct Manipulation Rotate Mode、Architect実装指示2026-08-15）: 'rotate'を追加。
+// 既存の'move'/'view'の意味・既存コード上の分岐は無変更（isMove = dragMode==='move'は
+// dragMode==='rotate'時に自動的にfalseとなるため、Keyboard Rotationリスナー等の既存ガードは
+// 変更なしで正しくRotate Mode中も無効のままになる）。
+export type DragMode = 'move' | 'rotate' | 'view';
 export type SimViewMode = 'normal' | 'microscope' | 'endoscope';
 
 // ── 顕微鏡モード: FOV切替コントローラー ─────────────────────────────
@@ -331,9 +335,11 @@ interface SimSceneProps {
   /**
    * Phase1-B Step6: DIRECT_MANIPULATION_UX flag ON時、Transport段階でProsthesisを
    * クリック→ドラッグ→pointerUp（解放）した瞬間に呼ばれる。呼び出し元（SimulationMode.tsx）
-   * はここでmanipulation.committedをtrueにする（実際のPlacementStateへのCommit処理自体は
-   * 既存のuseEffect（commitTransportPoseToOffsets）がmanipulation.committedの変化を検知して
-   * 行う、無変更）。
+   * はここでmanipulation.committedをtrueにする。実際のPlacementStateへのCommit処理自体は
+   * DirectTransportProsthesisのonRelease（下記JSX）が自分で同期的にupdatePlacement()する
+   * （2026-08-15修正: 以前は別途useEffectがtransportPoseから再計算・再書き込みしていたが、
+   * TEST強制確定等transportPoseと同期していないcommit経路でPlacementStateを壊すバグの
+   * 原因だったため削除済み。offsets書き込みの責務はcommitを発生させる側のみが持つ）。
    */
   onDirectRelease?: () => void;
   /**
@@ -354,6 +360,18 @@ interface SimSceneProps {
   collisionBoundaryWarpRequestId?: number;
   /** Collision Boundary Warpの結果メッセージ（成功/失敗）を親へ通知する（表示はSimulationMode側）。 */
   onCollisionBoundaryWarpResult?: (message: string, success: boolean) => void;
+  /**
+   * [TEST-ONLY, 一時] Phase C-3実機検証（Architect依頼2026-08-14、Rotation Boundary Warp）。
+   * ボタン押下のたびにインクリメントされる値を渡すと、rotationBoundaryWarpAxis/Directionで
+   * 指定した軸・方向へ「Collision発生直前（まだ非衝突）」の角度を二分探索で求めて
+   * PlacementStateへ書き込む。Translation版と異なりPlacement段階で完結する操作のため、
+   * manipulation.committedには一切触れない。未指定時は何もしない。Phase C-3検証完了後に
+   * 削除するかどうかはArchitect判断（C-2のCollision Boundary Warp前例に倣い温存する想定）。
+   */
+  rotationBoundaryWarpRequestId?: number;
+  rotationBoundaryWarpAxis?: 'tilt' | 'tiltZ';
+  rotationBoundaryWarpDirection?: 1 | -1;
+  onRotationBoundaryWarpResult?: (message: string, success: boolean) => void;
 }
 
 // ── 配置ターゲットマーカー（理想位置 = 症例別 idealLateralOffset 適用済み）───────────
@@ -589,6 +607,15 @@ interface DraggableProsthesisProps {
    * 元がこのpropを渡さなくてもクラッシュしない）。
    */
   anatomyRootRef?: RefObject<THREE.Group | null>;
+  /**
+   * [Phase C-3 STEP3/Phase B、Architect承認2026-08-15] Prosthesis Collision World Transform
+   * Ground Truth Investigation確定分: position/quaternion（computeProsthesisModelPose系の値）は
+   * coordGroupRef配下のローカル座標系であり、Anatomy側（anatomyRootRef.matrixWorld、GLB_OFFSET
+   * 込みで既に真のWorld Space）とは異なる空間にある。buildProsthesisCollisionProxy()への
+   * ancestorMatrix引数にcoordGroupRef.matrixWorldをそのまま渡すための読み取り専用ref。
+   * 未指定時はCollision Constraintを評価しない（anatomyRootRefと同じ安全側フォールバック）。
+   */
+  coordGroupRef?: RefObject<THREE.Group | null>;
 }
 
 function DraggableProsthesis({
@@ -602,9 +629,14 @@ function DraggableProsthesis({
   shaftRollDeg = 0,
   onDragActiveChange,
   anatomyRootRef,
+  coordGroupRef,
 }: DraggableProsthesisProps) {
   const tcRef = useRef<any>(null);
   const dragGroupRef = useRef<THREE.Group>(null);
+  // Phase1-C（Rotate Mode）: useScreenSpaceDrag（ManipulationLayer.tsx）と違い、Rotate Modeの
+  // ドラッグはRaycastを使わず素の画面ピクセルdeltaのみを使うため、pointer captureにgl.domElement
+  // が必要（Move側はuseScreenSpaceDrag内部で同様にuseThree()のglを使っており、同じ前例）。
+  const { gl } = useThree();
 
   // Phase C-2（Collision Constraint）: 直前フレームまでCollisionしていなかった、dragGroupRef
   // ローカル座標系でのdelta。ドラッグ開始のたびに(0,0,0)へリセットする（Architect指示「前回の
@@ -612,6 +644,9 @@ function DraggableProsthesis({
   // （下部）で行う。useScreenSpaceDrag本体・handleMove・handleUpは無変更。
   const lastValidLocalDeltaRef = useRef(new THREE.Vector3(0, 0, 0));
   const anatomyIndex = useAnatomyCollisionIndex();
+  // [C3-P0-1-VERIFY, 一時] Phase B実装後の実機再診断（Architect依頼2026-08-15）。
+  // 祖先matrixWorldは変化しないため、初回1回だけログする（毎フレームのログ量を抑える）。
+  const p01VerifyLoggedAncestorsRef = useRef(false);
 
   // onDragActiveChangeのラッパー: ドラッグ開始(false→true)の瞬間にlastValidLocalDeltaRefを
   // リセットする以外は、既存の呼び出し元（呼び出し元propそのまま）へ完全に委譲する。
@@ -630,6 +665,15 @@ function DraggableProsthesis({
   // Placement Drag側にも存在すると判明）。そのためRelease時にも同じ判定をもう一度行う。
   const evaluateDragCandidate = (dragLocalDelta: THREE.Vector3): boolean => {
     const anatomyRoot = anatomyRootRef?.current;
+    const coordGroup = coordGroupRef?.current;
+    if (!anatomyRoot || !coordGroup) {
+      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック）
+    }
+    // updateWorldMatrix(true, false)はparent chain（coordGroupRef含む）のmatrixWorldも
+    // 同時に更新するため、coordGroup.matrixWorldを読む前にここで1回呼んでおく
+    // （Phase C-3 STEP3 Ground Truth Investigation確定: 2回に分けて呼ぶと祖先側が
+    // 一フレーム古い値のまま読まれる可能性がある）。
+    anatomyRoot.updateWorldMatrix(true, false);
     const candidatePose = composeDragCandidatePose({
       product, shaftLength: selectedLength, basePos,
       lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
@@ -638,16 +682,89 @@ function DraggableProsthesis({
     const proxy = buildProsthesisCollisionProxy({
       product, shaftLength: selectedLength,
       position: candidatePose.position, quaternion: candidatePose.quaternion,
+      ancestorMatrix: coordGroup.matrixWorld,
     });
 
-    if (!proxy || !anatomyRoot) {
-      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック）
+    if (!proxy) {
+      return true; // 未対応製品時は制約なし（安全側フォールバック）
     }
 
-    anatomyRoot.updateWorldMatrix(true, false);
     const result = testCollision(proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyRoot.matrixWorld);
+
+    // [C3-P0-1-VERIFY, 一時] Phase B実装後の実機再診断（Architect依頼2026-08-15）。
+    if (!p01VerifyLoggedAncestorsRef.current) {
+      p01VerifyLoggedAncestorsRef.current = true;
+      console.log('[C3-P0-1-VERIFY][DraggableProsthesis][ancestors]', {
+        coordGroupMatrixWorld: coordGroup.matrixWorld.toArray(),
+        anatomyRootMatrixWorld: anatomyRoot.matrixWorld.toArray(),
+      });
+    }
+    console.log('[C3-P0-1-VERIFY][evaluateDragCandidate]', {
+      dragLocalDelta: dragLocalDelta.toArray().map((v) => Number(v.toFixed(4))),
+      candidatePosition: candidatePose.position.toArray().map((v) => Number(v.toFixed(4))),
+      candidateQuaternion: candidatePose.quaternion.toArray().map((v) => Number(v.toFixed(6))),
+      sphereCenters: proxy.spheres.map((s) => s.center.toArray().map((v) => Number(v.toFixed(4)))),
+      boxMatrices: proxy.boxes.map((b) => b.matrix.toArray().map((v) => Number(v.toFixed(4)))),
+      collided: result.collided,
+      anatomyId: result.anatomyId,
+    });
+
     return !result.collided;
   };
+
+  // Phase C-3（Rotation Collision Constraint）: Shift+矢印キーによるangleTilt/angleTiltZの
+  // 離散ステップ候補がCollision-freeかを判定する。evaluateDragCandidateと同じCollision Engine
+  // （buildProsthesisCollisionProxy/testCollision/anatomyIndex/anatomyRootRef/
+  // DRAG_COLLISION_TARGETS）を再利用し、判定ロジック自体は複製しない。dragOffsetX/Y/Zを
+  // lateral/vertical/anteriorへ加算するのは、Translation Dragが確定済みの状態でRotationしても
+  // 実際に描画されているPivotとCandidate Poseがズレないようにするため（composeDragCandidatePose
+  // とは異なりdragLocalDelta項を持たない＝ドラッグ中ではなく静止状態のRotation専用）。
+  // useCallbackで安定化する理由: 下部のキーボードuseEffectはisMoveのみを依存配列に持つ既存
+  // パターンのため、この関数を素の閉包のまま依存配列に含めるとeslint(react-hooks/
+  // exhaustive-deps)が「毎レンダー変わる関数」警告を出す。実際の必要動作（angleTilt等の
+  // 最新値を都度反映する）はuseCallback自身の依存配列で保証されるため、警告なく同じ結果を得る。
+  const evaluateRotationCandidate = useCallback((axis: 'tilt' | 'tiltZ', candidateAngle: number): boolean => {
+    const anatomyRoot = anatomyRootRef?.current;
+    const coordGroup = coordGroupRef?.current;
+    if (!anatomyRoot || !coordGroup) {
+      return true; // 未対応製品/ref未指定時は制約なし（evaluateDragCandidateと同じ安全側フォールバック）
+    }
+    anatomyRoot.updateWorldMatrix(true, false);
+    const candidatePose = composeRotationCandidatePose({
+      product, shaftLength: selectedLength, basePos,
+      lateralOffset, anteriorOffset, verticalOffset,
+      dragOffsetX, dragOffsetY, dragOffsetZ,
+      shaftRollDeg,
+      candidateAngleTilt: axis === 'tilt' ? candidateAngle : angleTilt,
+      candidateAngleTiltZ: axis === 'tiltZ' ? candidateAngle : angleTiltZ,
+    });
+    const proxy = buildProsthesisCollisionProxy({
+      product, shaftLength: selectedLength,
+      position: candidatePose.position, quaternion: candidatePose.quaternion,
+      ancestorMatrix: coordGroup.matrixWorld,
+    });
+
+    if (!proxy) {
+      return true; // 未対応製品時は制約なし（evaluateDragCandidateと同じ安全側フォールバック）
+    }
+
+    // [Foot-specific Contact Tolerance、Architect承認2026-08-15] evaluateRotationCandidate
+    // （Rotate Mode/Keyboard/Boundary Warp共通）にのみFOOT_CONTACT_TOLERANCE_MMを渡す。
+    // evaluateDragCandidate（C-2、Freeze維持）はこの引数を渡さず、従来通りの二値判定のまま
+    // 変更しない——今回の問題（Rotate Modeが常にCollisionでブロックされる）に対して最小変更で
+    // 対応するため、C-2で既にPASS/Freeze済みのDrag側の挙動には一切触れない。
+    const result = testCollision(
+      proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyRoot.matrixWorld, FOOT_CONTACT_TOLERANCE_MM,
+    );
+
+    return !result.collided;
+  }, [
+    product, selectedLength, basePos,
+    lateralOffset, anteriorOffset, verticalOffset,
+    dragOffsetX, dragOffsetY, dragOffsetZ,
+    shaftRollDeg, angleTilt, angleTiltZ,
+    anatomyIndex, anatomyRootRef, coordGroupRef,
+  ]);
 
   // Phase1-B Step3: Placement済みプロステーシスの直接クリック→ドラッグ。ドラッグ終了時、
   // 既存DraggableProsthesis.handleMouseUpと同じ意味論・同じ±3mmクランプでdragOffsetX/Y/Zへ
@@ -673,6 +790,65 @@ function DraggableProsthesis({
       useSimStore.getState().markPositionTouched();
     },
   );
+
+  // Phase1-C（Direct Manipulation Rotate Mode、Architect実装指示2026-08-15）: dragMode==='rotate'
+  // 時のみ有効。onDirectDragPointerDown（Position、上記）と同じPointer Capture＋
+  // window.addEventListener('pointermove'/'pointerup')パターンを踏襲するが、出力はワールド座標の
+  // delta（Raycast to Plane、useScreenSpaceDrag）ではなく、画面ピクセルのdelta（clientX/clientYの
+  // フレーム間差分）をそのままangleTilt/angleTiltZの差分へ変換する（Implementation指示§14の
+  // 「pointerDeltaX→deltaTiltZ, pointerDeltaY→deltaTilt」をそのまま実装）。
+  // candidateAngleは必ずevaluateRotationCandidate()（C-3、無変更・迂回しない、Architect指示§8）で
+  // Collision判定してからupdatePlacement()する。判定基準となる「現在角度」はuseSimStore.getState()
+  // から都度読み直す（Propsのclosure値を使わない。理由: このonPointerDownはドラッグ開始時に1回だけ
+  // 呼ばれてhandleMove閉包を生成するため、Propsをそのまま閉包に使うとドラッグ中ずっと開始時点の
+  // 値に固定されてしまう。store直読みならドラッグ中も常に最新の確定値を反映できる。Move側の
+  // onDirectDragPointerDown/onDragEndコールバックが同じ理由でuseSimStore.getState()を使っている
+  // のと同じパターン、上記参照）。
+  const onDirectRotatePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return; // 左クリックのみ（Move側のuseScreenSpaceDragと同じ規約）
+    e.stopPropagation();
+    try { gl.domElement.setPointerCapture(e.pointerId); } catch { /* 一部環境で未対応、無視 */ }
+    handleDragActiveChange(true);
+    let lastClientX = e.clientX;
+    let lastClientY = e.clientY;
+
+    const handleMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - lastClientX;
+      const dy = ev.clientY - lastClientY;
+      lastClientX = ev.clientX;
+      lastClientY = ev.clientY;
+      if (dx === 0 && dy === 0) return;
+
+      const { placement } = useSimStore.getState();
+
+      if (dx !== 0) {
+        const candidateTiltZ = clampAngleDeg((placement.angleTiltZ ?? 0) + dx * ROTATE_DEG_PER_PIXEL_TILT_Z);
+        if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate('tiltZ', candidateTiltZ)) {
+          useSimStore.getState().updatePlacement({ angleTiltZ: candidateTiltZ });
+        }
+        // rotateSelectedObject()をbypassする設計上、Collisionで拒否した場合もユーザーが回転を
+        // 試みた事実に変わりないため、Keyboard Rotation（上記）と同じく両分岐で確実に呼ぶ。
+        useSimStore.getState().markAngleTouched();
+      }
+      if (dy !== 0) {
+        const candidateTilt = clampAngleDeg((placement.angleTilt ?? 0) + dy * ROTATE_DEG_PER_PIXEL_TILT);
+        if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate('tilt', candidateTilt)) {
+          useSimStore.getState().updatePlacement({ angleTilt: candidateTilt });
+        }
+        useSimStore.getState().markAngleTouched();
+      }
+    };
+
+    const handleUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      try { gl.domElement.releasePointerCapture(ev.pointerId); } catch { /* 無視 */ }
+      handleDragActiveChange(false);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
 
   // Issue-024（真因）: children方式＋tc.objectからの読み取り自体は正しく機能していた
   // （診断ログでtc.object・onMouseDown・onObjectChangeが全て正常に動作し、位置も正しく
@@ -715,8 +891,13 @@ function DraggableProsthesis({
   // 実際の座標計算はuseSimStore.getState().translateSelectedObject()/rotateSelectedObject()に
   // 閉じており、ここではキー判定と定数の選択のみを行う（将来のボタンUIからも同じ関数を呼べる設計）。
   useEffect(() => {
+    // [C3-P0-1-VERIFY, 一時] isMoveがfalseだとリスナー自体が登録されない
+    // （Shift+矢印キーが完全に無反応に見える別要因の切り分け用、Architect依頼2026-08-15）。
+    console.log('[C3-P0-1-VERIFY][keydown-effect]', { isMove });
     if (!isMove) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      // [C3-P0-1-VERIFY, 一時] keydown自体が発火したかを無条件にログする。
+      console.log('[C3-P0-1-VERIFY][onKeyDown]', { key: e.key, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey });
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       let axis: 'x' | 'y' | null = null;
@@ -728,10 +909,23 @@ function DraggableProsthesis({
       if (!axis) return;
       e.preventDefault();
       if (e.shiftKey) {
-        // 回転モード: ←→=左右傾斜(tiltZ)、↑↓=前後傾斜(tilt)
+        // Phase C-3（Rotation Collision Constraint）: 回転モード: ←→=左右傾斜(tiltZ)、
+        // ↑↓=前後傾斜(tilt)。rotateSelectedObject()（clamp+angleTouchedを同一setで行う）を
+        // 経由せず、候補値を先にCollision判定してからupdatePlacement()を直接呼ぶ設計にした
+        // ため、rotateSelectedObject内部でも行っているclampAngleDeg()をここで複製する（C-2の
+        // clamp3()複製ポリシー踏襲）。
         const rotAxis: 'tilt' | 'tiltZ' = axis === 'x' ? 'tiltZ' : 'tilt';
         const rotStep = e.ctrlKey ? ROTATION_STEP_FINE_DEG : ROTATION_STEP_DEG;
-        useSimStore.getState().rotateSelectedObject(rotAxis, sign * rotStep);
+        const currentAngle = rotAxis === 'tilt' ? angleTilt : angleTiltZ;
+        const candidateAngle = clampAngleDeg(currentAngle + sign * rotStep);
+        if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate(rotAxis, candidateAngle)) {
+          useSimStore.getState().updatePlacement({ [rotAxis === 'tilt' ? 'angleTilt' : 'angleTiltZ']: candidateAngle });
+        }
+        // rotateSelectedObject()をbypassしてupdatePlacement()を直接呼ぶ設計上、
+        // markAngleTouched()の呼び出し漏れは既知バグの再発になる（Phase22.2、
+        // useSimStore.ts:198-203参照）。衝突で書き込みをスキップした場合も、ユーザーは
+        // 角度調整を試みた事実に変わりないため、両分岐で確実に呼ぶ。
+        useSimStore.getState().markAngleTouched();
       } else {
         const moveStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
         useSimStore.getState().translateSelectedObject(axis, sign * moveStep);
@@ -739,7 +933,14 @@ function DraggableProsthesis({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isMove]);
+    // Phase C-3: angleTilt/angleTiltZをonKeyDown内で直接読む（currentAngleの起点、
+    // rotateSelectedObject()のように常にstoreから最新値を読む実装ではなくなったため）。
+    // isMoveのみを依存配列に持つ既存パターンのままだと、rotateSelectedObject()経由時は
+    // 常にuseSimStore.getState()で最新値を読むため無害だったが、このハンドラはprops
+    // (angleTilt/angleTiltZ/evaluateRotationCandidate)を直接参照するため、再登録なしでは
+    // 2回目以降のShift+矢印キー押下がstaleなclosureのcurrentAngleを使ってしまい、1ステップ
+    // 目以降進まなくなる（実装時に発見、既存のtranslateSelectedObject経路には影響なし）。
+  }, [isMove, angleTilt, angleTiltZ, evaluateRotationCandidate]);
 
   // Phase C-2（Prosthesis-Anatomy Collision Constraint、Placement Drag）: dragGroupRef.position
   // （useScreenSpaceDrag.handleMoveがpointermoveのたびに書き込むraw local delta、Frozen対象の
@@ -784,7 +985,19 @@ function DraggableProsthesis({
       <group
         ref={dragGroupRef}
         position={[0, 0, 0]}
-        onPointerDown={directManipulation ? onDirectDragPointerDown : undefined}
+        onPointerDown={
+          // Phase1-C: dragMode==='rotate'時のみ新しいRotateドラッグ経路へ分岐する。
+          // dragMode!=='rotate'（'move'/'view'いずれも）の場合は既存のonDirectDragPointerDown
+          // （Position、無変更）のまま＝既存Move挙動は一切変更しない（Architect指示§3）。
+          // Root Cause調査（2026-08-15、実機3回再現）で確認済み: Transport段階
+          // （manipulation.committed===false）ではこのDraggableProsthesis自体が未マウントのため、
+          // dragMode==='rotate'が選ばれていても本分岐には到達しない（DirectTransportProsthesis側の
+          // Position dragのみが動く）。この表示上の矛盾はSimulationMode.tsx側のUI修正
+          // （PillToggleGroupの選択肢をmanipulationCommittedで出し分け）で解消済み。
+          directManipulation
+            ? (dragMode === 'rotate' ? onDirectRotatePointerDown : onDirectDragPointerDown)
+            : undefined
+        }
       >
         <ProsthesisModel
           product={product}
@@ -809,6 +1022,23 @@ function DraggableProsthesis({
 function clamp3(v: number): number {
   return Math.max(-3, Math.min(3, v));
 }
+
+// Phase C-3: angleTilt/angleTiltZの許容範囲クランプ。useSimStore.ts内のclampAngleDeg()と
+// 同一式（-180〜+180度）を複製する（clamp3()と同じ複製ポリシー、Phase C-2から踏襲）。
+function clampAngleDeg(v: number): number {
+  return Math.max(-180, Math.min(180, v));
+}
+
+// Phase1-C（Direct Manipulation Rotate Mode）: 1pxのpointer移動あたりの角度変化量（度）。
+// 既存のKeyboard Rotation（ROTATION_STEP_DEG等、transformControlsConfig.ts）とは独立した
+// 別定数（Implementation指示§14「角度感度は既存Keyboard Rotationとは独立した定数」）。
+// 符号は「右ドラッグ→tiltZ+」「上ドラッグ→tilt+」（Keyboard ArrowRight/ArrowUpと同じ方向規約、
+// SimScene.tsx内Keyboard Rotationハンドラ参照）になるよう選んである。画面上のドラッグ方向と
+// 回転方向が実機で直感に反する場合は、この2定数の符号のみを反転すればよい（Implementation
+// 指示§5「実機確認時に反転可能な最小定数」）。
+const ROTATE_DEG_PER_PIXEL_TILT_Z = 0.3;
+// clientYは画面下方向が正のため、Arrow Up(tilt+)と方向を合わせるため符号を反転する。
+const ROTATE_DEG_PER_PIXEL_TILT = -0.3;
 
 // Phase C-2: Placement Dragで対象とするAnatomy。Bone単体から開始し、実機検証を経てから
 // Malleus/Stapesを追加する（Architect指示、Phase C-6で拡張予定）。
@@ -849,6 +1079,48 @@ function composeDragCandidatePose(params: {
   return { position, quaternion };
 }
 
+/**
+ * composeRotationCandidatePose(): Rotation Candidate（Shift+矢印キー、angleTilt/angleTiltZの
+ * 離散ステップ）のWorld Poseを計算する。composeDragCandidatePose（Placement Drag、dragLocalDelta
+ * を後乗せする「まだstore未確定のドラッグ中raw値」用）とは異なり、Rotationはドラッグ中の
+ * ジェスチャーではなく静止状態からの離散キー操作のため、dragLocalDelta相当の項は存在しない。
+ * 代わりにdragOffsetX/Y/Z（既にstoreへ確定済みのTranslation Drag結果）をlateral/vertical/
+ * anteriorへ加算する。理由: Translation Dragが確定済みの状態でRotationしても、実際に
+ * 描画されているPivot（ProsthesisModelはlateralOffset+dragOffsetX等で描画される）と
+ * Candidate Poseがズレないようにするため（Phase C-3 Architecture Review③）。shaftRollDeg
+ * 後乗せの式はcomposeDragCandidatePoseと同一（Frozen対象のcomputeProsthesisModelPose自体は
+ * 無変更、値だけ再利用）。
+ */
+function composeRotationCandidatePose(params: {
+  product: KurzProduct;
+  shaftLength: number;
+  basePos: THREE.Vector3;
+  lateralOffset: number;
+  anteriorOffset: number;
+  verticalOffset: number;
+  dragOffsetX: number;
+  dragOffsetY: number;
+  dragOffsetZ: number;
+  shaftRollDeg: number;
+  /** clampAngleDeg適用済みのRotation Candidate角度。 */
+  candidateAngleTilt: number;
+  candidateAngleTiltZ: number;
+}): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
+  const pose = computeProsthesisModelPose({
+    product: params.product, shaftLength: params.shaftLength, basePos: params.basePos,
+    lateralOffset: params.lateralOffset + params.dragOffsetX,
+    verticalOffset: params.verticalOffset + params.dragOffsetY,
+    anteriorOffset: params.anteriorOffset + params.dragOffsetZ,
+    angleTilt: params.candidateAngleTilt, angleTiltZ: params.candidateAngleTiltZ,
+  });
+  const quaternion = params.shaftRollDeg
+    ? pose.quaternion.clone().multiply(
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (params.shaftRollDeg * Math.PI) / 180),
+      )
+    : pose.quaternion;
+  return { position: pose.position, quaternion };
+}
+
 // ══════════════════════════════════════════════════════════════════
 // SimScene
 // ══════════════════════════════════════════════════════════════════
@@ -862,6 +1134,10 @@ export function SimScene({
   onTransportControlsReady,
   collisionBoundaryWarpRequestId,
   onCollisionBoundaryWarpResult,
+  rotationBoundaryWarpRequestId,
+  rotationBoundaryWarpAxis,
+  rotationBoundaryWarpDirection,
+  onRotationBoundaryWarpResult,
 }: SimSceneProps) {
   const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
 
@@ -895,18 +1171,19 @@ export function SimScene({
   // Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
   // PlacementStateには一切書き込まない、transportPoseと同じライフサイクルのローカルstate。
   const [transportTilt, setTransportTilt] = useState<TransportTilt>(INITIAL_TRANSPORT_TILT);
-  // manipulation.committed が false→true になった瞬間に一度だけ、Transport→Placementの
-  // Commit（唯一の変換点）を実行するためのガード。
+  // manipulation.committed が false→true になった瞬間に一度だけ、transportPose/transportTiltを
+  // PlacementStateへ書き込み確定する（Transport→Placement Commit）。冪等な冗長実行——
+  // DirectTransportProsthesisのonRelease等が既に正しい値でupdatePlacement()している場合、
+  // ここでの再計算は同じ値を書き直すだけで無害（のはず）。
   const hasCommittedRef = useRef(false);
   useEffect(() => {
     if (!manipulation.committed || hasCommittedRef.current) return;
     hasCommittedRef.current = true;
     const offsets = commitTransportPoseToOffsets(transportPose, basePos);
-    // 既存のPlacementState setterをそのまま使う（意味・クランプ範囲とも無変更）。
     useSimStore.getState().updatePlacement(offsets);
     useSimStore.getState().markPositionTouched();
     onManipulationCommitted?.();
-  }, [manipulation.committed, transportPose, basePos, onManipulationCommitted]);
+  }, [manipulation.committed, onManipulationCommitted]);
 
   // Phase1-B ControlPad Transport対応: ControlPad（sibling、SimulationMode.tsx側）から
   // transportPose/transportTiltを更新するための薄いコールバック。関数形state更新
@@ -1633,6 +1910,7 @@ export function SimScene({
               shaftRollDeg={interactionShaftRollDeg}
               onDragActiveChange={setDirectDragActive}
               anatomyRootRef={anatomyGroupRef}
+              coordGroupRef={coordGroupRef}
             />
           ) : DIRECT_MANIPULATION_UX ? (
             // Phase1-B Step6: Transport段階もDirect Manipulation UXへ切り替え。Prosthesis
@@ -1648,10 +1926,10 @@ export function SimScene({
             // 一致する。DraggableProsthesisへ切り替わる前（onDirectRelease呼び出しで
             // manipulation.committedがtrueになる前）に同期的にstoreへ書き込むことで、
             // 切替直後のstale frame（旧dragOffsetX/Y/Z=0での一瞬の誤描画）を防ぐ。
-            // 既存のuseEffect（commitTransportPoseToOffsets呼び出し、無変更）もこの後
-            // 発火するが、同じ範囲内の値を再計算するだけの冪等な冗長実行になる
-            // （commitTransportPoseToOffsets()の戻り値にangleTilt/angleTiltZは含まれない
-            // ため、この再実行がangleTilt/angleTiltZを上書きすることはない）。
+            // （2026-08-15修正: 以前はこの後さらに別のuseEffectがtransportPoseから
+            // 再計算・再書き込みしていたが、TEST強制確定などtransportPoseと無関係な
+            // commit経路でこの正しいoffsetsを上書きしてしまうバグの原因だったため
+            // 削除済み。このonRelease呼び出しがoffsets書き込みの唯一の経路になった）。
             //
             // Phase1-B ControlPad Transport対応（T2方式）: onReleaseのoffsetsに
             // angleTilt/angleTiltZ（transportTiltの値をそのままコピー）も含まれるため、
@@ -1710,6 +1988,7 @@ export function SimScene({
         {collisionVerifyDebug && (
           <CollisionVerifyTracker
             anatomyRootRef={anatomyGroupRef}
+            coordGroupRef={coordGroupRef}
             verifyRequestId={collisionVerifyRequestId}
             onResults={setCollisionVerifyResults}
           />
@@ -1720,6 +1999,7 @@ export function SimScene({
         {typeof collisionBoundaryWarpRequestId === 'number' && (
           <CollisionBoundaryWarpTracker
             anatomyRootRef={anatomyGroupRef}
+            coordGroupRef={coordGroupRef}
             warpRequestId={collisionBoundaryWarpRequestId}
             product={product}
             basePos={basePos}
@@ -1736,6 +2016,39 @@ export function SimScene({
               onDirectRelease?.();
             }}
             onResult={(message, success) => onCollisionBoundaryWarpResult?.(message, success)}
+          />
+        )}
+        {/* [TEST-ONLY, 一時] Phase C-3実機検証（Architect依頼2026-08-14、Rotation Boundary
+            Warp）。rotationBoundaryWarpRequestId/Axis/Directionが指定されている場合のみ
+            マウントする（既存呼び出し元がpropを渡さなければ何も変わらない）。Placement段階
+            （manipulation.committed=true）で完結する操作のため、DraggableProsthesisと
+            並列にSuspense境界内へ配置する。 */}
+        {typeof rotationBoundaryWarpRequestId === 'number' && rotationBoundaryWarpAxis && rotationBoundaryWarpDirection && (
+          <RotationBoundaryWarpTracker
+            anatomyRootRef={anatomyGroupRef}
+            coordGroupRef={coordGroupRef}
+            warpRequestId={rotationBoundaryWarpRequestId}
+            product={product}
+            basePos={basePos}
+            shaftLength={selectedLength}
+            lateralOffset={lateralOffset}
+            anteriorOffset={anteriorOffset}
+            verticalOffset={verticalOffset}
+            dragOffsetX={dragOffsetX}
+            dragOffsetY={dragOffsetY}
+            dragOffsetZ={dragOffsetZ}
+            shaftRollDeg={interactionShaftRollDeg}
+            axis={rotationBoundaryWarpAxis}
+            currentAngle={rotationBoundaryWarpAxis === 'tilt' ? angleTilt : angleTiltZ}
+            otherAxisAngle={rotationBoundaryWarpAxis === 'tilt' ? angleTiltZ : angleTilt}
+            direction={rotationBoundaryWarpDirection}
+            onWarp={(angleDeg) => {
+              useSimStore.getState().updatePlacement({
+                [rotationBoundaryWarpAxis === 'tilt' ? 'angleTilt' : 'angleTiltZ']: angleDeg,
+              });
+              useSimStore.getState().markAngleTouched();
+            }}
+            onResult={(message, success) => onRotationBoundaryWarpResult?.(message, success)}
           />
         )}
       </Suspense>

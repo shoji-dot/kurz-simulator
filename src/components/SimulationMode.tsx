@@ -1012,6 +1012,14 @@ function PlacementStep() {
   // Phase C検証完了後、対応するSimScene/CollisionVerifyOverlay側のコードとまとめて削除する。
   const [collisionBoundaryWarpRequestId, setCollisionBoundaryWarpRequestId] = useState(0);
   const [collisionBoundaryWarpStatus, setCollisionBoundaryWarpStatus] = useState<string | null>(null);
+  // [TEST-ONLY, 一時] Phase C-3実機検証（Architect依頼2026-08-14、Rotation Boundary Warp）。
+  // 上のCollisionBoundaryWarpRequestIdと同じbump pattern。axis/directionはボタン押下時に
+  // 一緒にセットする（SimScene側は最新のaxis/directionを見て探索するため、setStateの
+  // バッチング順序に依存しない設計＝onClick内で3つまとめてsetする）。
+  const [rotationBoundaryWarpRequestId, setRotationBoundaryWarpRequestId] = useState(0);
+  const [rotationBoundaryWarpAxis, setRotationBoundaryWarpAxis] = useState<'tilt' | 'tiltZ'>('tilt');
+  const [rotationBoundaryWarpDirection, setRotationBoundaryWarpDirection] = useState<1 | -1>(1);
+  const [rotationBoundaryWarpStatus, setRotationBoundaryWarpStatus] = useState<string | null>(null);
   // Phase1-B ControlPad Transport対応: SimScene（子）が公開するTransport操作用コールバックを
   // 保持し、sibling（ControlPad）へ橋渡しする。transportPose/transportTilt自体の所有権は
   // SimSceneに残したまま（liftしない）、この薄いコールバックのみを中継する。
@@ -1102,6 +1110,10 @@ function PlacementStep() {
           onTransportControlsReady={setTransportControls}
           collisionBoundaryWarpRequestId={collisionBoundaryWarpRequestId}
           onCollisionBoundaryWarpResult={(message) => setCollisionBoundaryWarpStatus(message)}
+          rotationBoundaryWarpRequestId={rotationBoundaryWarpRequestId}
+          rotationBoundaryWarpAxis={rotationBoundaryWarpAxis}
+          rotationBoundaryWarpDirection={rotationBoundaryWarpDirection}
+          onRotationBoundaryWarpResult={(message) => setRotationBoundaryWarpStatus(message)}
         />
         </ErrorBoundary>
         </div>{/* /endoscope clip div */}
@@ -1153,14 +1165,32 @@ function PlacementStep() {
         {/* ── ツールバー: top-right（KURZ Design System v1: ToolbarContainer + PillToggleGroup） ── */}
         <ToolbarContainer anchor="top-right" style={{ alignItems: 'flex-end', maxWidth: 'calc(100% - 20px)', padding: 'var(--space-2)' }}>
           <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Phase1-C UX修正（Architect依頼2026-08-15）: Transport段階
+                （manipulationCommitted===false）ではDraggableProsthesis自体が未マウントのため、
+                Rotate Mode（dragMode==='rotate'）を選んでもDirectTransportProsthesis側の
+                Position dragが常に実行され、「回転が効かない」ように見えるRoot Causeが実機で
+                確認された（3回のドラッグ全てでMOVE-listenerのみ発火、Rotate側は一度も未発火）。
+                「回転」はPlacement段階でのみ意味を持つため、manipulationCommitted===falseの間は
+                選択肢から外す。「視点」（Camera Orbit、OrbitControls）はDraggableProsthesisの
+                Move/Rotateとは独立した機構で、Transport段階でも既存どおり機能する
+                （enabled条件はdragMode==='view'のみでmanipulation.committedを見ていない、
+                SimScene.tsx参照）ため、今回の修正対象に含めない。 */}
             <PillToggleGroup<DragMode>
               ariaLabel="操作モード"
               value={dragMode}
               onChange={setDragMode}
-              options={[
-                { value: 'move', label: '移動' },
-                { value: 'view', label: '視点' },
-              ]}
+              options={
+                manipulationCommitted
+                  ? [
+                      { value: 'move', label: '移動' },
+                      { value: 'rotate', label: '回転' },
+                      { value: 'view', label: '視点' },
+                    ]
+                  : [
+                      { value: 'move', label: '移動' },
+                      { value: 'view', label: '視点' },
+                    ]
+              }
             />
             <PillToggleGroup<SimViewMode>
               ariaLabel="視野モード"
@@ -1397,6 +1427,59 @@ function PlacementStep() {
           >
             ↺ すべてリセット
           </Button>
+
+          {/* [TEST-ONLY, 一時] Phase C-3実機検証（Architect依頼2026-08-14、Rotation Boundary
+              Warp）。Collision Boundary Warp（Translation）と異なり、Placement段階
+              （manipulationCommitted=true、Shift+矢印キーが有効な状態）で完結する操作のため
+              manipulationCommittedには一切触れない。軸(tilt/tiltZ)・方向(+/-)はshojiさんが
+              3D Viewer目視で「Boneへ近づく方向」を確認して選ぶ想定（SimScene.tsx/
+              CollisionVerifyOverlay.tsx のRotationBoundaryWarpTracker参照）。Phase C-3検証
+              完了後もC-2の前例（Collision Boundary Warp）に倣い、恒久的なテストツールとして
+              温存する想定。 */}
+          {manipulationCommitted && (
+            <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px dashed rgba(0,180,216,0.35)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--text-secondary)' }}>
+                🧪 [TEST] Rotation Boundary Warp（Bone手前・非衝突角度へ）
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {(['tilt', 'tiltZ'] as const).map((axis) => (
+                  <div key={axis} style={{ display: 'flex', gap: 4 }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ flex: 1, borderStyle: 'dashed', fontSize: 10, padding: '2px 4px' }}
+                      onClick={() => {
+                        setRotationBoundaryWarpAxis(axis);
+                        setRotationBoundaryWarpDirection(1);
+                        setRotationBoundaryWarpStatus('探索中…');
+                        setRotationBoundaryWarpRequestId((n) => n + 1);
+                      }}
+                    >
+                      {axis === 'tilt' ? 'tilt(↑↓) +' : 'tiltZ(←→) +'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ flex: 1, borderStyle: 'dashed', fontSize: 10, padding: '2px 4px' }}
+                      onClick={() => {
+                        setRotationBoundaryWarpAxis(axis);
+                        setRotationBoundaryWarpDirection(-1);
+                        setRotationBoundaryWarpStatus('探索中…');
+                        setRotationBoundaryWarpRequestId((n) => n + 1);
+                      }}
+                    >
+                      {axis === 'tilt' ? 'tilt(↑↓) −' : 'tiltZ(←→) −'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {rotationBoundaryWarpStatus && (
+                <div style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 6, wordBreak: 'break-all' }}>
+                  {rotationBoundaryWarpStatus}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── 詳細調整（H2-b: 既定折りたたみ。3Dドラッグを一次操作、数値微調整は二次操作として序列化） ── */}
           <div
