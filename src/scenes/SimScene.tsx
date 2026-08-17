@@ -67,7 +67,6 @@ import {
   TransportProsthesis,
   DirectTransportProsthesis,
   createInitialTransportPose,
-  commitTransportPoseToOffsets,
   useScreenSpaceDrag,
   nudgeTransportPosition,
   nudgeTransportTilt,
@@ -1171,17 +1170,27 @@ export function SimScene({
   // Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
   // PlacementStateには一切書き込まない、transportPoseと同じライフサイクルのローカルstate。
   const [transportTilt, setTransportTilt] = useState<TransportTilt>(INITIAL_TRANSPORT_TILT);
-  // manipulation.committed が false→true になった瞬間に一度だけ、transportPose/transportTiltを
-  // PlacementStateへ書き込み確定する（Transport→Placement Commit）。冪等な冗長実行——
-  // DirectTransportProsthesisのonRelease等が既に正しい値でupdatePlacement()している場合、
-  // ここでの再計算は同じ値を書き直すだけで無害（のはず）。
+  // manipulation.committed が false→true になった瞬間に一度だけ、親（呼び出し元）へ通知する
+  // ためのガード。
+  //
+  // [State-management bug修正、Architect承認2026-08-15] 以前はここで
+  // commitTransportPoseToOffsets(transportPose, basePos) を再計算し、updatePlacement()で
+  // dragOffsetX/Y/Zへ書き込んでいた（コメント上は「冪等な冗長実行」という位置づけ）。
+  // しかしtransportPoseはcommitの実際の発生源（DirectTransportProsthesisのonRelease、
+  // TEST強制確定ボタン等）と同期している保証がない——特にTEST強制確定はtransportPoseに
+  // 一切触れずmanipulation.committedをtrueにするため、Transportで一度も操作していない
+  // 場合はtransportPoseがcreateInitialTransportPose()の初期値（basePos+(12,9,6)相当）の
+  // ままであり、±3mmクランプにより毎回dragOffsetX/Y/Z=(3,3,3)が書き込まれ、TESTが直前に
+  // 設定した正しいdragOffset=(0,0,0)をサイレントに上書きしていた（実機ログで確認、
+  // project_kurz_collision_constraintメモリ参照）。offsetsの書き込み責務は、
+  // manipulation.committedをtrueにする側（DirectTransportProsthesisのonRelease、または
+  // TEST等の強制確定ハンドラ）が既にそれぞれ自分の正しい値でupdatePlacement()している
+  // ため、ここでの再計算・再書き込みは常に冗長（正しいケース）か有害（transportPoseが
+  // 無関係なケース）のいずれかであり、削除する。
   const hasCommittedRef = useRef(false);
   useEffect(() => {
     if (!manipulation.committed || hasCommittedRef.current) return;
     hasCommittedRef.current = true;
-    const offsets = commitTransportPoseToOffsets(transportPose, basePos);
-    useSimStore.getState().updatePlacement(offsets);
-    useSimStore.getState().markPositionTouched();
     onManipulationCommitted?.();
   }, [manipulation.committed, onManipulationCommitted]);
 
