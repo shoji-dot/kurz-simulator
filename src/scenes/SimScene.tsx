@@ -647,6 +647,29 @@ function DraggableProsthesis({
   // 祖先matrixWorldは変化しないため、初回1回だけログする（毎フレームのログ量を抑える）。
   const p01VerifyLoggedAncestorsRef = useRef(false);
 
+  // [Rotate Smoothness Fix、Architect承認2026-08-16] Rotate-dragのReact/Store commit頻度を
+  // rAFへ間引くためのpending値。evaluateRotationCandidate自体の呼び出し頻度・粒度（毎pointermoveで
+  // 評価、PASSした候補のみ採用）は変更しない——Investigation（Node harness実測）でCollision評価
+  // 自体は無視できるコスト（mean 0.085ms）と確認済みのため、変えるのは「PASSした値をReact state
+  // （store）へ書き込む頻度」のみ。null＝直前のflush以降、新しいPASS済み候補がないことを表す。
+  const pendingAngleTiltRef = useRef<number | null>(null);
+  const pendingAngleTiltZRef = useRef<number | null>(null);
+  // pendingAngleTilt(Z)Refをstoreへ同期flushする。呼び出し元は2箇所（下部useFrame内＝1フレーム
+  // 1回、handleUp内＝pointerup時の即時flush）。flush後にrefをnullへ戻すため、直後に同じ
+  // flushPendingRotation()をもう一度呼んでも二重commitにはならない（Architect指示の
+  // 「pending===committed→no-op」を、新規state機構を足さずrefのnull sentinelだけで満たす設計）。
+  const flushPendingRotation = () => {
+    const t = pendingAngleTiltRef.current;
+    const tz = pendingAngleTiltZRef.current;
+    if (t === null && tz === null) return;
+    const patch: Partial<PlacementState> = {};
+    if (t !== null) patch.angleTilt = t;
+    if (tz !== null) patch.angleTiltZ = tz;
+    useSimStore.getState().updatePlacement(patch);
+    pendingAngleTiltRef.current = null;
+    pendingAngleTiltZRef.current = null;
+  };
+
   // onDragActiveChangeのラッパー: ドラッグ開始(false→true)の瞬間にlastValidLocalDeltaRefを
   // リセットする以外は、既存の呼び出し元（呼び出し元propそのまま）へ完全に委譲する。
   // useScreenSpaceDrag自体・その呼び出し方は無変更。
@@ -806,6 +829,11 @@ function DraggableProsthesis({
   const onDirectRotatePointerDown = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return; // 左クリックのみ（Move側のuseScreenSpaceDragと同じ規約）
     e.stopPropagation();
+    // [Rotate Smoothness Fix] 前回Dragのpendingを次のDragへ持ち越さない（lastValidLocalDeltaRef
+    // と同じInvariant、上記コメント参照）。通常は直前のhandleUpで既にflush済みのはずだが、
+    // 念のための防御的リセット。
+    pendingAngleTiltRef.current = null;
+    pendingAngleTiltZRef.current = null;
     try { gl.domElement.setPointerCapture(e.pointerId); } catch { /* 一部環境で未対応、無視 */ }
     handleDragActiveChange(true);
     let lastClientX = e.clientX;
@@ -821,18 +849,25 @@ function DraggableProsthesis({
       const { placement } = useSimStore.getState();
 
       if (dx !== 0) {
-        const candidateTiltZ = clampAngleDeg((placement.angleTiltZ ?? 0) + dx * ROTATE_DEG_PER_PIXEL_TILT_Z);
+        // [Rotate Smoothness Fix] 起点はpending（まだstoreへflushしていないPASS済み候補）が
+        // あればそれを使う。storeの値をそのまま使うと、複数pointermoveがrAF flush前に連続した
+        // 場合に直前の加算分を読み落として蓄積が失われるため（?？は0を正当な値として扱う）。
+        const baseTiltZ = pendingAngleTiltZRef.current ?? (placement.angleTiltZ ?? 0);
+        const candidateTiltZ = clampAngleDeg(baseTiltZ + dx * ROTATE_DEG_PER_PIXEL_TILT_Z);
         if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate('tiltZ', candidateTiltZ)) {
-          useSimStore.getState().updatePlacement({ angleTiltZ: candidateTiltZ });
+          pendingAngleTiltZRef.current = candidateTiltZ;
         }
         // rotateSelectedObject()をbypassする設計上、Collisionで拒否した場合もユーザーが回転を
         // 試みた事実に変わりないため、Keyboard Rotation（上記）と同じく両分岐で確実に呼ぶ。
+        // markAngleTouched()自体はidempotent guard済み（useSimStore.ts）でコスト無視できるため
+        // rAF化の対象外（Investigation対象はupdatePlacement由来のplacement参照変化のみ）。
         useSimStore.getState().markAngleTouched();
       }
       if (dy !== 0) {
-        const candidateTilt = clampAngleDeg((placement.angleTilt ?? 0) + dy * ROTATE_DEG_PER_PIXEL_TILT);
+        const baseTilt = pendingAngleTiltRef.current ?? (placement.angleTilt ?? 0);
+        const candidateTilt = clampAngleDeg(baseTilt + dy * ROTATE_DEG_PER_PIXEL_TILT);
         if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate('tilt', candidateTilt)) {
-          useSimStore.getState().updatePlacement({ angleTilt: candidateTilt });
+          pendingAngleTiltRef.current = candidateTilt;
         }
         useSimStore.getState().markAngleTouched();
       }
@@ -842,6 +877,12 @@ function DraggableProsthesis({
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
       try { gl.domElement.releasePointerCapture(ev.pointerId); } catch { /* 無視 */ }
+      // [Rotate Smoothness Fix、Architect指示] Release時ガード: 次のuseFrame tickを待たず、
+      // 最後に受理された候補を同期的にflushする（Move側のevaluateDragCandidate Release時
+      // 再評価と同じ理由——handleUpは次のrAFティックより前に同期発火しうるため、待つと最後の
+      // 数pixel分の回転を取りこぼす）。flush後はrefがnullに戻るため、直後の通常useFrameが
+      // 同じフレームで再度flushPendingRotation()を呼んでも二重commitにはならない。
+      flushPendingRotation();
       handleDragActiveChange(false);
     };
 
@@ -890,13 +931,8 @@ function DraggableProsthesis({
   // 実際の座標計算はuseSimStore.getState().translateSelectedObject()/rotateSelectedObject()に
   // 閉じており、ここではキー判定と定数の選択のみを行う（将来のボタンUIからも同じ関数を呼べる設計）。
   useEffect(() => {
-    // [C3-P0-1-VERIFY, 一時] isMoveがfalseだとリスナー自体が登録されない
-    // （Shift+矢印キーが完全に無反応に見える別要因の切り分け用、Architect依頼2026-08-15）。
-    console.log('[C3-P0-1-VERIFY][keydown-effect]', { isMove });
     if (!isMove) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      // [C3-P0-1-VERIFY, 一時] keydown自体が発火したかを無条件にログする。
-      console.log('[C3-P0-1-VERIFY][onKeyDown]', { key: e.key, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey });
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       let axis: 'x' | 'y' | null = null;
@@ -966,6 +1002,17 @@ function DraggableProsthesis({
     } else {
       group.position.copy(lastValidLocalDeltaRef.current);
     }
+  });
+
+  // [Rotate Smoothness Fix、Architect承認2026-08-16] pendingAngleTilt(Z)Refを1フレームに1回だけ
+  // storeへflushする（上記Move側useFrameと同じ「rAFで間引く」パターンをRotateへも適用）。
+  // pointerup時は既にhandleUp内のflushPendingRotation()で同期flush済みのため、その直後に同じ
+  // フレームでこのuseFrameが走っても二重commitにはならない（flush後はrefがnullに戻るため
+  // no-op）。Rotate-drag中でなくてもflushPendingRotation()自体は毎フレーム呼ばれるが、
+  // pending refが両方nullのときは即returnする軽量no-opのため、Move-drag中や非ドラッグ中の
+  // オーバーヘッドは無視できる。
+  useFrame(() => {
+    flushPendingRotation();
   });
 
   return (
