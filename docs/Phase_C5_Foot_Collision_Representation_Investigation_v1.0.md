@@ -236,6 +236,10 @@ Contact semantics = Open investigation item
                    = No implementation change
 ```
 
+→ 詳細Evidence（Collision Engine実処理の境界判定、Q1〜Q6、Layer構造、この観点での
+Architect Decision）は §16「Contact/Penetration Semantics Evidence（Investigation
+Round 2、2026-08-18追補）」を参照。本セクション（§11）の記述自体は無変更。
+
 ## 12. Architect Decision
 
 ```
@@ -285,3 +289,233 @@ C-3/C-4は再開しない。Foot Proxy実装変更にも進まない。
 
 - `docs/Phase_C3_Prosthesis_Anatomy_Collision_Constraint_Freeze_v1.0.md`（§6, §9, §12）
 - `docs/Phase_C4_Rotation_Collision_Boundary_Verification_v1.0.md`
+
+---
+
+## 16. Contact/Penetration Semantics Evidence（Investigation Round 2、2026-08-18追補）
+
+**位置付け**: §1〜§15（Investigation Round 1、Geometry比較・Clean Baseline再現性検証）を
+書き換えるものではない。§11「Contact/Penetration Semantics」で"Open investigation item"と
+した項目について、Read-only調査を継続した結果を追補する。コード・Collision Engine・
+Tolerance・Candidate B・Foot Proxy・Scoringのいずれも変更していない。
+
+### 16.1 Collision Engineの実処理（`collisionTest.ts`、confirmed）
+
+```
+[role==='foot' かつ tolerance>0のとき]
+1. BVH closest-point search:
+   bvh.closestPointToPoint(center, undefined, 0, radius+tolerance)
+2. penetration = radius - hit.distance
+3. penetration > tolerance → collided=true
+4. それ以外（hitなし、またはpenetration<=tolerance）→ clear
+
+[role!=='foot'（Shaft sphere / Head box）、またはtolerance未指定/0のとき]
+geometric intersection（intersectsSphere / intersectsBox）→ collided=true
+境界接触（tangent）も含めintersectionとして扱われる。penetration量は問わない。
+```
+
+**判定境界（`collisionTest.ts:50-56`のコードから直接導出、confirmed）**:
+
+| penetration | 判定 |
+|---|---|
+| 0 | clear |
+| 0.05 mm | clear |
+| 0.15 mm | clear（`>` を使用しており `>=` ではないため） |
+| 0.16 mm | collision |
+
+### 16.2 Q1 — 「Collision」の厳密な意味（confirmed）
+
+```
+Current "Collision" semantics are role-dependent.
+
+Foot:
+    penetration depth > tolerance
+    → collision
+
+Non-foot:
+    geometric intersection
+    → collision
+```
+
+単一のCollision semanticsが存在するのではなく、roleに応じた2種類の判定方式が同一関数内で
+共存している。**これ自体はBugとして記録しない**（今回、Concrete Defect Evidenceは存在
+しない、§16.6参照）。
+
+### 16.3 Q2 — 0.15mm toleranceの意味（confirmed）
+
+```
+FOOT_CONTACT_TOLERANCE_MM = 0.15 mm
+```
+
+は名称（"Contact Tolerance"）に反して、実処理上は **Penetration tolerance** である：
+
+```
+penetration = 0             → contact / clear
+0 < penetration <= 0.15 mm  → tolerated penetration / clear
+penetration > 0.15 mm       → collision
+```
+
+コードコメント（`prosthesisCollisionGeometry.ts:66-79`）にも「許容貫入深度（mm）」と
+明記されており、これがEvidenceである。
+
+```
+0.15 mm = Clinical Thresholdではない
+        = Diagnostic / Provisional
+```
+
+は§6・§12（本文書）およびC-3 Freeze文書§6と矛盾せず維持する。名称変更等のコード変更は
+行わない。
+
+### 16.4 Q3 — C-2/C-3 tolerance差（confirmed / unknown・undocumented）
+
+```
+C-2 Translation (evaluateDragCandidate):
+    footContactToleranceMmを渡していない
+
+C-3 Rotation (evaluateRotationCandidate):
+    FOOT_CONTACT_TOLERANCE_MMを渡している
+```
+
+これは「TranslationとRotationで物理的に異なるtoleranceが必要」という仕様Evidenceでは
+**ない**。既存コメント（`SimScene.tsx:773-777`）から確認できるのは、「C-2はPASS/Freeze
+済み」「C-3の問題（Rotate Modeが常にCollisionでブロックされる）を最小変更で解決する」
+「C-2の挙動を巻き込まない」というScope Discipline / Minimal Changeの判断のみである。
+
+```
+正式分類: Unknown / undocumented
+```
+
+「C-2に将来もtoleranceを適用しない」という仕様Evidenceは存在しないため、これも記録しない。
+
+### 16.5 Q4 — Scoring vs Collision（confirmed）
+
+```
+Scoring (computeScore()):
+    verticalDeviation ideal = 0
+    「浮いた状態→接触不安定/音響損失」「接触を確保してください」という
+    接触を推奨するFeedback文言が存在
+    0.3 / 0.6 / 1.0 mm の位置偏差bandによる段階的減点（hard threshold ではない）
+
+Collision:
+    geometry intersection / penetration constraint
+```
+
+ScoringとCollisionは異なるレイヤー・目的を持つが、同一の物理状況（Foot-底板の幾何学的
+重なり）に対して逆方向の評価を行いうるため、semantics上の緊張関係が存在する（既存C-3
+Freeze文書§9と整合、無変更）。
+
+```
+Scoring threshold (0.3/0.6/1.0mm) ≠ Collision penetration tolerance (0.15mm)
+```
+
+Scoringの位置偏差bandを0.15mmの根拠として使用していないことを維持する。
+
+### 16.6 Q5 — Contact / Penetration / Tolerated Penetration（confirmed）
+
+`CollisionResult`（`collisionTest.ts:15-22`）には`penetrationDepth?`/`normal?`が将来拡張用
+として型のみ予約済み（C-1設計時のコメント、未使用のまま）。現在の実装は`boolean collided`
+としてしか結果を返さない。
+
+```
+Contact              : penetration ≈ 0
+Tolerated penetration: 0 < penetration <= tolerance
+Penetration           : penetration > tolerance
+```
+
+という概念整理は可能だが、API上で明示的な3状態として返しているわけではない。これを
+**仕様上の未確定事項**として記録する。今回これを理由にAPI変更は行わない。
+
+### 16.7 Q6 — Implementation Changeの正当性（confirmed）
+
+```
+Concrete Defect Evidence = None
+```
+
+理由:
+- Historical Foot collisionはClean Baselineで再現されていない（§9、Round 1）
+- Current Clean BaselineはFoot #0/#1/#2すべてclear（§7, §8、Round 1）
+- ±5° sweepでもcollisionなし（§8、Round 1）
+- 今回（Round 2）発見されたのはsemanticsの非対称性・未文書化であり、再現可能な
+  Concrete Defectではない
+
+```
+Implementation change is not justified at this time.
+```
+
+### 16.8 Layer構造（Round 1との分離維持）
+
+```
+Layer 1  Geometry Representation  : Real Foot vs Candidate B（§3, §4、確定済み）
+Layer 2  Collision Semantics      : role依存の2判定方式が共存（§16.1-16.2、今回確定）
+Layer 3  Tolerance                : FOOT_CONTACT_TOLERANCE_MM=0.15mm、Diagnostic/Provisional
+Layer 4  Clinical Interpretation  : 臨床的Evidence皆無（未確立のまま）
+```
+
+```
+Real Foot ≠ Sphere
+```
+だからといって、
+```
+Sphere Proxy = Current Collision Bug
+```
+とは結論しない（§4, §10と同一の原則をLayer 2にも適用する）。
+
+### 16.9 表現ルールの適用
+
+```
+confirmed とするもの:
+- Collision Engineの実処理（§16.1）
+- ">" 境界判定（§16.1）
+- 0.15mmがpenetration toleranceであること（§16.3）
+- C-2/C-3の現在の実装差そのもの（§16.4）
+- Concrete Defect Evidenceがないこと（§16.7）
+
+leading hypothesis に留めるもの:
+- Historical collisionの原因としてのstale transportPose（§10で既述、変更なし）
+
+unknown / undocumented とするもの:
+- C-2で今後toleranceを適用するか（§16.4）
+- C-2/C-3 tolerance差が将来も維持されるべき仕様か（§16.4）
+- Clinicalに0.15mmが妥当か（§16.3、§6, §12と同一）
+```
+
+### 16.10 Architect Decision（Investigation Round 2）
+
+```
+Option B
+Semantics ambiguity exists.
+Specification clarification required.
+No implementation change yet.
+```
+
+**Option Aではない理由**: 現在の実装はコードとして一貫して動作しているが、C-2/C-3
+tolerance差・Contact/Penetration distinction・Scoring/Collision relationship・
+Clinical basis of 0.15mmには未文書化・未確定部分がある。「Current semantics are
+sufficiently coherent」と断定するのは不適切。
+
+**Option Cではない理由**: Concrete Defect Evidenceがない（§16.7）。「Implementation
+defect demonstrated」とは言えない。
+
+```
+Foot Proxy redesign     = NOT JUSTIFIED AT THIS TIME（§12と同一、維持）
+Candidate B              = KEEP / UNCHANGED
+Foot Contact Tolerance   = KEEP 0.15 mm / PROVISIONAL / no clinical finalization
+Collision Engine         = unchanged
+Contact/Penetration API  = unchanged（penetrationDepth/normalは型予約のまま、未実装）
+```
+
+### 16.11 Investigation Status（Round 2終了時点）
+
+```
+C-5 = INVESTIGATION COMPLETE FOR THIS ROUND
+      / SPECIFICATION CLARIFICATION REQUIRED
+      / NO IMPLEMENTATION CHANGE
+```
+
+コードを直さないこと自体が今回のArchitect Decisionである。将来Concrete Defect Evidenceが
+得られた場合のみ、別途Implementation Phaseを開始する。C-3/C-4は再開しない。
+
+## 17. 参照（Round 2追加分）
+
+- 本文書 §9〜§12（Round 1、Historical Evidence比較・Geometry Findings・Architect Decision）
+- `docs/Phase_C3_Prosthesis_Anatomy_Collision_Constraint_Freeze_v1.0.md`（§6, §9）
