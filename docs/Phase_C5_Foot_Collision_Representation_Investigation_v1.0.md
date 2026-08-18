@@ -1,7 +1,7 @@
 # C-5: Foot Collision Representation & Contact Semantics Investigation v1.0
 
-**Status**: Investigation In Progress（本文書はArchitect Conclusionを含むEvidence記録であり、
-C-5自体の完全終了を宣言するものではない）
+**Status**: CLOSED / SPECIFICATION CLARIFICATION RECORDED（§18参照。Round 1/Round 2の
+Evidence記録自体は無変更、Round 3にてSpecification Clarificationとして正式にClose）
 **Date**: 2026-08-18
 **位置付け**: これはC-3/C-4の実装変更ではない。コード変更・Collision Logic変更・Foot Proxy/
 Candidate B/Foot Contact Tolerance変更・Malleus/Stapes実装・STEP 4D再開・Scoring変更のいずれも
@@ -519,3 +519,195 @@ C-5 = INVESTIGATION COMPLETE FOR THIS ROUND
 
 - 本文書 §9〜§12（Round 1、Historical Evidence比較・Geometry Findings・Architect Decision）
 - `docs/Phase_C3_Prosthesis_Anatomy_Collision_Constraint_Freeze_v1.0.md`（§6, §9）
+
+---
+
+## 18. Specification Clarification / Close（Round 3、2026-08-18追補）
+
+**位置付け**: §1〜§17（Round 1 Evidence記録・Round 2 Semantics Evidence記録）を書き換える
+ものではない。§16.10でArchitect DecisionとしたOption Bに基づき、今回のEvidenceから**現時点
+で確定できるCollision semanticsのみ**を仕様として明文化し、Evidence不足で確定できない事項は
+明示的にDeferredとして残す。実装変更・コード変更は一切伴わない。
+
+### 18.1 確定する用語定義（§16.3, §16.6と同一、正式Specificationとして再掲）
+
+```
+Contact
+= penetration ≈ 0
+
+Tolerated Penetration
+= 0 < penetration <= tolerance
+
+Penetration
+= penetration > tolerance
+```
+
+境界条件（§16.1のコードから直接導出、confirmed）:
+```
+penetration = tolerance → clear（"> tolerance"判定のため）
+```
+
+これはGeometry/Collisionの用語定義であり、Clinical safety thresholdを意味しない。
+
+### 18.2 0.15mmの正式な位置づけ
+
+```
+FOOT_CONTACT_TOLERANCE_MM = 0.15 mm
+= provisional penetration tolerance
+≠ clinical safety threshold
+≠ clinically validated contact threshold
+```
+
+Clinical evidenceが存在しないため、最終数値として固定しない（§16.3, §6, §12と同一、維持）。
+
+**Tolerance conceptとTolerance valueの分離**:
+```
+Tolerance concept（0 < penetration <= toleranceをclearとして扱う考え方）
+= 現在のCollision semanticsとして確定
+
+Tolerance value（0.15 mmという具体的数値）
+= Provisional、最終仕様ではない
+```
+
+### 18.3 C-2/C-3 tolerance差の正式記録
+
+```
+C-2/C-3 tolerance difference
+= current implementation difference
+= not established as physical/clinical requirement
+= not established as permanent specification
+
+C-2 future tolerance policy
+= Deferred
+```
+
+（§16.4 Q3のconfirmed evidenceをそのままSpecification記録として正式化。新しい判断は含まない）
+
+**C-2 / C-3 / C-4を変更しない**: C-2 tolerance導入・C-2 collision semantics変更・C-2 Freeze
+解除・C-2 revalidation、およびC-3/C-4/Rotation Collision/Rotate UI/Boundary Transitionの
+いずれも今回一切行わない。C-2はPASS/FROZEN、C-3/C-4はPASS/CLOSED/VERIFIEDのまま。
+
+### 18.4 Scoring / Collisionの責務分離（§16.5と同一、正式記録）
+
+```
+Scoring = placement quality evaluation
+Collision = movement / placement safety constraint
+```
+
+両者は同一の判定機構ではないが、同一の物理状態（Foot-底板の幾何学的重なり）について評価
+方向が異なりうる（Semantic tension、§16.5と同一）。
+
+```
+Scoring bands (0.3 / 0.6 / 1.0 mm) ≠ Collision penetration tolerance (0.15 mm)
+```
+
+0.15mmの根拠としてScoring thresholdを使用しない（維持）。
+
+### 18.5 CollisionResultの3状態化（概念整理のみ、API変更なし）
+
+Contact / Tolerated Penetration / Penetrationは仕様上の概念分類であり、API変更を意味しない。
+
+```
+現在: CollisionResult = boolean collided + penetrationDepth?/normal?（型予約のみ、未使用）
+
+Deferred:
+- CollisionResultの3-state化
+- penetrationDepthの正式利用
+- normalの正式利用
+- API変更
+```
+
+Concrete Defect Evidenceがないため、現時点で実装しない（§16.6, §16.7と同一）。
+
+### 18.6 Clinical Interpretation（未確定として正式記録）
+
+```
+Clinical interpretation of 0.15 mm = UNDEFINED / NO EVIDENCE
+```
+
+0.15mmを clinical safety margin / clinical tolerance / safe penetration 等と表現しない。
+Clinical thresholdの決定には別途Evidenceが必要（§16.3, §13と同一）。
+
+### 18.7 Foot Proxy / Candidate B（変更なし、正式記録）
+
+今回のSpecification Clarificationを理由に、Candidate B・Foot Proxy・Real Foot Geometryの
+いずれも変更しない。
+
+```
+Candidate B = Diagnostic / Provisional / Unchanged
+Foot Proxy redesign = Deferred
+```
+
+理由: Clean BaselineでHistorical Foot Collisionが再現されておらず（§9）、Concrete Defect
+Evidenceが存在しないため（§16.7と同一）。
+
+### 18.8 Concrete Defectの扱い（§16.7と同一、正式記録）
+
+```
+Concrete Defect Evidence = None
+```
+
+今回確認されたものは semantic ambiguity / undocumented policy / provisional threshold で
+あり、reproducible implementation defect ではない。
+
+```
+Implementation change = Deferred
+```
+
+### 18.9 Layer構造（§16.8と同一、正式Specification）
+
+```
+Layer 1  Geometry Representation  : Real Foot vs Candidate B
+Layer 2  Collision Semantics      : role-dependent collision rules
+Layer 3  Tolerance                : 0.15 mm / Provisional
+Layer 4  Clinical Interpretation  : Not established
+```
+
+```
+Real Foot != Sphere
+```
+から
+```
+Sphere Proxy = Collision Bug
+```
+とは推論しない（§4, §10, §16.8と同一原則）。
+
+### 18.10 最終状態
+
+```
+C-5 Status                = CLOSED / SPECIFICATION CLARIFICATION RECORDED
+Architect Decision        = Option B
+Implementation Change     = NONE / DEFERRED
+
+Contact                   = penetration ≈ 0
+Tolerated Penetration     = 0 < penetration <= tolerance
+Penetration                = penetration > tolerance
+Foot Tolerance             = 0.15 mm / Provisional Penetration Tolerance
+Clinical Validation        = NONE
+
+C-2 Tolerance Policy       = Deferred / Undocumented as permanent policy
+CollisionResult 3-state API = Deferred
+Candidate B                 = Unchanged
+Foot Proxy Redesign         = Deferred
+
+Concrete Defect Evidence    = None
+
+C-2 = UNCHANGED
+C-3 = UNCHANGED
+C-4 = UNCHANGED
+
+Commit = 0
+Push   = 0
+```
+
+**最重要原則**: 今回の作業は仕様を明確化するためのDocumentation Changeであり、実装仕様を
+変更する作業ではない。「Toleranceを正式採用した」のではなく「Tolerance semanticsを明文化
+した（ただし0.15mmはProvisional）」。「C-2にもToleranceを導入すべき」「CollisionResultを
+3-state化すべき」「Foot Proxyを再設計すべき」「Clinical safety thresholdが0.15mm」のいずれ
+も判断しない。現時点で確定するのは意味論と未確定事項の境界だけである。Concrete Defect
+Evidenceが将来得られた場合には、その時点で別Phase / Changeとして再評価する。
+
+## 19. 参照（Round 3追加分）
+
+- 本文書 §16（Round 2、Contact/Penetration Semantics Evidence）
+- 本文書 §18.1〜§18.9（Round 3、Specification Clarification）
