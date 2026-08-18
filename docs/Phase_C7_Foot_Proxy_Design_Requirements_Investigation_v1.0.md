@@ -3,6 +3,13 @@
 **Status**: Investigation Complete（Read-only、Design Requirements整理のみ。Architect Decision待ち）
 **Date**: 2026-08-18
 
+**Evidence Status Annotation（2026-08-18追補）**: 本文書§3〜§10（特にcase-001由来の
+Historical Region-1 Finding、`t≈0.19`/`required-radius≈0.012mm`/Region 1 crossover）
+は、後続のCross-Case Validation / Original Evidence Reconstruction / Historical
+Condition Grid-Search / Evidence Status Consolidation / Evidence Decisionを経て、
+Evidence Statusが正式に整理された。詳細は**§16 Evidence Status Annotation**を参照。
+本追補は既存の§1〜§15の記述・数値・Figuresを一切削除・改変しない（追記のみ）。
+
 **Phase番号についての注記（重要）**: 依頼では `docs/Phase_C6_...md` が既定名として提案されたが、
 `C-6` は既に `docs/Phase_C3_Prosthesis_Anatomy_Collision_Constraint_Freeze_v1.0.md`（§16「次Phase
 への引継ぎ」、Final Status）にて **Malleus/Stapes拡張** 用のPhase番号として正式に予約済みである
@@ -521,4 +528,134 @@ Design Requirements・Trade-offの整理を提供するものであり、方向�
 
 - `docs/Phase_C5_Foot_Collision_Representation_Investigation_v1.0.md`（§3, §4, §10, §16, §18 — Real Foot Geometry Evidence、Contact/Penetration Semantics確定事項）
 - `docs/Phase_C3_Prosthesis_Anatomy_Collision_Constraint_Freeze_v1.0.md`（§16 — C-6 Phase番号予約状況、Malleus/Stapes Collision Expansion）
+
+---
+
+## 16. Evidence Status Annotation（2026-08-18追補、C-7継続調査の結果反映）
+
+**位置付け**: 本セクションは、§1〜§15（本文書のOriginal Finding、特にcase-001由来の
+Region 1 constraint観測）を書き換えるものではない。以下の後続Read-only Investigation/
+Documentationを経て確定した、Evidence Statusの正式な整理を追記する:
+
+```
+docs/Phase_C7_Foot_Proxy_Cross_Case_Validation_v1.0.md
+docs/Phase_C7_Foot_Proxy_Original_Evidence_Reconstruction_v1.0.md
+docs/Phase_C7_Foot_Proxy_Historical_Condition_GridSearch_v1.0.md
+docs/Phase_C7_Foot_Proxy_Evidence_Status_Consolidation_v1.0.md
+```
+
+§1〜§15に記載された数値・Figures・観測結果そのものは削除・訂正・上書きしていない。
+Candidate B・Foot Proxy実装・`FOOT_CONTACT_TOLERANCE_MM`・Collision Engine・
+`CollisionResult`・Scoring・C-2〜C-6のいずれもこの追補を理由に変更していない。
+
+### 16.1 Primary Evidence
+
+```
+Primary Evidence = Pattern A — Common Structural Pattern
+
+Clean Baseline Pose + ±5° sweep
+  8/8 evaluable BELL cases（case-001, 003, 004, 005, 007, 008, 011, 012）
+  gap(t) < 0（Region 1全域で安全側）
+  minimum required-radius の位置 = t=0 (rim)
+  Region 1 crossover = none
+```
+
+現行repository・実project関数・実Bone.glb・実MeshBVH・現行の正しい`basePos`選択
+（`STAPES_HEAD`）で再現可能なEvidenceとして、Pattern Aを本文書のPrimary Evidenceと
+する（出典: `docs/Phase_C7_Foot_Proxy_Cross_Case_Validation_v1.0.md` §6-9）。
+
+### 16.2 Historical Region-1 Finding（§1〜§10のOriginal Finding）の現在のEvidence Status
+
+```
+Historical Region-1 Finding
+= Secondary / Historical Evidence
+= Source Condition Unresolved
+= Qualitative reproduction only
+= Root Cause Unconfirmed
+```
+
+本文書§3〜§10が引用した`t≈0.19`・`required-radius≈0.012mm`・Region 1 crossoverと
+いう旧Figures（出典: Project Memory 2026-08-15、Foot Y-axis Fine-Sampling Deep
+Dive等）について、後続調査で確認された事項:
+
+1. **Clean BaselineではHistorical Findingを再現できなかった**（`docs/Phase_C7_Foot_
+   Proxy_Cross_Case_Validation_v1.0.md` §3, §6。case-001自身を含む）。
+2. **Cross-case validationでも同様のHistorical Region-1 patternは確認されなかった**
+   （同文書§6-9。評価可能な8 BELL case全件で、Clean Baseline + ±5° sweepの下では
+   Pattern A——一貫してclear——が観測された）。
+3. **Historical source conditionは特定できていない**（`docs/Phase_C7_Foot_Proxy_
+   Original_Evidence_Reconstruction_v1.0.md` §4-§9。Git history上に旧harnessの
+   痕跡なし、`basePos`・offset・厳密なcase識別子は未確認）。
+4. **`STAPES_FOOTPLATE`では旧Findingと定性的に類似するcrossover patternを再現した
+   が、定量的一致ではない**（`docs/Phase_C7_Foot_Proxy_Historical_Condition_
+   GridSearch_v1.0.md` §5-§8。Evidence-groundedな16条件中、`basePos=STAPES_
+   FOOTPLATE`の全8条件でrim付近のgap(t)>0・interior minimum・crossover存在という
+   定性的パターンが再現されたが、`minimum required-radius`は旧数値0.012mmに対し
+   最良候補でも0.4098mmであり、約34倍の乖離が残る）。
+5. **したがってHistorical FindingのRoot Causeは未確定である。**
+
+### 16.3 Evidence Interpretation（用語の区別）
+
+```
+Confirmed ≠ Reproduced ≠ Qualitative-only ≠ Hypothesis
+```
+
+`basePos`/reference point choiceは、Historical Findingの定性的形状を説明し得る
+最も強い未解決仮説（strongest hypothesis）であるが、以下の通り記述する:
+
+```
+STAPES_FOOTPLATE provides partial / qualitative reproduction
+and is consistent with the strongest basePos/reference-point hypothesis,
+but historical source condition remains unresolved.
+```
+
+以下の表現は用いない:
+
+```
+Historical basePos = STAPES_FOOTPLATE   （不使用）
+Root Cause = basePos                     （不使用）
+Root Cause = STAPES_FOOTPLATE            （不使用）
+```
+
+`Root Cause = UNCONFIRMED`を維持する。
+
+さらに、以下の区別も維持する（`docs/Phase_C7_Foot_Proxy_Evidence_Status_
+Consolidation_v1.0.md` §7 Critical Wordingと同一）:
+
+```
+Reproducible ≠ Clinically validated
+Qualitative reproduction ≠ Historical condition identified
+Strong hypothesis ≠ Root cause
+Consistently clear under tested conditions ≠ Universal collision safety
+```
+
+Pattern AをPrimary Evidenceとして採用しても、「Foot Proxy is clinically safe」とは
+記述しない。
+
+### 16.4 Architect Decision（参照）
+
+```
+C-7 Evidence Decision = DECIDED（Option A採用、Evidence Hierarchy）
+C-7 Proxy Design Decision = DECIDED — OPTION A — KEEP CURRENT CANDIDATE B
+```
+
+Evidence Hierarchyに関するOption A（Pattern AをPrimary Evidenceとして正式採用し、
+Historical Region-1 FindingをSecondary/Historical Evidence・Source Condition
+Unresolvedとして併記）がArchitectにより決定された（`docs/Phase_C7_Foot_Proxy_
+Evidence_Status_Consolidation_v1.0.md` §16参照）。本追補はその反映である。
+
+その後、上記Evidenceに基づき、Foot Collision Proxy自体のDesign Decision
+（Candidate Bを維持するか、形状忠実Proxyへ変更するか、Redesignを保留するか）も
+別途Architectにより決定された: `C-7 Proxy Design Decision = OPTION A — KEEP
+CURRENT CANDIDATE B`（Evidence-based conservative decision、`Candidate B is
+proven optimal`という意味ではない。詳細は`docs/Phase_C7_Foot_Proxy_Design_
+Decision_v1.0.md`を参照）。Candidate B・Foot Proxy実装・Collision Engine・
+Tolerance Policyはこの決定によっても変更されていない（UNCHANGED）。
+
+## 17. 参照（Evidence Status Annotation追加分）
+
+- `docs/Phase_C7_Foot_Proxy_Cross_Case_Validation_v1.0.md`（§3-§9 — Pattern A、Historical Finding非再現の確認）
+- `docs/Phase_C7_Foot_Proxy_Original_Evidence_Reconstruction_v1.0.md`（§4-§9 — Historical source condition追跡、Evidence Source Trace）
+- `docs/Phase_C7_Foot_Proxy_Historical_Condition_GridSearch_v1.0.md`（§5-§9 — STAPES_FOOTPLATE仮説のEvidence-grounded検証、Partial/Qualitative reproduction判定）
+- `docs/Phase_C7_Foot_Proxy_Evidence_Status_Consolidation_v1.0.md`（§8-§17 — Evidence Confidence分類、Architect Decision）
 - Project Memory `project_kurz_collision_constraint`（2026-08-15各エントリ、case-001 — Foot #0/#1 Deep Dive、Foot Y-axis Fine-Sampling Deep Dive、Collision Attribution investigation、Foot Proxy Design Evaluation）
