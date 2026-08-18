@@ -1,6 +1,9 @@
 # Phase C-7 (継続調査): Foot Proxy Evidence Status Consolidation v1.0
 
-**Status**: Consolidation Complete（Read-only Documentation、Architect Decision待ち）
+**Status**: Consolidation Complete（Read-only Documentation。本文書執筆時点はArchitect
+Decision待ちだったが、その後Architectにより`C-7 Proxy Design Decision = DECIDED —
+OPTION A — KEEP CURRENT CANDIDATE B`が正式決定された。`docs/Phase_C7_Foot_Proxy_
+Design_Decision_v1.0.md`参照）
 **Date**: 2026-08-18
 **位置付け**:
 ```

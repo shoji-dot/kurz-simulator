@@ -1,6 +1,9 @@
 # Phase C-7 (継続調査): Foot Proxy Historical Condition Grid-Search v1.0
 
-**Status**: Investigation Complete（Read-only、Architect Decision待ち）
+**Status**: Investigation Complete（Read-only。本文書執筆時点はArchitect Decision待ち
+だったが、その後Architectにより`C-7 Proxy Design Decision = DECIDED — OPTION A —
+KEEP CURRENT CANDIDATE B`が正式決定された。`docs/Phase_C7_Foot_Proxy_Design_
+Decision_v1.0.md`参照）
 **Date**: 2026-08-18
 **位置付け**:
 ```

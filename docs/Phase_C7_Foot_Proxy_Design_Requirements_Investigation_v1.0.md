@@ -1,6 +1,10 @@
 # Phase C-7（PROPOSED / PENDING ARCHITECT CONFIRMATION）: Foot Proxy Design Requirements Investigation v1.0
 
-**Status**: Investigation Complete（Read-only、Design Requirements整理のみ。Architect Decision待ち）
+**Status**: Investigation Complete（Read-only、Design Requirements整理のみ。本文書
+執筆時点はArchitect Decision待ちだったが、その後Architectにより`C-7 Proxy Design
+Decision = DECIDED — OPTION A — KEEP CURRENT CANDIDATE B`が正式決定された。詳細は
+§16 Evidence Status Annotationおよび`docs/Phase_C7_Foot_Proxy_Design_Decision_
+v1.0.md`参照）
 **Date**: 2026-08-18
 
 **Evidence Status Annotation（2026-08-18追補）**: 本文書§3〜§10（特にcase-001由来の
