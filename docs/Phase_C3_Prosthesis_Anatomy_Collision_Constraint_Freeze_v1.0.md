@@ -220,6 +220,18 @@ Direct HW = 実機での直接検証は未完了
 これは**C-3 Blockerではなく、Verification Gap**として記録し、C-3のClose/Freezeを
 妨げるものとしては扱わない。
 
+**追記（2026-08-16、C-4実機Verification Evidence固定）**: 上記Verification Gapは、
+Boundary Approach / Boundary Release-Reverse / Small Increment / TEST起点との組み合わせ、
+の4項目の実機検証（全てPASS）により解消された。詳細Evidenceは
+`docs/Phase_C4_Rotation_Collision_Boundary_Verification_v1.0.md`参照。
+
+```
+Collision Boundary Transition
+= VERIFIED（Logic-consistent、かつDirect HW検証完了）
+```
+
+本追記はC-3の実装・Freeze状態を変更するものではない（`C-3 = PASS / CLOSED / FROZEN`は維持）。
+
 ## 13. Build / TypeCheck / Lint
 
 ```
@@ -302,7 +314,8 @@ Candidate B — Diagnostic/Not Final
 Foot Proxy spherical approximation — Known Limitation
 Malleus/Stapes — Out of Scope (Future C-6)
 STEP 4D — Deferred
-Collision Boundary Transition — Verification Gap（実機直接検証未完）
+Collision Boundary Transition — VERIFIED（2026-08-16実機検証完了、詳細は
+  docs/Phase_C4_Rotation_Collision_Boundary_Verification_v1.0.md参照）
 Repo-wide Lint baseline — 未厳密比較（Close/Push条件とはしない）
 Push:
 NOT YET EXECUTED（別途明示的指示を起点に実行）
