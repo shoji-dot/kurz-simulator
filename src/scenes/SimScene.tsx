@@ -34,7 +34,7 @@ import {
   STAPES_FOOTPLATE,
   UMBO_POS,
 } from './models/OssicleModels';
-import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose, SoftClipPocketPreview, SoftClipBandLoopPreview, SoftClipBandLoopAttachedPreview, getSoftClipBandLoopDefaultAttachTransform, type SoftClipBandLoopAttachTransform } from './models/ProsthesisModels';
+import { ProsthesisModel, IdealGhostProsthesis, BELL_HEIGHT_MM, BELL_RIM_RADIUS_MM, computeCurrentAxisAlignmentOrientation, computeProsthesisModelPose } from './models/ProsthesisModels';
 import { ANATOMICAL_VIEWS, SURGICAL_VIEWS } from './ViewPresets';
 import { Z_INDEX } from '../components/ui';
 import { isCoordDebugMode, isSceneDumpDebugMode, isCollisionVerifyDebugMode } from '../utils/debugMode';
@@ -44,7 +44,7 @@ import { CollisionVerifyPanel, CollisionVerifyTracker, CollisionBoundaryWarpTrac
 import { DANGER_ZONES } from '../data/dangerZones';
 import { placementPointToDangerZoneFrame, dangerZonePointToPlacementFrame } from '../engine/coordinates/placementFrame';
 import { findNearestDangerZone } from '../engine/safety';
-import { buildGroundTruthRecord } from '../engine/groundTruth/exportGroundTruth';
+import { buildGroundTruthRecord, buildPlacementSnapshot } from '../engine/groundTruth/exportGroundTruth';
 import { solveBellPose } from '../engine/poseSolver/bellAdapter';
 import { solvePose, composeTwist, composeTilt } from '../engine/poseSolver/solvePose';
 import { TM_NORMAL } from '../engine/coordinates/tympanicMembrane';
@@ -59,7 +59,7 @@ import {
 import { poseToThree } from './debug/poseThreeAdapter';
 import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
-import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX, COLLISION_CONSTRAINT_ENABLED } from './transformControlsConfig';
+import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX, COLLISION_CONSTRAINT_ENABLED, RELEASE_INTERP_DURATION_MS } from './transformControlsConfig';
 import { useAnatomyCollisionIndex, type AnatomyCollisionKey } from '../engine/collision/anatomyCollisionIndex';
 import { buildProsthesisCollisionProxy, FOOT_CONTACT_TOLERANCE_MM } from '../engine/collision/prosthesisCollisionGeometry';
 import { testCollision } from '../engine/collision/collisionTest';
@@ -143,7 +143,8 @@ import {
   type VisibilityMap,
 } from './models/RealAnatomyModels';
 import { useSimStore } from '../store/useSimStore';
-import type { SurgicalCase } from '../data/cases';
+import type { SurgicalCase, CasePlacementSnapshot } from '../data/cases';
+import { resolveIdealLateralOffset, resolveIdealAngle } from '../data/cases';
 import type { KurzProduct } from '../data/products';
 import type { PlacementState } from '../store/useSimStore';
 
@@ -635,7 +636,11 @@ function DraggableProsthesis({
   // Phase1-C（Rotate Mode）: useScreenSpaceDrag（ManipulationLayer.tsx）と違い、Rotate Modeの
   // ドラッグはRaycastを使わず素の画面ピクセルdeltaのみを使うため、pointer captureにgl.domElement
   // が必要（Move側はuseScreenSpaceDrag内部で同様にuseThree()のglを使っており、同じ前例）。
-  const { gl } = useThree();
+  // D-4: cameraはCamera-relative Depth操作（下部のキーボードハンドラ）でcamera.getWorldDirection()
+  // を読むために追加。useThree()が返すcameraは毎フレーム同一参照のままOrbitControlsが
+  // 内部でposition/quaternionを書き換えるオブジェクトのため、常に最新のカメラ向きを反映する
+  // （useScreenSpaceDragが同じ前提でcamera.getWorldDirection()を使っているのと同じ根拠）。
+  const { camera, gl } = useThree();
 
   // Phase C-2（Collision Constraint）: 直前フレームまでCollisionしていなかった、dragGroupRef
   // ローカル座標系でのdelta。ドラッグ開始のたびに(0,0,0)へリセットする（Architect指示「前回の
@@ -643,6 +648,114 @@ function DraggableProsthesis({
   // （下部）で行う。useScreenSpaceDrag本体・handleMove・handleUpは無変更。
   const lastValidLocalDeltaRef = useRef(new THREE.Vector3(0, 0, 0));
   const anatomyIndex = useAnatomyCollisionIndex();
+
+  // [D-4 Option①、Architect承認2026-08-19] Depth Session: PageUp/PageDown押下中のみ、
+  // ProsthesisModelへ渡すQuaternionをDepth Session開始時点のsnapshotへ固定するための
+  // 最小state。Investigation（2026-08-19）でこのsnapshot値はcomposeDragCandidatePose()の
+  // candidateQuaternionとbit-for-bit一致することを確認済み——これによりDepth操作中も
+  // RenderingとCollision Candidate Poseの完全一致が成り立つ。新しいInteraction State
+  // Machineは追加せず、このstate1つ＋Depth Session終了検知用のref1つのみで実現する
+  // （Architect指示§4「最小のstate/lifecycle管理で実現する」）。
+  const [depthSessionQuat, setDepthSessionQuat] = useState<THREE.Quaternion | null>(null);
+  // depthSessionQuat（state）の最新値を同期的に読むためのミラーref。endDepthSession()が
+  // 「Release時点でのfromQuat」を取得するのに使う（stateのsetter関数の中でしか取れない
+  // 直前値をrefで同期的に読めるようにする、React標準パターン）。
+  const depthSessionQuatRef = useRef<THREE.Quaternion | null>(null);
+  // 直近のDepth StepでDepth自身がstoreへ書き込んだdragOffsetX/Y/Zを記録する。
+  // dragOffsetX/Y/Zは矢印キー/ControlPad/ポインタドラッグ確定/Depthが共有する単一の
+  // フィールドのため（Investigation確定）、この記録値と実際のprops値が食い違えば
+  // 「Depth以外の経路がdragOffsetを書き換えた」と判定できる（呼び出し元を個別に
+  // 列挙せず、共有フィールドの不変条件チェックのみでDepth Session終了を検知する設計）。
+  const depthLastOffsetRef = useRef<{ x: number; y: number; z: number } | null>(null);
+  // depthSessionQuat（state）の「非null」をミラーするref。Rotate/Shaft Roll監視effect（下部）の
+  // 依存配列にdepthSessionQuat自体を含めると、Depth Session開始（null→snapshot）そのものが
+  // effectを再発火させ、ガード判定が直後にtrueへ変わって開始した直後のSessionを誤って
+  // 終了させてしまう（実装時に発見）。refはeffectの依存配列に含める必要がない
+  // （.currentの変化はexhaustive-depsの対象外）ため、この自己再発火を避けられる。
+  const depthSessionActiveRef = useRef(false);
+
+  // [D-4 Option② C-1、Architect承認2026-08-19] Depth Session終了（Release）直後、固定していた
+  // QuaternionからcomputeProsthesisModelPose()の通常計算値へ200ms(RELEASE_INTERP_DURATION_MS)
+  // かけてslerpで滑らかに復帰させるための短命state。fromQuat/toQuat/progressをReact stateに
+  // 保持する理由: render中にref.current（THREE.Quaternionの中身）を読むことがこのプロジェクトの
+  // ESLint(react-hooks、Reactの純粋性ルール)で禁止されているため（Cannot access refs during
+  // render）、レンダーで使う値は必ずstateとして持つ。一方、useFrame/イベントハンドラ内だけで
+  // 使う「補間中か否か」の判定にはreleaseInterpActiveRef（ref）を使う——これはprogress変化
+  // （毎フレーム）ではeffectを再発火させたくない依存配列（Rotate/Shaft Roll監視effect等）から
+  // 参照するため。新しいInteraction State Machineではなく、既存パターン
+  // （state+ミラーref、depthSessionQuat/depthSessionActiveRefと同型）をそのまま踏襲する。
+  const [releaseInterp, setReleaseInterp] = useState<{
+    fromQuat: THREE.Quaternion;
+    toQuat: THREE.Quaternion;
+    progress: number;
+  } | null>(null);
+  const releaseInterpActiveRef = useRef(false);
+  // performance.now()による開始時刻。render中に読む必要がないためrefのみで保持する。
+  const releaseInterpStartRef = useRef(0);
+
+  // [D-4-A、Architect承認2026-08-19] Root Cause Fix: 呼び出し元(SimScene.tsx側JSX)は
+  // basePos={basePos.clone()}という既存の書き方をしており、毎レンダー新しいTHREE.Vector3
+  // 参照を渡す（Manipulation Transform / Axis Audit確定）。この不安定な参照をendDepthSessionの
+  // useCallback依存配列に直接含めると、値が実際には変わっていなくてもendDepthSession自体の
+  // 関数identityが毎レンダー変わり、それに依存するRotate/Shaft Roll監視effect（下部）が
+  // 「値の変化」ではなく「参照の変化」だけで再発火し、Depth Session中にendDepthSession(false)
+  // が誤って呼ばれてしまう（＝Option①のQuaternion Freezeが実質機能しなくなる）。
+  // 他のbasePos消費箇所（evaluateDragCandidate/evaluateRotationCandidate/JSX等）や呼び出し元の
+  // 受け渡し方自体には触れず（変更範囲を広げない、Architect指示§5）、endDepthSessionが
+  // 必要とする値だけをrefでミラーする——refへの書き込みはrenderボディではなく
+  // deps無しuseEffect（毎レンダー後に実行）で行うため、このプロジェクトのESLint
+  // （react-hooks、Cannot access refs during render）に抵触しない。
+  const basePosRef = useRef(basePos);
+  useEffect(() => {
+    basePosRef.current = basePos;
+  });
+
+  // interpolateRelease=true: Depth Sessionが実際にactiveだった場合、そのfromQuatから現在の
+  // 通常Poseへのslerp Releaseを開始する（Architect指示§4の順序＝depthSessionQuat→
+  // releaseInterpRef.fromQuat→depthSessionQuat=nullを厳守）。
+  // interpolateRelease=false: 補間せず即座に通常Poseへ戻す（Rotate/Shaft Roll/Drag等、別操作が
+  // 開始されたことによる終了。Architect指示§5「補間中に新しい操作が始まった場合、補間を
+  // 即座にキャンセルして、その操作へ移行する」——Depth Session自体がまだ補間開始前でも、
+  // 新しい操作が来た以上そのままcomputeProsthesisModelPose()に委ねてよい）。
+  // どちらの場合も、既存の（前回のReleaseから続く）補間があれば必ず先に打ち切る。
+  const endDepthSession = useCallback((interpolateRelease: boolean) => {
+    const prevQuat = depthSessionQuatRef.current;
+    if (prevQuat !== null) {
+      if (interpolateRelease) {
+        const { placement } = useSimStore.getState();
+        const toQuat = computeProsthesisModelPose({
+          product, shaftLength: selectedLength, basePos: basePosRef.current,
+          lateralOffset: lateralOffset + placement.dragOffsetX,
+          anteriorOffset: anteriorOffset + placement.dragOffsetZ,
+          verticalOffset: verticalOffset + placement.dragOffsetY,
+          angleTilt, angleTiltZ,
+        }).quaternion.clone();
+        releaseInterpStartRef.current = performance.now();
+        releaseInterpActiveRef.current = true;
+        setReleaseInterp({ fromQuat: prevQuat, toQuat, progress: 0 });
+      } else {
+        releaseInterpActiveRef.current = false;
+        setReleaseInterp(null);
+      }
+    }
+    setDepthSessionQuat(null);
+    depthSessionQuatRef.current = null;
+    depthSessionActiveRef.current = false;
+    depthLastOffsetRef.current = null;
+    // [D-4-A] 依存配列にbasePosを含めない（Root Cause Fix、上記コメント参照）。basePosは
+    // 常にbasePosRef.currentから読むため、この関数のidentityはproduct/selectedLength/
+    // lateralOffset/anteriorOffset/verticalOffset/angleTilt/angleTiltZが実際に変化した
+    // ときだけ変わる。
+  }, [product, selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ]);
+
+  // 補間中に、Depth Sessionを経由しない別の操作（矢印キーX/Y移動等）が始まった場合に、
+  // 進行中のRelease補間だけを打ち切るための最小関数（Architect指示§5）。
+  const cancelReleaseInterpolation = useCallback(() => {
+    if (releaseInterpActiveRef.current) {
+      releaseInterpActiveRef.current = false;
+      setReleaseInterp(null);
+    }
+  }, []);
   // [C3-P0-1-VERIFY, 一時] Phase B実装後の実機再診断（Architect依頼2026-08-15）。
   // 祖先matrixWorldは変化しないため、初回1回だけログする（毎フレームのログ量を抑える）。
   const p01VerifyLoggedAncestorsRef = useRef(false);
@@ -674,7 +787,17 @@ function DraggableProsthesis({
   // リセットする以外は、既存の呼び出し元（呼び出し元propそのまま）へ完全に委譲する。
   // useScreenSpaceDrag自体・その呼び出し方は無変更。
   const handleDragActiveChange = (active: boolean) => {
-    if (active) lastValidLocalDeltaRef.current.set(0, 0, 0);
+    if (active) {
+      lastValidLocalDeltaRef.current.set(0, 0, 0);
+      // [D-4 Option①] ポインタドラッグ（Position/Rotate）開始時点でDepth Sessionを終了する。
+      // ドラッグ中はdragGroupRef.positionを直接書き換えるため（pointerup確定までprops
+      // dragOffsetX/Y/Zは変化しない）、下部のdragOffset不変条件チェックだけではドラッグ中
+      // ずっと古いQuaternionが残ってしまう。ここで即座に終了させることでその隙間を塞ぐ。
+      // [D-4 Option②] ポインタドラッグは即座に新しいレンダリング経路（通常pose計算）へ
+      // 切り替わるため補間しない。進行中のRelease補間があれば打ち切る（Architect指示§5）。
+      endDepthSession(false);
+      cancelReleaseInterpolation();
+    }
     onDragActiveChange?.(active);
   };
 
@@ -685,7 +808,11 @@ function DraggableProsthesis({
   // 補正が1フレーム遅れて効くのに対し、pointerupはその補正前のgroup.positionを読んでしまう
   // レースコンディションが存在する（Architectが指摘したTransport側の非対称性と同種の問題が
   // Placement Drag側にも存在すると判明）。そのためRelease時にも同じ判定をもう一度行う。
-  const evaluateDragCandidate = (dragLocalDelta: THREE.Vector3): boolean => {
+  // D-4: useCallbackで安定化（evaluateRotationCandidateと同じ理由）。下部のキーボードuseEffectの
+  // 依存配列にCamera-relative Depth用としてこの関数自体を追加するため、素の閉包のままだと
+  // eslint(react-hooks/exhaustive-deps)警告が出る。関数の中身・呼び出し引数（dragLocalDelta）・
+  // 戻り値の意味は一切変更していない（Collision Constraint仕様は無変更）。
+  const evaluateDragCandidate = useCallback((dragLocalDelta: THREE.Vector3): boolean => {
     const anatomyRoot = anatomyRootRef?.current;
     const coordGroup = coordGroupRef?.current;
     if (!anatomyRoot || !coordGroup) {
@@ -732,7 +859,11 @@ function DraggableProsthesis({
     });
 
     return !result.collided;
-  };
+  }, [
+    product, selectedLength, basePos,
+    lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
+    shaftRollDeg, anatomyIndex, anatomyRootRef, coordGroupRef,
+  ]);
 
   // Phase C-3（Rotation Collision Constraint）: Shift+矢印キーによるangleTilt/angleTiltZの
   // 離散ステップ候補がCollision-freeかを判定する。evaluateDragCandidateと同じCollision Engine
@@ -935,6 +1066,87 @@ function DraggableProsthesis({
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      // D-4（Camera-relative Depth操作）: 既存のMove(矢印キー)/Rotate(Shift+矢印キー)とは
+      // 別のキー（PageUp/PageDown）を使うため競合しない。既存のdragOffsetZ（解剖学的前後軸）
+      // とは異なる概念——ここでは「現在のカメラが向いている方向」をdragGroupRefと同じローカル
+      // 座標系（＝dragOffsetX/Y/Zの座標系）へ変換し、その方向へ既存のdragOffsetX/Y/Zをまとめて
+      // 動かす。新規PlacementStateフィールドは追加しない（既存3フィールドを再利用）。
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        e.preventDefault();
+        const group = dragGroupRef.current;
+        if (!group || !group.parent) return;
+        // camera.getWorldDirection()はカメラが向いている方向（画面奥へ向かうベクトル、
+        // Three.js標準の挙動——符号を推測せず、useScreenSpaceDrag（ManipulationLayer.tsx）が
+        // 既に同じ関数を同じ目的（ドラッグ平面の法線）で使っている実装をそのまま踏襲する）を
+        // 返す。それをdragGroupRef.parentのmatrixWorldの回転成分のみ（平行移動を含まない
+        // Matrix3、useScreenSpaceDragと同一手法）でローカル座標系へ変換すれば、
+        // dragOffsetX/Y/Zと同じ意味の方向ベクトルになる。
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const parentInverseRotation = new THREE.Matrix3().setFromMatrix4(
+          new THREE.Matrix4().copy(group.parent.matrixWorld).invert(),
+        );
+        const localDir = camDir.clone().applyMatrix3(parentInverseRotation).normalize();
+        const depthStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
+        // PageDown=奥（camDir方向＝カメラから離れる）、PageUp=手前（camDirの逆方向＝カメラに
+        // 近づく）。Interactive Validation（Test A/B）で画面上の向きと一致することを実機確認
+        // する。符号が逆であればこの1行のsignのみを反転すればよい（ROTATE_DEG_PER_PIXEL_TILT
+        // と同じ「実機確認時に反転可能な最小定数」パターン）。
+        const sign = e.key === 'PageDown' ? 1 : -1;
+        const depthDelta = localDir.multiplyScalar(sign * depthStep);
+        // 既存Collision Constraint（evaluateDragCandidate、C-2、Frozen・無変更）へ、既存の
+        // マウスドラッグと同じ形（dragGroupRefローカル座標系のcandidate delta）で候補姿勢を
+        // 渡すだけ。Collision Engine自体・判定ロジックには一切触れない。
+        if (!COLLISION_CONSTRAINT_ENABLED || evaluateDragCandidate(depthDelta)) {
+          const { placement } = useSimStore.getState();
+          const nextDragOffsetX = clamp3(placement.dragOffsetX + depthDelta.x);
+          const nextDragOffsetY = clamp3(placement.dragOffsetY + depthDelta.y);
+          const nextDragOffsetZ = clamp3(placement.dragOffsetZ + depthDelta.z);
+          // [D-4 Option① Minimal Fix、Architect承認2026-08-19] Depth Session開始（まだ開始して
+          // いなければ）: 「Depth押下直前に画面に表示されているQuaternion」をsnapshotする
+          // （Architect指示§1/§3）。これは通常のnon-override Rendering式と同一の5入力
+          // （lateralOffset+dragOffsetX等、dragOffsetX/Y/Zを含む——placement.dragOffsetX/Y/Zは
+          // このDepth Stepで書き込む直前＝「押下直前」の値）を使う。
+          //
+          // [Bug History] 当初はcomposeDragCandidatePose()と同一の5入力（dragOffsetX/Y/Zを
+          // 含まない）でsnapshotしていたが、これはCollision Candidate Poseとは一致するものの、
+          // 「現在表示中のQuaternion」とは一致しないことが実機Investigation（2026-08-19、
+          // dragOffsetX/Y/Z≠0の状態からDepth開始したケースで90.99°のQuaternion jumpを実測）で
+          // 判明したため、Architect Decisionにより本式へ修正した。Depth中のRendering
+          // QuaternionとCollision Candidate Quaternionは一致しなくなる場合があるが、これは
+          // 既存X/Y/Z操作が元々持つFrozenな既知の特性と同じであり、新規の問題ではない
+          // （Architect指示§7）。
+          if (depthSessionQuat === null) {
+            const newSnapshot = computeProsthesisModelPose({
+              product, shaftLength: selectedLength, basePos,
+              lateralOffset: lateralOffset + placement.dragOffsetX,
+              anteriorOffset: anteriorOffset + placement.dragOffsetZ,
+              verticalOffset: verticalOffset + placement.dragOffsetY,
+              angleTilt, angleTiltZ,
+            }).quaternion.clone();
+            setDepthSessionQuat(newSnapshot);
+            depthSessionQuatRef.current = newSnapshot;
+            depthSessionActiveRef.current = true;
+            // [D-4 Option②] 前回のRelease補間がまだ完了していないうちに新しいDepth Sessionが
+            // 始まった場合、その補間を打ち切ってから新しいSessionを開始する（補間の補間という
+            // 二重状態を作らない、Architect指示§5と同じ「新しい操作が始まったら即キャンセル」
+            // 方針をDepth自身の再開始にも適用する）。
+            cancelReleaseInterpolation();
+          }
+          // 自分（Depth）がこれから書き込む値を記録しておく（下部の不変条件チェック用）。
+          depthLastOffsetRef.current = { x: nextDragOffsetX, y: nextDragOffsetY, z: nextDragOffsetZ };
+          useSimStore.getState().updatePlacement({
+            dragOffsetX: nextDragOffsetX,
+            dragOffsetY: nextDragOffsetY,
+            dragOffsetZ: nextDragOffsetZ,
+          });
+          // 既存のマウスドラッグ（onDirectDragPointerDown）と同じ「位置操作を試みた」扱い。
+          useSimStore.getState().markPositionTouched();
+        }
+        return;
+      }
+
       let axis: 'x' | 'y' | null = null;
       let sign = 0;
       if (e.key === 'ArrowRight') { axis = 'x'; sign = 1; }
@@ -966,8 +1178,22 @@ function DraggableProsthesis({
         useSimStore.getState().translateSelectedObject(axis, sign * moveStep);
       }
     };
+    // [D-4 Option①] PageUp/PageDownのkeyupでDepth Sessionを終了する（押しっぱなしを離した
+    // 通常のケース）。OS key repeatはkeydownのみ繰り返し発火しkeyupは実キー解放時の1回だけの
+    // ため、「連続keydown中は同じSession」「解放したら終了」という要件（Architect指示§5/§6）を
+    // 独自タイマーなしで満たせる。
+    const onKeyUp = (e: KeyboardEvent) => {
+      // [D-4 Option②] 自然なRelease（押しっぱなしを離した）のみ補間を開始する。
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        endDepthSession(true);
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
     // Phase C-3: angleTilt/angleTiltZをonKeyDown内で直接読む（currentAngleの起点、
     // rotateSelectedObject()のように常にstoreから最新値を読む実装ではなくなったため）。
     // isMoveのみを依存配列に持つ既存パターンのままだと、rotateSelectedObject()経由時は
@@ -975,7 +1201,61 @@ function DraggableProsthesis({
     // (angleTilt/angleTiltZ/evaluateRotationCandidate)を直接参照するため、再登録なしでは
     // 2回目以降のShift+矢印キー押下がstaleなclosureのcurrentAngleを使ってしまい、1ステップ
     // 目以降進まなくなる（実装時に発見、既存のtranslateSelectedObject経路には影響なし）。
-  }, [isMove, angleTilt, angleTiltZ, evaluateRotationCandidate]);
+    // D-4: camera/evaluateDragCandidateはPageUp/PageDown（Camera-relative Depth）ハンドラが
+    // 直接参照するため追加。cameraはuseThree()が返す安定参照（OrbitControls等が内部で
+    // position/quaternionを書き換えるのみで、参照自体は再レンダーを跨いで同一）だが、
+    // eslint(react-hooks/exhaustive-deps)を満たすため明示する。
+    // D-4 Option①: product/selectedLength/basePos/lateralOffset/anteriorOffset/verticalOffset/
+    // depthSessionQuat/endDepthSessionはDepth Session開始（snapshot計算）・終了判定のため
+    // ハンドラ内で直接参照するので追加する。
+  }, [
+    isMove, angleTilt, angleTiltZ, evaluateRotationCandidate, camera, evaluateDragCandidate,
+    product, selectedLength, basePos, lateralOffset, anteriorOffset, verticalOffset,
+    depthSessionQuat, endDepthSession, cancelReleaseInterpolation,
+  ]);
+
+  // [D-4 Option①] Rotate（Shift+矢印キー/マウスRotate両方ともangleTilt/angleTiltZを更新する）
+  // またはShaft Roll（interactionShaftRollDeg）への移行を検知し、Depth Sessionを終了する
+  // （Architect指示§4）。depthSessionActiveRef（stateではなくref）でガードする理由:
+  // (a) eslint(react-hooks/set-state-in-effect)は「effect内で無条件にsetStateを呼ぶ」
+  // パターンをcascading render要因として禁止するため、Session未開始時は何もしないガードが
+  // 必須。(b) ガード対象にdepthSessionQuat（state）自体を使うと、Depth Session開始
+  // （null→snapshot）そのものが依存配列経由でこのeffectを再発火させ、開始直後のSessionを
+  // 誤って終了させてしまう（実装時に発見）。refはexhaustive-depsの対象外のため、この
+  // 自己再発火を避けつつ同じガード判定ができる。
+  // [D-4 Option②] Rotate/Shaft RollはDepth経由ではない別操作のため、補間せず即座に通常Poseへ
+  // 委ねる（Architect指示§5「補間中に新しい操作が始まった場合、補間を即座にキャンセルして、
+  // その操作へ移行する」）。Depth Sessionがactiveな場合とRelease補間中の場合は排他的だが、
+  // 両方のガードをif/else ifで明示し、eslint(react-hooks/set-state-in-effect)が要求する
+  // 「effect内setStateは条件分岐でガードする」パターンを維持する。
+  useEffect(() => {
+    if (depthSessionActiveRef.current) {
+      endDepthSession(false);
+    } else if (releaseInterpActiveRef.current) {
+      cancelReleaseInterpolation();
+    }
+  }, [angleTilt, angleTiltZ, shaftRollDeg, endDepthSession, cancelReleaseInterpolation]);
+
+  // [D-4 Option①] dragOffsetX/Y/Zは矢印キー(X/Y)/ControlPad/ポインタドラッグ確定/Depthが
+  // 共有する単一のフィールド（Investigation確定）。Depth自身が最後に書いた値
+  // （depthLastOffsetRef）と現在のprops値が食い違っていれば、他の経路がこのフィールドを
+  // 書き換えたと判断してDepth Sessionを終了する。呼び出し元（ControlPad等、コンポーネント外）
+  // を個別に列挙せずに検知できる（Architect指示§4「最小のstate/lifecycle管理で実現する」）。
+  // [D-4 Option②] こちらもDepth経由ではない別操作（ControlPad等）によるdragOffset書き換え
+  // なので補間しない。加えて、Depth Session非activeの間（＝Release補間中を含む）に別操作が
+  // dragOffsetを書き換えた場合は、進行中のRelease補間があれば打ち切る。
+  useEffect(() => {
+    if (depthSessionQuat === null) {
+      if (releaseInterpActiveRef.current) {
+        cancelReleaseInterpolation();
+      }
+      return;
+    }
+    const last = depthLastOffsetRef.current;
+    if (!last || last.x !== dragOffsetX || last.y !== dragOffsetY || last.z !== dragOffsetZ) {
+      endDepthSession(false);
+    }
+  }, [dragOffsetX, dragOffsetY, dragOffsetZ, depthSessionQuat, endDepthSession, cancelReleaseInterpolation]);
 
   // Phase C-2（Prosthesis-Anatomy Collision Constraint、Placement Drag）: dragGroupRef.position
   // （useScreenSpaceDrag.handleMoveがpointermoveのたびに書き込むraw local delta、Frozen対象の
@@ -1015,6 +1295,63 @@ function DraggableProsthesis({
     flushPendingRotation();
   });
 
+  // [D-4 Option② C-1、Architect承認2026-08-19] releaseInterp（非null）の間、RELEASE_INTERP_
+  // DURATION_MSかけてprogressを0→1へ進める。Object3D.quaternionを直接操作せず（Architect指示
+  // §3、禁止事項）、既存の宣言的poseOverride経路（下記depthPoseOverride）で使うReact stateを
+  // 更新するだけに留める。setReleaseInterp((prev) => ...)は前回状態からのみ純粋に新しい値を
+  // 導出する関数型更新（外部ref/他のsetStateの呼び出しを含まない）のため、useFrame内での
+  // 呼び出しとして安全（既存のflushPendingRotation()と同じ「useFrame内でstore/state更新」
+  // パターンを踏襲）。
+  useFrame(() => {
+    if (!releaseInterpActiveRef.current) return;
+    const elapsed = performance.now() - releaseInterpStartRef.current;
+    if (elapsed >= RELEASE_INTERP_DURATION_MS) {
+      // [D-4 Option②] 補間完了。releaseInterp=nullへ戻すことで、次のレンダーでは
+      // depthPoseOverrideがundefinedとなり、通常のcomputeProsthesisModelPose()へ完全復帰する
+      // （Architect指示§6「残留stateがないこと」）。
+      releaseInterpActiveRef.current = false;
+      setReleaseInterp(null);
+    } else {
+      const progress = elapsed / RELEASE_INTERP_DURATION_MS;
+      setReleaseInterp((prev) => (prev ? { ...prev, progress } : prev));
+    }
+  });
+
+  // [D-4 Option① Minimal Fix、Architect承認2026-08-19] Depth Session中のみ、ProsthesisModelへ
+  // 渡すQuaternionをSession開始時点のsnapshot（Depth押下直前に表示されていたQuaternion、上部の
+  // keydownハンドラ参照）へ固定する。Positionは既存D-4実装と全く同じ入力（lateralOffset+
+  // dragOffsetX等の合成）でcomputeProsthesisModelPose()を呼んだ値を使うため、非override時と
+  // Positionの計算式・結果は変わらない（変わるのはQuaternionのみ）。
+  // 既存のP4B-3 Debug Feature Flag（poseOverride prop、useNewPoseSolverチェックボックス）が
+  // 明示的に指定されている場合はそちらを優先する（Architect指示§9、下記JSXの`??`参照）。
+  //
+  // [D-4 Option② C-1、Architect承認2026-08-19] Depth Session非active時、releaseInterpが
+  // 進行中であればQuaternionをfromQuat→toQuatのslerpとする。Positionの計算式はDepth中と
+  // 同一（drag込み、現在の実値を使う——Release中はdragOffsetが変化しないため実質固定値になる）。
+  const depthPoseOverride = depthSessionQuat
+    ? {
+        position: computeProsthesisModelPose({
+          product, shaftLength: selectedLength, basePos,
+          lateralOffset: lateralOffset + dragOffsetX,
+          verticalOffset: verticalOffset + dragOffsetY,
+          anteriorOffset: anteriorOffset + dragOffsetZ,
+          angleTilt, angleTiltZ,
+        }).position,
+        quaternion: depthSessionQuat,
+      }
+    : releaseInterp
+      ? {
+          position: computeProsthesisModelPose({
+            product, shaftLength: selectedLength, basePos,
+            lateralOffset: lateralOffset + dragOffsetX,
+            verticalOffset: verticalOffset + dragOffsetY,
+            anteriorOffset: anteriorOffset + dragOffsetZ,
+            angleTilt, angleTiltZ,
+          }).position,
+          quaternion: releaseInterp.fromQuat.clone().slerp(releaseInterp.toQuat, releaseInterp.progress),
+        }
+      : undefined;
+
   return (
     <TransformControls
       ref={tcRef}
@@ -1026,6 +1363,7 @@ function DraggableProsthesis({
       enabled={gizmoActive}
       size={0.65}
       translationSnap={TRANSLATION_SNAP_MM}
+      onMouseDown={() => { endDepthSession(false); cancelReleaseInterpolation(); }}
       onMouseUp={handleMouseUp}
     >
       <group
@@ -1055,7 +1393,7 @@ function DraggableProsthesis({
           anteriorOffset={anteriorOffset + dragOffsetZ}
           angleTilt={angleTilt}
           angleTiltZ={angleTiltZ}
-          poseOverride={poseOverride}
+          poseOverride={poseOverride ?? depthPoseOverride}
           interactionHitTarget={directManipulation}
           shaftRollDeg={shaftRollDeg}
         />
@@ -1213,10 +1551,33 @@ export function SimScene({
   // basePos計算と同じSimScene内にローカルstateとして保持する（ManipulationLayer.tsx側は
   // 純粋関数＋描画コンポーネントのみで、この状態自体は持たない）。DragMode（既存の
   // move/view切替）と同じ「操作メカニクスの状態はUIに近い場所に置く」という前例に従う。
-  const [transportPose, setTransportPose] = useState<TransportPose>(() => createInitialTransportPose(basePos));
+  // D-2 AD-1（Start Position保存機構）: surgicalCase.startPlacementが保存されていれば、
+  // Transport初期位置/初期Tiltをそこから計算する。ManipulationLayer.tsx側のCommit変換
+  // （commitTransportPoseToOffsets / onRelease）は一切変更しない — その関数が期待する
+  // 「transportPose.position = basePos + (lateral, vertical, anterior)」という前提と
+  // 完全に一致する形でここだけ初期値を差し替える（未指定時は従来のcreateInitialTransportPose
+  // にフォールバックし、既存15症例の挙動は変わらない）。
+  const [transportPose, setTransportPose] = useState<TransportPose>(() => {
+    const sp = surgicalCase.startPlacement;
+    if (!sp) return createInitialTransportPose(basePos);
+    return {
+      position: new THREE.Vector3(
+        basePos.x + sp.lateralOffset,
+        basePos.y + sp.verticalOffset,
+        basePos.z + sp.anteriorOffset,
+      ),
+      quaternion: new THREE.Quaternion(), // 従来通り恒等 — angleTilt/angleTiltZはtransportTilt側で扱う
+    };
+  });
   // Phase1-B ControlPad Transport対応（T2方式）: Transport段階のTilt一時state。
   // PlacementStateには一切書き込まない、transportPoseと同じライフサイクルのローカルstate。
-  const [transportTilt, setTransportTilt] = useState<TransportTilt>(INITIAL_TRANSPORT_TILT);
+  // D-2 AD-1: startPlacement.angleTilt/angleTiltZが保存されていればそこから初期化する
+  // （Release時にtransportTiltの値がそのままPlacementState.angleTilt/angleTiltZへコピーされる
+  // 既存の仕組みをそのまま利用、ManipulationLayer.tsx側のコピー処理自体は無変更）。
+  const [transportTilt, setTransportTilt] = useState<TransportTilt>(() => {
+    const sp = surgicalCase.startPlacement;
+    return sp ? { tilt: sp.angleTilt, tiltZ: sp.angleTiltZ } : INITIAL_TRANSPORT_TILT;
+  });
   // manipulation.committed が false→true になった瞬間に一度だけ、親（呼び出し元）へ通知する
   // ためのガード。
   //
@@ -1257,6 +1618,25 @@ export function SimScene({
     onTransportControlsReady?.(controls);
     return () => onTransportControlsReady?.(null);
   }, [translateTransport, rotateTransport, onTransportControlsReady]);
+
+  // [shoji要望2026-08-19] 「Start Positionにしたい場所へプロステーシスを動かしたが、その
+  // 座標を示す表示が無い」という指摘への対応。D-2の「Save Start/Ideal Position」ボタンは
+  // buildPlacementSnapshot(placement)（PlacementState、配置確定後の値）しか読んでおらず、
+  // Transport段階（配置確定前）でドラッグした位置には追従しなかった（原因）。
+  // manipulation.committedに応じて、実際に画面へ表示されている位置（Transport段階なら
+  // transportPose/transportTilt、確定後なら既存のplacement）を同じCasePlacementSnapshot形
+  // （lateralOffset/anteriorOffset/verticalOffset/angleTilt/angleTiltZ）へ変換する。
+  // 新しいstateは追加せず、既存のtransportPose/transportTilt/placement/basePosから毎回
+  // 計算するだけの導出値。
+  const currentPlacementSnapshot: CasePlacementSnapshot = manipulation.committed
+    ? buildPlacementSnapshot(placement)
+    : {
+        lateralOffset:  transportPose.position.x - basePos.x,
+        anteriorOffset: transportPose.position.z - basePos.z,
+        verticalOffset: transportPose.position.y - basePos.y,
+        angleTilt:      transportTilt.tilt,
+        angleTiltZ:     transportTilt.tiltZ,
+      };
 
   // ── Phase20.4c: 実際の配置点でSafety Score算出（DANGER_ZONES近接判定）を都度更新 ──
   // basePos + オフセット = プロステーシス基準点（Placement Frame）。DraggableProsthesis/
@@ -1398,23 +1778,6 @@ export function SimScene({
     return { position, quaternion };
   }, [basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, selectedLength, angleTilt, angleTiltZ]);
 
-  // Soft Clip Band Loop ↔ Shaft Integration — Attached Preview (Phase B0、shoji Audit
-  // 2026-08-10)用のPose。DraggableProsthesis→ProsthesisModelが内部で使うのと同じ
-  // computeProsthesisModelPose()をそのまま呼ぶだけ（新しい数式は追加していない）。
-  // headType==='SOFT_CLIP'（footType==='PISTON'）はsupportsNewPoseSolver対象外
-  // （下記、BELL限定）のため、poseFlagActive/poseOverrideの分岐は考慮不要
-  // （常にcomputeProsthesisModelPose()の値と一致する）。
-  const softClipAttachPose = useMemo(() => computeProsthesisModelPose({
-    product, shaftLength: selectedLength, basePos: basePos.clone(),
-    lateralOffset:  lateralOffset  + dragOffsetX,
-    verticalOffset: verticalOffset + dragOffsetY,
-    anteriorOffset: anteriorOffset + dragOffsetZ,
-    angleTilt, angleTiltZ,
-  }), [product, selectedLength, basePos, lateralOffset, dragOffsetX, verticalOffset, dragOffsetY, anteriorOffset, dragOffsetZ, angleTilt, angleTiltZ]);
-  // headOff式(len/2+0.15)はProsthesisModel内の同名ローカル定数と同一。新しい数式は追加
-  // していない（ProsthesisModel本体は無変更、位置式のみここで読み取り専用に再利用）。
-  const softClipAttachHeadOff = selectedLength / 2 + 0.15;
-
   // P4B-3 Step5（Feature Flag）: 対応footTypeはBELL（solveBellPose）のみ。FLAT/CLIP/PISTON用の
   // Adapterは未実装のため、それ以外のfootTypeではFlagの値に関わらず常にOLDを使う
   // （2026-07-28 shojiさん承認、Acceptance Criteriaの対象はBELL系に限定）。
@@ -1514,6 +1877,14 @@ export function SimScene({
   const [groundTruthJson, setGroundTruthJson] = useState<string | null>(null);
   const [groundTruthCopied, setGroundTruthCopied] = useState(false);
 
+  // D-2（Start / Ideal Position 保存機構、AD-1/AD-2）: 既存Ground Truth Exportパネルの拡張。
+  // 教材作成者が現在の配置をStart Position/Ideal Positionとして明確に区別してコピーできる
+  // ようにする（既存の「Copy JSON」ボタン/GroundTruthRecord形式は無変更のまま並存させる）。
+  const [startPositionJson, setStartPositionJson] = useState<string | null>(null);
+  const [startPositionCopied, setStartPositionCopied] = useState(false);
+  const [idealPositionJson, setIdealPositionJson] = useState<string | null>(null);
+  const [idealPositionCopied, setIdealPositionCopied] = useState(false);
+
   // P4-3 Step3-2〜P4B-3 Step4: Pose比較Overlay用HUD状態。
   // 「Capture GT」は実際には現在のReference Poseのスナップショットであり真のGround Truthでは
   // ないため、Anchor Poseと呼ぶ（2026-07-24 Reference Poseへ改名、2026-07-28 Reference Poseの
@@ -1521,16 +1892,10 @@ export function SimScene({
   // 表示/非表示はReference/Candidate/Anchor個別に切替可能。
   const [anchorPose, setAnchorPose] = useState<GhostPoseInput | null>(null);
   const [poseVisibility, setPoseVisibility] = useState<PoseVisibility>({ reference: true, candidate: true, anchor: true });
-
-  // Soft Clip Band Loop ↔ Shaft Integration — Attached Preview (Phase B0、shoji Audit
-  // 2026-08-10)。translation/rotationはPreview parameter(Frozen Geometryではない)。
-  // 既定値はgetSoftClipBandLoopDefaultAttachTransform()(bridge/endを仮アンカーとして
-  // ローカル原点へ、rotation=0°)。?debug=coords かつ headType==='SOFT_CLIP' 限定のUIから
-  // shojiが数値調整してViewer上で目視判断する。Production SoftClipHead()・27制御点・
-  // Scoring・Pose Solver・既存のEditorツールには一切影響しない。
-  const [softClipAttachTransform, setSoftClipAttachTransform] = useState<SoftClipBandLoopAttachTransform>(
-    () => getSoftClipBandLoopDefaultAttachTransform(),
-  );
+  // [shoji要望2026-08-19] Pose ComparisonパネルがCoord Debugパネルと同じtop:8,right:8に
+  // 重なり、操作系ボタンを隠してしまうという指摘への対応。CoordinateDebugPanel（Coord Debug）
+  // と同じトグル式パターンを踏襲し、既定は折りたたみにする。
+  const [poseComparisonCollapsed, setPoseComparisonCollapsed] = useState(true);
 
   const poseStats = useMemo(() => {
     return {
@@ -1622,19 +1987,116 @@ export function SimScene({
               {groundTruthJson}
             </pre>
           )}
+
+          {/* D-2（AD-1/AD-2）: Start Position / Ideal Position保存。教材作成者が3Dビュー上で
+              プロステーシスを任意配置した後、目的に応じてどちらかを押す。既存の「Copy JSON」
+              （上、GroundTruthRecordフルダンプ）とは別に、cases.tsへそのまま貼り付けられる
+              startPlacement/idealPlacement形のスニペットをクリップボードへコピーする。 */}
+          <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 8 }}>
+            <div style={{ color: '#fff', fontWeight: 700, marginBottom: 3 }}>D-2: Start / Ideal Position</div>
+            {/* [shoji要望2026-08-19] 「その座標を示す表示が無い」への対応。ボタンを押さなくても
+                現在の位置（Transport段階ならtransportPose/transportTilt、確定後ならplacement）を
+                常時表示する。値はcurrentPlacementSnapshot（上部で導出済み、両フェーズ共通形）。 */}
+            <div style={{ marginBottom: 6, color: '#aaa' }}>
+              {`現在位置${manipulation.committed ? '' : '（Transport段階）'}:\n`}
+              {`  lateral :${currentPlacementSnapshot.lateralOffset.toFixed(3)}mm\n`}
+              {`  anterior:${currentPlacementSnapshot.anteriorOffset.toFixed(3)}mm\n`}
+              {`  vertical:${currentPlacementSnapshot.verticalOffset.toFixed(3)}mm\n`}
+              {`  tilt    :${currentPlacementSnapshot.angleTilt.toFixed(2)}°\n`}
+              {`  tiltZ   :${currentPlacementSnapshot.angleTiltZ.toFixed(2)}°`}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const json = JSON.stringify({ startPlacement: currentPlacementSnapshot }, null, 2);
+                  setStartPositionJson(json);
+                  setStartPositionCopied(false);
+                  if (navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(json)
+                      .then(() => setStartPositionCopied(true))
+                      .catch(() => setStartPositionCopied(false));
+                  }
+                }}
+                style={{
+                  fontFamily: 'monospace', fontSize: 10, padding: '2px 8px',
+                  cursor: 'pointer', background: '#2a2a2a', color: '#7fffb0',
+                  border: '1px solid #555', borderRadius: 3,
+                }}
+              >
+                {startPositionCopied ? 'Copied!' : 'Save Start Position'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const json = JSON.stringify({ idealPlacement: currentPlacementSnapshot }, null, 2);
+                  setIdealPositionJson(json);
+                  setIdealPositionCopied(false);
+                  if (navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(json)
+                      .then(() => setIdealPositionCopied(true))
+                      .catch(() => setIdealPositionCopied(false));
+                  }
+                }}
+                style={{
+                  fontFamily: 'monospace', fontSize: 10, padding: '2px 8px',
+                  cursor: 'pointer', background: '#2a2a2a', color: '#ffb27f',
+                  border: '1px solid #555', borderRadius: 3,
+                }}
+              >
+                {idealPositionCopied ? 'Copied!' : 'Save Ideal Position'}
+              </button>
+            </div>
+            {startPositionJson && (
+              <pre
+                style={{
+                  marginTop: 4, maxHeight: 120, overflow: 'auto', fontSize: 9,
+                  userSelect: 'text', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  background: 'rgba(127,255,176,0.08)', padding: 4, borderRadius: 3,
+                }}
+              >
+                {startPositionJson}
+              </pre>
+            )}
+            {idealPositionJson && (
+              <pre
+                style={{
+                  marginTop: 4, maxHeight: 120, overflow: 'auto', fontSize: 9,
+                  userSelect: 'text', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  background: 'rgba(255,178,127,0.08)', padding: 4, borderRadius: 3,
+                }}
+              >
+                {idealPositionJson}
+              </pre>
+            )}
+          </div>
         </div>
       </div>
     )}
     {coordDebug && product.footType === 'BELL' && (
+      // [shoji要望2026-08-19] Coord Debugパネルと同じtop:8,right:8で重なり操作系ボタンを
+      // 隠してしまうという指摘への対応。トグル式（既定折りたたみ）にし、Coord Debugの
+      // 折りたたみ時ヘッダー分（約36px）だけtopをずらして縦に並べる。
       <div
         style={{
-          position: 'absolute', top: 8, right: 8, zIndex: Z_INDEX.modal,
+          position: 'absolute', top: 44, right: 8, zIndex: Z_INDEX.modal,
           background: 'rgba(0,0,0,0.78)', color: '#ccc',
-          fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
-          borderRadius: 4, whiteSpace: 'pre', lineHeight: 1.5, userSelect: 'none', minWidth: 220,
+          fontFamily: 'monospace', fontSize: 10,
+          borderRadius: 4, userSelect: 'none', minWidth: poseComparisonCollapsed ? undefined : 220,
         }}
       >
-        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>Pose Comparison (P4B-3 Step4)</div>
+        <div
+          onClick={() => setPoseComparisonCollapsed((c) => !c)}
+          style={{
+            color: '#fff', fontWeight: 700, padding: '6px 10px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <span>{poseComparisonCollapsed ? '▸' : '▾'}</span>
+          <span>Pose Comparison (P4B-3 Step4)</span>
+        </div>
+        {!poseComparisonCollapsed && (
+        <div style={{ padding: '0 10px 8px', whiteSpace: 'pre', lineHeight: 1.5 }}>
         {/* P4B-3 Step5: Feature Flag。実際にProsthesisModel/CartilageSliceの描画へ反映される
             切替なので、既存のReference/Candidate/Anchor表示トグル（見た目だけの切替）とは別枠で
             強調表示する（誤操作防止）。 */}
@@ -1696,90 +2158,8 @@ export function SimScene({
             </button>
           )}
         </div>
-      </div>
-    )}
-    {coordDebug && product.headType === 'SOFT_CLIP' && (
-      <div
-        style={{
-          position: 'absolute', top: 8, right: 8, zIndex: Z_INDEX.modal,
-          background: 'rgba(0,0,0,0.78)', color: '#ccc',
-          fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
-          borderRadius: 4, lineHeight: 1.5, userSelect: 'none', minWidth: 220,
-          pointerEvents: 'auto',
-        }}
-      >
-        <div style={{ color: '#fff', fontWeight: 700, marginBottom: 4 }}>
-          Soft Clip Band Loop Attached Preview (B0)
         </div>
-        <div style={{ color: '#ffd27f', marginBottom: 6, fontSize: 9 }}>
-          translation/rotationはPreview parameter（Frozen Geometryではない）。
-          <br />
-          bridge/endは仮アンカー（Evidence B相当、shoji Audit 2026-08-10）。
-        </div>
-        {([
-          { axis: 'x' as const, label: 'Tx (mm)' },
-          { axis: 'y' as const, label: 'Ty (mm)' },
-          { axis: 'z' as const, label: 'Tz (mm)' },
-        ]).map((row) => (
-          <label key={row.axis} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ width: 56, display: 'inline-block' }}>{row.label}</span>
-            <input
-              type="number"
-              step={0.01}
-              value={softClipAttachTransform.translation[row.axis]}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (Number.isNaN(v)) return;
-                setSoftClipAttachTransform((t) => {
-                  const translation = t.translation.clone();
-                  translation[row.axis] = v;
-                  return { ...t, translation };
-                });
-              }}
-              style={{
-                width: 90, fontFamily: 'monospace', fontSize: 10, background: '#1a1a1a',
-                color: '#7fd3ff', border: '1px solid #555', borderRadius: 3, padding: '1px 4px',
-              }}
-            />
-          </label>
-        ))}
-        {([
-          { axis: 'x' as const, label: 'Rx (deg)' },
-          { axis: 'y' as const, label: 'Ry (deg)' },
-          { axis: 'z' as const, label: 'Rz (deg)' },
-        ]).map((row) => (
-          <label key={row.axis} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ width: 56, display: 'inline-block' }}>{row.label}</span>
-            <input
-              type="number"
-              step={1}
-              value={softClipAttachTransform.rotationDeg[row.axis]}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (Number.isNaN(v)) return;
-                setSoftClipAttachTransform((t) => ({
-                  ...t,
-                  rotationDeg: { ...t.rotationDeg, [row.axis]: v },
-                }));
-              }}
-              style={{
-                width: 90, fontFamily: 'monospace', fontSize: 10, background: '#1a1a1a',
-                color: '#ff8800', border: '1px solid #555', borderRadius: 3, padding: '1px 4px',
-              }}
-            />
-          </label>
-        ))}
-        <button
-          type="button"
-          onClick={() => setSoftClipAttachTransform(getSoftClipBandLoopDefaultAttachTransform())}
-          style={{
-            marginTop: 6, fontFamily: 'monospace', fontSize: 9, padding: '2px 8px',
-            cursor: 'pointer', background: '#2a2a2a', color: '#7fd3ff',
-            border: '1px solid #555', borderRadius: 3,
-          }}
-        >
-          Reset (bridge/end anchor, 0°)
-        </button>
+        )}
       </div>
     )}
     <Canvas
@@ -1834,20 +2214,23 @@ export function SimScene({
             {showFootplateHighlight && <StapesFootplateHighlight />}
           </group>
 
-          {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映） ── */}
+          {/* ── 理想配置ゴースト（症例別 idealLateralOffset を反映、D-2 AD-2:
+               idealPlacement保存時はそちらを優先。resolveIdealLateralOffset/resolveIdealAngle
+               はcomputeScore()と同じ解決ロジック — ゴースト表示とScoringのGround Truthが
+               常に一致することを保証する） ── */}
           {showIdeal && (
             <IdealGhostProsthesis
               product={product}
               length={surgicalCase.recommendedLength}
               headType={product.headType}
-              idealLateralOffset={surgicalCase.idealLateralOffset}
-              idealAngle={surgicalCase.idealAngle}
+              idealLateralOffset={resolveIdealLateralOffset(surgicalCase)}
+              idealAngle={resolveIdealAngle(surgicalCase)}
               basePos={basePos.clone()}
             />
           )}
 
-          {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用） ── */}
-          <PlacementMarker pos={basePos.clone().setX(basePos.x + surgicalCase.idealLateralOffset)} />
+          {/* ── ターゲットマーカー（症例別 idealLateralOffset 適用、D-2 AD-2で解決済みの値） ── */}
+          <PlacementMarker pos={basePos.clone().setX(basePos.x + resolveIdealLateralOffset(surgicalCase))} />
 
           {/* ── Danger Zone Overlay（Phase20.4b、?debug=coords 時のみ） ── */}
           {coordDebug && <DangerZoneOverlay />}
@@ -1877,46 +2260,6 @@ export function SimScene({
               anchorGhost={anchorPose}
               visibility={poseVisibility}
             />
-          )}
-
-          {/* ── Soft Clip Pocket Preview（Phase1 dev preview、?debug=coords かつ
-              headType==='SOFT_CLIP'時のみ。docs/Soft_Clip_Centerline_Parameter_Definition_v1.0.md。
-              Pocket-local座標系はShaft/Global座標系と未接続のため、basePosから離した
-              オフセット位置に単独描画する（実際の装着位置を意味しない、レビュー専用）。 ── */}
-          {coordDebug && product.headType === 'SOFT_CLIP' && (
-            <group position={[basePos.x + 10, basePos.y + 5, basePos.z]}>
-              <SoftClipPocketPreview />
-            </group>
-          )}
-
-          {/* ── Soft Clip Band Loop Preview（Hypothesis Geometry dev preview、?debug=coords
-              かつ headType==='SOFT_CLIP'時のみ。docs/Soft_Clip_Centerline_Proposal_v3.json。
-              Band Loop Editorローカル座標系はShaft/Global座標系と未接続のため、Pocket
-              Previewと同様basePosから離したオフセット位置に単独描画する（実際の装着位置を
-              意味しない、実物写真との形状比較専用）。 ── */}
-          {coordDebug && product.headType === 'SOFT_CLIP' && (
-            <group position={[basePos.x - 10, basePos.y + 5, basePos.z]}>
-              <SoftClipBandLoopPreview />
-            </group>
-          )}
-
-          {/* ── Soft Clip Band Loop Attached Preview（Phase B0、shoji Audit 2026-08-10、
-              ?debug=coords かつ headType==='SOFT_CLIP'時のみ）。上のSoftClipBandLoopPreview
-              (Editorローカル原点、±10mmオフセット単独表示)とは別に、SoftClipHead()と同じ
-              Shaft/Global pose(basePos+headOff、DraggableProsthesis→ProsthesisModelが使う
-              computeProsthesisModelPose()と同一)の子として、単一の剛体変換
-              (softClipAttachTransform、右上パネルでshojiが調整するPreview parameter)で
-              重ねて描画する。Production SoftClipHead()（Stem/Bridge/Wing）とは別描画で
-              共存表示するのみ（置換ではない）。27制御点・Sweep Geometryは無変更。 ── */}
-          {coordDebug && product.headType === 'SOFT_CLIP' && (
-            <group
-              position={[softClipAttachPose.position.x, softClipAttachPose.position.y, softClipAttachPose.position.z]}
-              quaternion={softClipAttachPose.quaternion}
-            >
-              <group position={[0, softClipAttachHeadOff, 0]}>
-                <SoftClipBandLoopAttachedPreview transform={softClipAttachTransform} />
-              </group>
-            </group>
           )}
 
           {/* ── 軟骨スライス ── */}
@@ -1999,6 +2342,8 @@ export function SimScene({
               shaftRollDeg={interactionShaftRollDeg}
               onDragActiveChange={setDirectDragActive}
               basePos={basePos}
+              onRotateTransport={rotateTransport}
+              onTranslateTransport={translateTransport}
               onRelease={(offsets) => {
                 useSimStore.getState().updatePlacement(offsets);
                 useSimStore.getState().markPositionTouched();

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { KurzProduct } from '../data/products';
 import type { SurgicalCase } from '../data/cases';
+import { resolveIdealLateralOffset, resolveIdealAngle } from '../data/cases';
 import { checkProximityToDanger, computeSafetyScore, describeSafetyAlert } from '../engine/safety';
 import type { DangerAlert, SafetyQueryPoint, SafetyFeedback } from '../engine/safety';
 
@@ -236,7 +237,11 @@ export const useSimStore = create<SimStore>((set, get) => ({
     if (!selectedCase) return;
 
     const { selectedLength, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ, dragOffsetX, dragOffsetY, dragOffsetZ } = placement;
-    const { recommendedLength, idealAngle, idealLateralOffset } = selectedCase;
+    const { recommendedLength } = selectedCase;
+    // D-2 AD-2: idealPlacementが保存されていればそちらを優先し、未指定なら従来の
+    // idealLateralOffset/idealAngleへフォールバックする（Scoringの軸・意味論自体は不変）。
+    const idealLateralOffset = resolveIdealLateralOffset(selectedCase);
+    const idealAngle = resolveIdealAngle(selectedCase);
 
     // 合計オフセット（スライダー + 3Dドラッグ）
     const totalLateral   = lateralOffset   + dragOffsetX;

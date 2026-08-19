@@ -39,6 +39,14 @@ export const HOLD_REPEAT_INTERVAL_MS = 90;
 // Select/Grasp/Releaseボタン経路（a2247d5相当）へ完全復帰する）。
 export const DIRECT_MANIPULATION_UX = true;
 
+// [D-4 Option② C-1、Architect承認2026-08-19] Depth Session終了（Release）時、固定していた
+// QuaternionからcomputeProsthesisModelPose()の通常計算値へslerpで滑らかに復帰させる所要時間
+// （ミリ秒）。実機Investigation（2026-08-19）でS2相当ケース（1〜2秒操作）でも93.68°の
+// 1-frame jumpが発生することを確認したため導入。200msは初期値であり、実機検証結果に応じて
+// この値のみを調整すればよい（KEYBOARD_STEP_MM等と同じ「実機確認時に反転可能な最小定数」
+// パターン）。
+export const RELEASE_INTERP_DURATION_MS = 200;
+
 // Phase C-2（Prosthesis-Anatomy Collision Constraint、Placement Drag）: Collision Constraint
 // 自体のkill-switch。DIRECT_MANIPULATION_UXと同じ命名・運用パターン。falseにすると
 // DraggableProsthesisのCollision Constraint（useFrame補正）が完全に無効化され、Phase C-2

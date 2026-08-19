@@ -27,6 +27,7 @@
  * 変更しない。Phase1〜22の既存領域には一切触れない。
  */
 import type { PlacementState } from '../../store/useSimStore';
+import type { CasePlacementSnapshot } from '../../data/cases';
 
 /**
  * 現行のPose Model識別子。ProsthesisModel/CartilageSliceが共通で使っている
@@ -63,5 +64,21 @@ export function buildGroundTruthRecord(
     productId,
     createdAt: now(),
     placement: { ...placement },
+  };
+}
+
+/**
+ * D-2（Start / Ideal Position 保存機構）: PlacementStateから配置5軸のみのスナップショットを
+ * 構築する。lateralOffset/anteriorOffset/verticalOffsetはスライダー値+3Dドラッグ累積値の合計
+ * （computeScore()と同じ合成式、useSimStore.ts参照）。selectedLength/dragOffsetX/Y/Z自体は
+ * 含まない — CasePlacementSnapshotはStart Position/Ideal Positionどちらの保存にも使う共通形。
+ */
+export function buildPlacementSnapshot(placement: PlacementState): CasePlacementSnapshot {
+  return {
+    lateralOffset:  placement.lateralOffset  + placement.dragOffsetX,
+    anteriorOffset: placement.anteriorOffset + placement.dragOffsetZ,
+    verticalOffset: placement.verticalOffset + placement.dragOffsetY,
+    angleTilt:      placement.angleTilt,
+    angleTiltZ:     placement.angleTiltZ,
   };
 }

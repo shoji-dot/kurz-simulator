@@ -13,6 +13,20 @@ export type OssicleStatus = 'intact' | 'partial' | 'absent';
  */
 export type StapesStatus = 'intact' | 'suprastructure' | 'head-loss' | 'footplate-only' | 'absent';
 
+/**
+ * D-2（Start / Ideal Position 保存機構）: 配置5軸のみのスナップショット。
+ * PlacementStateのうちselectedLength/dragOffsetX/Y/Zは含まない（配置5軸＝
+ * lateralOffset/anteriorOffset/verticalOffset/angleTilt/angleTiltZのみを表す）。
+ * Start Position(AD-1)とIdeal Position(AD-2)の両方でこの同じ形を保存形式として使う。
+ */
+export interface CasePlacementSnapshot {
+  lateralOffset: number;
+  anteriorOffset: number;
+  verticalOffset: number;
+  angleTilt: number;
+  angleTiltZ: number;
+}
+
 export interface SurgicalCase {
   id: string;
   title: string;
@@ -27,6 +41,19 @@ export interface SurgicalCase {
   recommendedLength: number;
   idealLateralOffset: number;
   idealAngle: number;
+  /**
+   * D-2 AD-1: 症例固有のStart Position（教材作成者が配置して保存した値）。
+   * 未指定の症例は従来通り basePos から開始する（フォールバック、既存挙動を破壊しない）。
+   */
+  startPlacement?: CasePlacementSnapshot;
+  /**
+   * D-2 AD-2: 症例固有のIdeal Position（Position軸のみ、教材作成者が配置して保存した値）。
+   * 指定時は resolveIdealLateralOffset/resolveIdealAngle 経由でScoringのGround Truthとして
+   * 使われる。未指定の症例は従来通り idealLateralOffset/idealAngle を使う（フォールバック）。
+   * 9軸フル化（anteriorOffset/verticalOffset/angleTiltZの採点反映）はD-2のスコープ外
+   * （AD-2、現行Scoring意味論を維持）。
+   */
+  idealPlacement?: CasePlacementSnapshot;
   /** 術前ABG想定値 (dB) — スコア画面のABG改善予測に使用 */
   preOpAbg: number;
   clinicalNotes: string;
@@ -45,6 +72,40 @@ export interface SurgicalCase {
    * - 'Ⅲi-M': ツチ骨柄温存、ツチ骨柄下からアブミ骨頭部への再建(interposition)。
    */
   detailedReconstructionPattern?: 'Ⅲc' | 'Ⅲi-M';
+}
+
+/**
+ * D-2 AD-2: Ideal Position（内外側）のGround Truthを解決する。
+ * idealPlacementが保存されていればそちらを優先し、未指定なら既存idealLateralOffsetへ
+ * フォールバックする。既存15症例は全てidealPlacement未指定のため、常に従来値と一致する。
+ */
+export function resolveIdealLateralOffset(c: SurgicalCase): number {
+  return c.idealPlacement?.lateralOffset ?? c.idealLateralOffset;
+}
+
+/**
+ * D-2 AD-2: Ideal Position（前後傾斜角）のGround Truthを解決する。
+ * idealPlacementが保存されていればそちらを優先し、未指定なら既存idealAngleへフォールバックする。
+ */
+export function resolveIdealAngle(c: SurgicalCase): number {
+  return c.idealPlacement?.angleTilt ?? c.idealAngle;
+}
+
+/**
+ * D-3 AD-3（症例数15→3）: 教育UIに表示する症例のid（PORP/TORP/Soft Clipの順）。
+ * いずれも現行の成人耳モデル上ですでに「入門」向けに設計済みの症例（D-1調査で確認）。
+ * `surgicalCases`配列自体はこのリストとは無関係に無変更で残す — engine/caseGenerator/library.ts
+ * や engine/applicationIntegration/selfCheck.ts、scripts/p4b3-safety-regression.tsなど、
+ * 全15症例を前提にした既存参照を壊さないため（Task Order「単純なデータ削除によって既存コードを
+ * 壊さない」）。教育UI（CaseSelect/FlowSetup/次の推奨症例）だけがこのリストで絞り込む。
+ */
+export const EDUCATION_CASE_IDS: readonly string[] = ['case-012', 'case-013', 'case-014'];
+
+/** 教育UI表示用の3症例をEDUCATION_CASE_IDSの順（PORP→TORP→Soft Clip）で返す。 */
+export function getEducationCases(): SurgicalCase[] {
+  return EDUCATION_CASE_IDS
+    .map((id) => surgicalCases.find((c) => c.id === id))
+    .filter((c): c is SurgicalCase => c !== undefined);
 }
 
 export const surgicalCases: SurgicalCase[] = ([
@@ -373,6 +434,10 @@ export const surgicalCases: SurgicalCase[] = ([
     recommendedLength: 2.0,
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    // [shoji指定2026-08-19] Transport段階の初期位置を「外耳道の真ん中」に設定
+    // （実機でプロステーシスをそこへ動かし、新設のTransport段階リアルタイム座標表示から実測）。
+    // case-012/013/014の3症例共通の指定。
+    startPlacement: { lateralOffset: -4.015, anteriorOffset: 9.985, verticalOffset: 6.105, angleTilt: -86.00, angleTiltZ: 0.00 },
     preOpAbg: 35,
     clinicalNotes: '軟骨（耳珠軟骨）で鼓膜を再建し、軟骨〜アブミ骨頭間距離をサイザーで実測。本症例は約2.0mm。術野が清潔でアブミ骨頭部が明視野に確認でき、ベル型フットで安定保持が可能。',
     teachingPoints: [
@@ -397,6 +462,9 @@ export const surgicalCases: SurgicalCase[] = ([
     recommendedLength: 4.5,
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    // [shoji指定2026-08-19] Transport段階の初期位置を「外耳道の真ん中」に設定
+    // （case-012/013/014の3症例共通の指定、詳細はcase-012のコメント参照）。
+    startPlacement: { lateralOffset: -4.015, anteriorOffset: 9.985, verticalOffset: 6.105, angleTilt: -86.00, angleTiltZ: 0.00 },
     preOpAbg: 40,
     clinicalNotes: '鼓膜（軟骨再建）〜アブミ骨底板間距離は約4.5mm。フット部が底板上中央に安定設置されることを確認。底板の可動性が良好であることが術前評価で確認済み。合併症がなく教育的に理想的な症例。',
     teachingPoints: [
@@ -420,6 +488,9 @@ export const surgicalCases: SurgicalCase[] = ([
     recommendedLength: 4.0,
     idealLateralOffset: 0.0,
     idealAngle: 0,
+    // [shoji指定2026-08-19] Transport段階の初期位置を「外耳道の真ん中」に設定
+    // （case-012/013/014の3症例共通の指定、詳細はcase-012のコメント参照）。
+    startPlacement: { lateralOffset: -4.015, anteriorOffset: 9.985, verticalOffset: 6.105, angleTilt: -86.00, angleTiltZ: 0.00 },
     preOpAbg: 40,
     clinicalNotes: 'Grade 1耳硬化症の典型例。底板軽度肥厚で可動性は完全に消失。キヌタ骨長突起〜底板開窓部の距離は約4.0mm。Soft Clipのバンドをキヌタ骨長突起に固定し、0.4mm径ピストンを底板開窓部に挿入。骨導が正常であり、ABGの術後完全閉鎖（0dB）が期待できる好適症例。',
     teachingPoints: [

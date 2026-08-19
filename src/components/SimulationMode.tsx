@@ -33,7 +33,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 }
 import { useSimStore, computeAssessmentStatus, type JudgmentResult } from '../store/useSimStore';
 import type { DangerAlert, SafetyFeedback } from '../engine/safety';
-import { surgicalCases, type SurgicalCase } from '../data/cases';
+import { getEducationCases, type SurgicalCase, resolveIdealLateralOffset, resolveIdealAngle } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { SimScene, SIM_DEFAULT_VIS, type DragMode, type SimViewMode, saveSimCam, resetSimCam, setSimCameraView, getSimCam } from '../scenes/SimScene';
 import { DIRECT_MANIPULATION_UX } from '../scenes/transformControlsConfig';
@@ -129,7 +129,10 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
   const { selectedCase, setSelectedCase, setSimStep } = useSimStore();
   const [diffFilter, setDiffFilter] = useState<string>('all');
 
-  const filtered = diffFilter === 'all' ? surgicalCases : surgicalCases.filter(c => c.difficulty === diffFilter);
+  // D-3 AD-3: 教育UIは15症例ではなくEDUCATION_CASE_IDS(PORP/TORP/Soft Clip の3症例)のみを表示する。
+  // surgicalCases自体は無変更のまま（engine/caseGenerator等の既存参照を壊さないため）。
+  const educationCases = getEducationCases();
+  const filtered = diffFilter === 'all' ? educationCases : educationCases.filter(c => c.difficulty === diffFilter);
 
   return (
     <div style={{ padding: 20, maxWidth: 800, margin: '0 auto' }}>
@@ -145,10 +148,10 @@ function CaseSelect({ skipQuiz, onToggleSkip }: { skipQuiz: boolean; onToggleSki
           value={diffFilter}
           onChange={setDiffFilter}
           options={[
-            { value: 'all',          label: `すべて (${surgicalCases.length})` },
-            { value: 'beginner',     label: `初級 (${surgicalCases.filter(c => c.difficulty === 'beginner').length})` },
-            { value: 'intermediate', label: `中級 (${surgicalCases.filter(c => c.difficulty === 'intermediate').length})` },
-            { value: 'advanced',     label: `上級 (${surgicalCases.filter(c => c.difficulty === 'advanced').length})` },
+            { value: 'all',          label: `すべて (${educationCases.length})` },
+            { value: 'beginner',     label: `初級 (${educationCases.filter(c => c.difficulty === 'beginner').length})` },
+            { value: 'intermediate', label: `中級 (${educationCases.filter(c => c.difficulty === 'intermediate').length})` },
+            { value: 'advanced',     label: `上級 (${educationCases.filter(c => c.difficulty === 'advanced').length})` },
           ]}
         />
       </div>
@@ -669,47 +672,38 @@ function ProductSelect() {
         <button
           className="btn btn-primary"
           disabled={!selectedProduct || selectedLength === null}
-          onClick={() => setSimStep('shaft-estimate')}
+          onClick={() => setSimStep(selectedProduct?.type === 'PISTON' ? 'placement' : 'shaft-estimate')}
         >
-          次へ: サイズ確認 →
+          {/* D-3: Soft Clip（type==='PISTON'）はAC Sizerステップを使わないため配置調整へ直行する。
+              PORP/TORPは既存通りAC Sizerステップ（shaft-estimate）を経由する。 */}
+          {selectedProduct?.type === 'PISTON' ? '次へ: 配置調整 →' : '次へ: ACサイザー →'}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Step 2.5: Shaft Length Estimation ────────────────────────────────────
+// ─── Step 2.5: AC Sizer使用ガイド（PORP/TORPのみ、Soft Clipはスキップ） ──────────────
 function ShaftEstimateStep() {
-  const { selectedCase, selectedProduct, placement, updatePlacement, setSimStep } = useSimStore();
-  const [estimated, setEstimated] = useState<number | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const { selectedCase, selectedProduct, placement, setSimStep } = useSimStore();
   const [sizerGuideOpen, setSizerGuideOpen] = useState(false);
 
   if (!selectedCase || !selectedProduct) return null;
 
-  const recommended = selectedCase.recommendedLength;
-  const selected    = placement.selectedLength;
-  const diff        = estimated !== null ? Math.abs(estimated - recommended) : null;
-
-  // 推定精度評価
-  const getEstimateGrade = (d: number) => {
-    if (d <= 0.5) return { label: '優秀', color: 'var(--color-success)', colorRgb: 'var(--color-success-rgb)', comment: '臨床的に許容範囲内の推定です。' };
-    if (d <= 1.0) return { label: '良好', color: 'var(--color-primary)', colorRgb: 'var(--color-primary-rgb)', comment: '1mm以内の誤差。術中サイザーで微調整できます。' };
-    if (d <= 1.5) return { label: '要改善', color: 'var(--color-warning)', colorRgb: 'var(--color-warning-rgb)', comment: '1.5mm以上の誤差。術前CT計測を再確認してください。' };
-    return { label: '不十分', color: 'var(--color-error)', colorRgb: 'var(--color-error-rgb)', comment: '2mm以上の誤差。音伝達効率に影響します。シャフト長の計測方法を復習してください。' };
-  };
-
-  // 長さ候補（選択製品のshaftLengthsを使用）
-  const lengthOptions = selectedProduct.shaftLengths;
+  const selected = placement.selectedLength;
 
   return (
     <div className="sidebar" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 24, maxHeight: 'none', paddingBottom: 40 }}>
       <div className="card">
         <div className="section-title" style={{ color: 'var(--color-primary)', marginBottom: 12 }}>
-          📏 シャフト長 推定トレーニング
+          📏 ACサイザー使用ガイド
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 16 }}>
-          術中サイザーを使う前に、CT所見と症例情報から<strong style={{ color: 'var(--text-primary)' }}>何mmが最適か</strong>を推定してください。
+          {/* D-3: 従来はここでシャフト長を再度「推定」させ、選択済みの値と比較する重複クイズが
+              あった。シャフト長選択（前ステップ）で既に確定済みのため、ここではAC Sizerの
+              実測手順ガイドのみを示し、そのまま配置調整へ進む。 */}
+          術中はACサイザーで実測してからシャフト長を確定します。選択したシャフト長
+          （<strong style={{ color: 'var(--text-primary)' }}>{selected} mm</strong>）で配置を行います。
         </div>
 
         {/* 症例参考情報 */}
@@ -779,12 +773,6 @@ function ShaftEstimateStep() {
           </svg>
             </>
           )}
-          {submitted && (
-            <div style={{ textAlign:'right', marginTop: sizerGuideOpen ? 0 : 10 }}>
-              <div style={{ fontSize:9, color:'var(--color-success)', marginBottom:2 }}>この症例の正解</div>
-              <div style={{ fontSize:22, fontWeight:800, color:'var(--color-success)' }}>{recommended} mm</div>
-            </div>
-          )}
         </div>
 
 
@@ -805,83 +793,20 @@ function ShaftEstimateStep() {
           </div>
         )}
 
-        {/* 推定入力（まだ未回答の場合） */}
-        {!submitted ? (
-          <>
-            <div style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, marginBottom: 10 }}>
-              あなたの推定サイズを選択してください：
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-              {lengthOptions.map(l => (
-                <button
-                  key={l}
-                  onClick={() => setEstimated(l)}
-                  style={{
-                    padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700,
-                    border: `2px solid ${estimated === l ? 'var(--color-primary)' : 'rgba(255,255,255,0.15)'}`,
-                    background: estimated === l ? 'var(--color-primary-tint)' : 'rgba(255,255,255,0.04)',
-                    color: estimated === l ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                    transition: 'all .15s',
-                  }}
-                >
-                  {l} mm
-                </button>
-              ))}
-            </div>
-            <button
-              className="btn btn-primary"
-              disabled={estimated === null}
-              style={{ width: '100%', opacity: estimated !== null ? 1 : 0.4 }}
-              onClick={() => setSubmitted(true)}
-            >
-              推定を確定する
-            </button>
-          </>
-        ) : (
-          /* 推定後フィードバック */
-          <>
-            {diff !== null && (() => {
-              const grade = getEstimateGrade(diff);
-              return (
-                <div style={{ padding: '14px 16px', borderRadius: 8, background: `rgba(${grade.colorRgb},0.06)`, border: `1px solid rgba(${grade.colorRgb},0.25)`, marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>あなたの推定</div>
-                      <div style={{ fontSize: 28, fontWeight: 800, color: grade.color }}>{estimated} mm</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 2 }}>術中実測値（正解）</div>
-                      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-success)' }}>{recommended} mm</div>
-                    </div>
-                    <div style={{ padding: '4px 12px', borderRadius: 999, background: `rgba(${grade.colorRgb},0.13)`, border: `1px solid rgba(${grade.colorRgb},0.33)`, fontSize: 12, fontWeight: 700, color: grade.color }}>
-                      {grade.label}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
-                    誤差：<strong style={{ color: grade.color }}>{diff === 0 ? '±0 mm（完全一致）' : `${diff.toFixed(1)} mm`}</strong>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                    {grade.comment}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 8 }}>
-              💡 実際に選択したサイズ（<strong style={{ color: 'var(--color-text-secondary)' }}>{selected} mm</strong>）で配置を行います。
-              推定と異なる場合は「プロステーシス選択に戻る」で変更できます。
-            </div>
-          </>
-        )}
+        {/* D-3: 従来ここにあった「推定入力→正解と比較するクイズ（Size Confirmationの重複）」は
+            削除した。シャフト長は前ステップ（製品選択）で既に確定済みであり、ここで再度確認
+            させる必要がないため（Task Order要求④）。以下は選択済みサイズの案内のみ。 */}
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+          💡 選択したシャフト長（<strong style={{ color: 'var(--color-text-secondary)' }}>{selected} mm</strong>）でそのまま配置を行います。
+          変更する場合は「プロステーシス選択に戻る」から選び直せます。
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, padding: '0 4px 24px' }}>
         <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSimStep('product-select')}>← プロステーシス選択に戻る</button>
-        {submitted && (
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>
-            配置調整へ →
-          </button>
-        )}
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setSimStep('placement')}>
+          配置調整へ →
+        </button>
       </div>
     </div>
   );
@@ -915,12 +840,17 @@ function posHint(latDev: number, antDev: number, vertDev: number): string {
 }
 
 function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCase }) {
+  // D-2 AD-2: idealPlacement保存時はそちらを優先（未指定なら従来値へフォールバック）。
+  // computeScore()と同じ解決ロジックを使い、リアルタイムフィードバックとGround Truthの
+  // 不一致を防ぐ。
+  const idealLateralOffset = resolveIdealLateralOffset(sc);
+  const idealAngle = resolveIdealAngle(sc);
   const lengthDiff = safeP.selectedLength - sc.recommendedLength;
-  const latDev  = (safeP.lateralOffset + safeP.dragOffsetX) - sc.idealLateralOffset;
+  const latDev  = (safeP.lateralOffset + safeP.dragOffsetX) - idealLateralOffset;
   const antDev  = safeP.anteriorOffset + safeP.dragOffsetZ;
   const vertDev = safeP.verticalOffset + safeP.dragOffsetY;
   const posErr  = Math.sqrt(latDev * latDev + antDev * antDev + vertDev * vertDev);
-  const aDiff   = Math.abs(safeP.angleTilt - sc.idealAngle);
+  const aDiff   = Math.abs(safeP.angleTilt - idealAngle);
   const rDiff   = Math.abs(safeP.angleTiltZ);
 
   const lv = pfLevel(Math.abs(lengthDiff), 0.25, 0.5);
@@ -938,7 +868,7 @@ function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCa
     : '理想位置まで ' + posErr.toFixed(2) + 'mm のずれ';
   const posHintStr = pv === 'ok' ? '' : posHint(latDev, antDev, vertDev);
 
-  const tiltFwd = safeP.angleTilt > sc.idealAngle ? '前傾' : '後傾';
+  const tiltFwd = safeP.angleTilt > idealAngle ? '前傾' : '後傾';
   const tiltLR  = safeP.angleTiltZ > 0 ? '右傾' : '左傾';
   const angleParts: string[] = [];
   if (aDiff >= 1) angleParts.push('前後 ' + tiltFwd + ' ' + aDiff.toFixed(0) + '°');
@@ -1407,9 +1337,12 @@ function PlacementStep() {
             variant="primary"
             style={{ width: '100%', marginBottom: 'var(--space-2)', letterSpacing: '.02em' }}
             onClick={() => updatePlacement({
-              lateralOffset: selectedCase.idealLateralOffset,
+              // D-2 AD-2: idealPlacement保存時はそちらを優先（未指定なら従来のidealLateralOffset/
+              // idealAngleへフォールバック）。Scoring/理想ゴーストと同じ解決ロジックを使うことで、
+              // このボタンで飛ぶ先が常にGround Truthと一致することを保証する。
+              lateralOffset: resolveIdealLateralOffset(selectedCase),
               anteriorOffset: 0, verticalOffset: 0,
-              angleTilt: selectedCase.idealAngle, angleTiltZ: 0,
+              angleTilt: resolveIdealAngle(selectedCase), angleTiltZ: 0,
               dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
             })}
           >
@@ -2119,8 +2052,11 @@ function ScoreStep() {
           const nextDiff = score >= 80 && currentDiff !== 'advanced'
             ? (currentDiff === 'beginner' ? 'intermediate' : 'advanced')
             : currentDiff;
-          nextCase = surgicalCases.find(c => c.difficulty === nextDiff && c.id !== currentId);
-          if (!nextCase) nextCase = surgicalCases.find(c => c.id !== currentId);
+          // D-3 AD-3: 推奨候補も教育UIの3症例に限定する（15症例プールから非表示症例を
+          // 提示してしまわないように）。
+          const educationCases = getEducationCases();
+          nextCase = educationCases.find(c => c.difficulty === nextDiff && c.id !== currentId);
+          if (!nextCase) nextCase = educationCases.find(c => c.id !== currentId);
           reason = score >= 80 && currentDiff !== 'advanced'
             ? `高スコア達成！次の難易度（${nextDiff}）に挑戦`
             : '同難易度の別症例で定着度を確認';
@@ -2205,14 +2141,19 @@ const SIM_STEPS = [
 ] as const;
 
 export function SimulationMode() {
-  const { simStep } = useSimStore();
+  const { simStep, selectedProduct } = useSimStore();
   const [skipQuiz, setSkipQuiz] = useState<boolean>(loadSkipQuiz);
   const handleSkipToggle = () => {
     const next = !skipQuiz;
     setSkipQuiz(next);
     saveSkipQuiz(next);
   };
-  const currentIdx = SIM_STEPS.findIndex(s => s.id === simStep);
+  // D-3: Soft Clip（type==='PISTON'）はAC Sizerステップ（shaft-estimate）を経由しないため、
+  // 進行バーからもそのステップを外す（実際には訪れないステップが「完了」表示されるのを防ぐ）。
+  // simStep自体の型・switch分岐は無変更 — 表示用のリストだけを絞り込む。
+  const isSoftClip = selectedProduct?.type === 'PISTON';
+  const visibleSimSteps = isSoftClip ? SIM_STEPS.filter(s => s.id !== 'shaft-estimate') : SIM_STEPS;
+  const currentIdx = visibleSimSteps.findIndex(s => s.id === simStep);
 
   const stepContent = (() => {
     switch (simStep) {
@@ -2234,7 +2175,7 @@ export function SimulationMode() {
         height: 36, borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
       }}>
         <StepProgress
-          items={SIM_STEPS.map((s, i) => ({
+          items={visibleSimSteps.map((s, i) => ({
             key: s.id,
             label: s.label,
             status: i < currentIdx ? 'done' as const : i === currentIdx ? 'current' as const : 'upcoming' as const,

@@ -22,7 +22,9 @@ import { TransformControls } from '@react-three/drei';
 import { useThree, useFrame, type ThreeEvent } from '@react-three/fiber';
 import { ProsthesisModel, computeProsthesisModelPose } from '../models/ProsthesisModels';
 import type { KurzProduct } from '../../data/products';
-import { TRANSLATION_SNAP_MM } from '../transformControlsConfig';
+import {
+  TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG,
+} from '../transformControlsConfig';
 
 /** Transport段階の一時pose。PlacementStateとは無関係の独立した自由position（アンクランプ）。 */
 export interface TransportPose {
@@ -371,6 +373,24 @@ export interface DirectTransportProsthesisProps {
     dragOffsetX: number; dragOffsetY: number; dragOffsetZ: number;
     angleTilt:   number; angleTiltZ:  number;
   }) => void;
+  /**
+   * [Transport Keyboard Controls、shoji要望2026-08-19] Shift+矢印キーでtransportTiltを
+   * 更新するためのコールバック。SimScene.tsx側で既にControlPad用に定義済みの
+   * rotateTransport（useCallback([])で安定）をそのまま渡す想定——新しい状態更新経路は
+   * 追加しない、ControlPadと全く同じ入口を再利用する。
+   */
+  onRotateTransport?:    (axis: 'tilt' | 'tiltZ', deltaDeg: number) => void;
+  /**
+   * [Transport Keyboard Controls、shoji要望2026-08-19] PageUp/PageDown（Camera-relative
+   * Depth）でtransportPose.positionを更新するためのコールバック。SimScene.tsx側で既に
+   * ControlPad用に定義済みのtranslateTransport（useCallback([])で安定）をそのまま渡す想定。
+   * D-4のCamera-relative Depth実装（SimScene.tsx DraggableProsthesis）と同じ技法
+   * （camera.getWorldDirection() + 親matrixWorldの回転成分のみでローカル化）をここでも使うが、
+   * Transport段階にはCollision Constraint・Quaternion Freeze・dragOffsetクランプのいずれも
+   * 存在しないため、判定・固定ロジックは一切追加しない（既存のTransport自由移動の性質を
+   * そのまま踏襲）。
+   */
+  onTranslateTransport?: (axis: 'x' | 'y' | 'z', deltaMm: number) => void;
 }
 
 /**
@@ -422,10 +442,13 @@ export interface DirectTransportProsthesisProps {
  */
 export function DirectTransportProsthesis({
   product, selectedLength, transportPose, onTransportPoseChange, transportTilt, shaftRollDeg,
-  onDragActiveChange, basePos, onRelease,
+  onDragActiveChange, basePos, onRelease, onRotateTransport, onTranslateTransport,
 }: DirectTransportProsthesisProps) {
   const groupRef      = useRef<THREE.Group>(null);
   const innerGroupRef = useRef<THREE.Group>(null);
+  // [Transport Keyboard Controls] Camera-relative Depth（PageUp/PageDown）にD-4と同じ技法
+  // （camera.getWorldDirection()）を使うため。
+  const { camera } = useThree();
 
   /** ドラッグ中/非ドラッグ中を問わない「position/quaternion計算用の現在の基準位置」。
    *  transportPose.position（React state）の変化（ControlPad操作・Case切替等）には
@@ -438,6 +461,55 @@ export function DirectTransportProsthesis({
   useEffect(() => {
     basePosRef.current = transportPose.position.clone();
   }, [transportPose.position]);
+
+  // [Transport Keyboard Controls、shoji要望2026-08-19] Transport段階（配置確定前）でも、
+  // 既存Placement段階（DraggableProsthesis、SimScene.tsx）と同じキー操作でRotate
+  // （Shift+矢印キー）とCamera-relative Depth（PageUp/PageDown）を行えるようにする。
+  // ControlPadのTilt/Positionボタンが既にonRotateTransport/onTranslateTransport
+  // （SimScene.tsx側のrotateTransport/translateTransport、ControlPad用に既存）を経由して
+  // いるのと全く同じ入口を再利用するだけで、新しい状態やCommit経路は追加しない。
+  // Transport段階にはCollision Constraint・±3mmクランプ・Quaternion Freezeのいずれも
+  // 存在しないため（D-4のPlacement段階固有の仕組み）、それらの判定・固定ロジックは
+  // 一切移植しない——単純にtransportPose/transportTiltへ delta を加算するだけ。
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (!onRotateTransport) return;
+        e.preventDefault();
+        const rotStep = e.ctrlKey ? ROTATION_STEP_FINE_DEG : ROTATION_STEP_DEG;
+        if (e.key === 'ArrowLeft')  onRotateTransport('tiltZ', -rotStep);
+        if (e.key === 'ArrowRight') onRotateTransport('tiltZ',  rotStep);
+        if (e.key === 'ArrowUp')    onRotateTransport('tilt',   rotStep);
+        if (e.key === 'ArrowDown')  onRotateTransport('tilt',  -rotStep);
+        return;
+      }
+
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        if (!onTranslateTransport) return;
+        e.preventDefault();
+        const group = groupRef.current;
+        if (!group || !group.parent) return;
+        // D-4 Camera-relative Depth（SimScene.tsx DraggableProsthesis）と同一の技法。
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        const parentInverseRotation = new THREE.Matrix3().setFromMatrix4(
+          new THREE.Matrix4().copy(group.parent.matrixWorld).invert(),
+        );
+        const localDir = camDir.clone().applyMatrix3(parentInverseRotation).normalize();
+        const depthStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
+        const sign = e.key === 'PageDown' ? 1 : -1;
+        const depthDelta = localDir.multiplyScalar(sign * depthStep);
+        onTranslateTransport('x', depthDelta.x);
+        onTranslateTransport('y', depthDelta.y);
+        onTranslateTransport('z', depthDelta.z);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [camera, onRotateTransport, onTranslateTransport]);
 
   const { onPointerDown } = useScreenSpaceDrag(
     groupRef,

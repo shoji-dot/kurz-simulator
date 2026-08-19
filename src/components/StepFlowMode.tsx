@@ -7,7 +7,7 @@
 
 import { useState, useMemo } from 'react';
 import { useSimStore, computeAssessmentStatus } from '../store/useSimStore';
-import { surgicalCases } from '../data/cases';
+import { getEducationCases, resolveIdealLateralOffset, resolveIdealAngle } from '../data/cases';
 import { kurzProducts } from '../data/products';
 import { AnatomyScene } from '../scenes/AnatomyScene';
 import { SimScene } from '../scenes/SimScene';
@@ -324,10 +324,10 @@ function ScorePanel({ surgicalCase }: { surgicalCase: SurgicalCase }) {
         <div className="section-title" style={{ marginBottom: 8 }}>あなたの設置</div>
         {[
           ['シャフト長', `${placement.selectedLength} mm`, `（推奨: ${surgicalCase.recommendedLength} mm）`],
-          ['内外側', `${(placement.lateralOffset + placement.dragOffsetX).toFixed(2)} mm`, `（理想: ${surgicalCase.idealLateralOffset > 0 ? '+' : ''}${surgicalCase.idealLateralOffset.toFixed(1)}mm）`],
+          ['内外側', `${(placement.lateralOffset + placement.dragOffsetX).toFixed(2)} mm`, `（理想: ${resolveIdealLateralOffset(surgicalCase) > 0 ? '+' : ''}${resolveIdealLateralOffset(surgicalCase).toFixed(1)}mm）`],
           ['上下', `${(placement.verticalOffset + placement.dragOffsetY).toFixed(2)} mm`, '（理想: 0.0mm）'],
           ['前後', `${(placement.anteriorOffset + placement.dragOffsetZ).toFixed(2)} mm`, '（理想: 0.0mm）'],
-          ['傾斜(前後)', `${placement.angleTilt}°`, `（理想: ${surgicalCase.idealAngle}°）`],
+          ['傾斜(前後)', `${placement.angleTilt}°`, `（理想: ${resolveIdealAngle(surgicalCase)}°）`],
           ['傾斜(左右)', `${placement.angleTiltZ}°`, '（理想: 0°）'],
         ].map(([k, v, hint]) => (
           <div key={k} className="info-row">
@@ -420,7 +420,9 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
   const storeProduct = useSimStore(s => s.selectedProduct);
   const [selectedCaseId,    setSelectedCaseId]    = useState<string | null>(storeCase?.id ?? null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(storeProduct?.id ?? null);
-  const selectedCase    = surgicalCases.find(c => c.id === selectedCaseId) ?? null;
+  // D-3 AD-3: 教育UIはEDUCATION_CASE_IDS(PORP/TORP/Soft Clipの3症例)のみを対象とする。
+  const educationCases  = getEducationCases();
+  const selectedCase    = educationCases.find(c => c.id === selectedCaseId) ?? null;
   const selectedProduct = kurzProducts.find(p => p.id === selectedProductId) ?? null;
 
   return (
@@ -432,11 +434,7 @@ function FlowSetup({ onStart }: { onStart: (c: SurgicalCase, p: KurzProduct) => 
 
       <h3 style={{ fontSize: 14, marginBottom: 10, color: 'var(--color-text-secondary)' }}>Step 1 — 症例を選択</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-        {[...surgicalCases].sort((a, b) => {
-          const numA = parseInt(a.id.replace('case-', ''), 10);
-          const numB = parseInt(b.id.replace('case-', ''), 10);
-          return numA - numB;
-        }).map(c => (
+        {educationCases.map(c => (
           <div
             key={c.id}
             className={`selectable-card ${selectedCaseId === c.id ? 'selected' : ''} kz-focusable`}

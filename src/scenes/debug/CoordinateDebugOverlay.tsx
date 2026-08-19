@@ -54,22 +54,39 @@ interface CoordinateDebugPanelProps {
   zIndex: number;
 }
 
-/** Canvas外側に置くHTMLパネル。中身は CoordinateDebugTracker が useFrame で直接書き込む。 */
+/**
+ * Canvas外側に置くHTMLパネル。中身は CoordinateDebugTracker が useFrame で直接書き込む。
+ * [shoji要望2026-08-19] 他のdebugパネル（Pose Comparison等）と同じtop:8,right:8に重なって
+ * 操作系ボタンを隠してしまうという指摘を受け、トグル式（既定は折りたたみ）にした。折りたたみ時は
+ * タイトルバーのみ（高さ最小）になるため、通常時は他の要素を隠さない。展開が必要な時だけ
+ * ユーザーがクリックして開く。
+ */
 export function CoordinateDebugPanel({ sceneLabel, panelRef, zIndex }: CoordinateDebugPanelProps) {
+  const [collapsed, setCollapsed] = useState(true);
   return (
     <div
       style={{
         position: 'absolute', top: 8, right: 8, zIndex,
         background: 'rgba(0,0,0,0.78)', color: '#7fd3ff',
-        fontFamily: 'monospace', fontSize: 10, padding: '8px 10px',
-        borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre',
-        lineHeight: 1.6, userSelect: 'none', minWidth: 230,
+        fontFamily: 'monospace', fontSize: 10,
+        borderRadius: 4, pointerEvents: 'none',
+        userSelect: 'none', minWidth: collapsed ? undefined : 230,
       }}
     >
-      <div style={{ color: '#fff', fontWeight: 700, marginBottom: 3 }}>
-        Coord Debug — {sceneLabel}
+      <div
+        onClick={() => setCollapsed((c) => !c)}
+        style={{
+          color: '#fff', fontWeight: 700, padding: '6px 10px',
+          cursor: 'pointer', pointerEvents: 'auto',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        <span>{collapsed ? '▸' : '▾'}</span>
+        <span>Coord Debug — {sceneLabel}</span>
       </div>
-      <div ref={panelRef} />
+      {!collapsed && (
+        <div ref={panelRef} style={{ padding: '0 10px 8px', whiteSpace: 'pre', lineHeight: 1.6 }} />
+      )}
     </div>
   );
 }
