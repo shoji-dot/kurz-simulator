@@ -151,14 +151,29 @@ export function buildProsthesisCollisionProxy(
   }
 
   const len = shaftLength;
-  // headOff/footOff: ProsthesisModel()と同一式（ProsthesisModels.tsx:1791-1792）。
-  const headOff = len / 2 + 0.15;
-  const footOff = -(len / 2);
+  // headOff/footOff: ProsthesisModel()と同一式（ProsthesisModels.tsx:1791-1798）。
+  // [R4 Geometry Migration、Architect Approved] Group origin(position引数、
+  // resolveCanonicalPose()の出力)がR1(shaft midpoint)からR4(Anatomical/Foot Contact
+  // Anchor)へ変わったことに伴う原点平行移動(+shaftLength/2)。相対距離(headOff-footOff=
+  // len+0.15)は不変。Candidate Bのradius校正はBellFoot内部のlocal Y(rim=0〜apex=
+  // BELL_HEIGHT_MM)に基づくtranslation-invariantな形状比較のため、本Migrationによる
+  // 再校正は不要（docs/Phase_C5_Foot_Collision_Representation_Investigation_v1.0.md
+  // Section 3-4参照、Architect確認済み）。
+  const headOff = len + 0.15;
+  const footOff = 0;
   // shaft半径: ProsthesisModel()と同一分岐（ProsthesisModels.tsx:1842、PISTON以外は0.10mm）。
   const shaftRadius = product.type === 'PISTON' ? 0.20 : 0.10;
   // BELL: シャフト描画区間はBell apex(Y=BELL_HEIGHT_MM)起点（ProsthesisModels.tsx:1879-1882）。
   const shaftLen = Math.max(0.01, len - BELL_HEIGHT_MM);
-  const shaftMidY = BELL_HEIGHT_MM / 2;
+  // [R4 Geometry Migration Shaft Fix、Architect Decision承認: docs/D4_Shaft_Geometry_R4_
+  // Migration_Architect_Decision_v1.0.md] 旧shaftMidY=BELL_HEIGHT_MM/2はfootOff=-(len/2)
+  // （R1）でのみ数式的に成立する値だった（footOffを一切参照しない決め打ち）。一般式
+  // footOff + BELL_HEIGHT_MM + shaftLen/2（P2_Measurement_Definition_v1.0.mdの
+  // 「anchor〜Bell apex=BELL_HEIGHT_MM」+「Bell apex〜Head Plate側=shaftLen」から導出）へ
+  // 修正。footOff=0（R4）代入でBELL_HEIGHT_MM/2+shaftLength/2と数値的に一致。ProsthesisModels.tsx
+  // 側shaftYと同一式・同一理由。Candidate B radii/FOOT_CONTACT_TOLERANCE_MMは無変更（Foot球
+  // 配置式はfootOffのみを参照し、shaftMidYと独立）。
+  const shaftMidY = footOff + BELL_HEIGHT_MM + shaftLen / 2;
 
   // [Phase C-3 STEP3/Phase B] position/quaternionはcoordGroupRefローカル系の値のため、
   // ancestorMatrix（呼び出し側が渡すcoordGroupRef.matrixWorld）を先に乗じてから使う。

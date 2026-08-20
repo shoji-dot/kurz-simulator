@@ -45,6 +45,19 @@ interface PosedProsthesisGhostProps {
 
 /** BELL専用の簡略シルエット。position/quaternionは呼び出し元が渡した値をそのまま適用する。 */
 function PosedProsthesisGhost({ pose, shaftLength, color }: PosedProsthesisGhostProps) {
+  // [R4 Geometry Migration Shaft Fix、調査時にArchitect Decisionの記載を再検証: docs/D4_Shaft_
+  // Geometry_R4_Migration_Architect_Decision_v1.0.md、Consumer #3] 変更しない。理由:
+  // このGhostへ渡される`pose`（referenceGhost/candidateGhost/anchorGhost、いずれもSimScene.tsx側）
+  // は現状すべてcomputeProsthesisModelPose()/solveBellPose()由来のR1 shaft-midpoint position
+  // であり、resolveCanonicalPose()（R4）は経由していない（本Fixのスコープ外、P4B-3 Pose Solver
+  // 比較機能自体の変更が必要になるため）。したがって本関数のfootOff/headOff/shaftYを先だけ
+  // R4へ変えると、position（R1 midpoint基準）とlocal offset解釈（R4 anchor基準）が食い違い、
+  // 3つのGhostがまとめてshaftLength/2だけ誤表示される新たな不整合を生む。現状のfootOff=
+  // -(len/2)/headOff=len/2+0.15/shaftY=BELL_HEIGHT_MM/2は、そのR1 position入力に対しては
+  // 内部的に整合しており（式は元々R1向けに正しい）、単体では「Bug」ではない。3 Ghost間の相対比較
+  // （poseStats、SimScene.tsx:2088-2100）も全Ghostが同じ式を使う限り相対値は不変のため影響しない。
+  // Pose Solver比較機能全体をR4へ揃えるかはArchitect判断が必要な別Scopeとして20節で報告する
+  // （Do Not Expand Scope、trainee-facing側には一切影響しない、?debug=coords限定のDebug専用）。
   const shaftLen = Math.max(0.01, shaftLength - BELL_HEIGHT_MM);
   const shaftY   = BELL_HEIGHT_MM / 2;
   const headOff  = shaftLength / 2 + 0.15;

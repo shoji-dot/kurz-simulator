@@ -25,6 +25,7 @@ import { useState } from 'react';
 import { HoldButton } from './HoldButton';
 import { useSimStore } from '../../store/useSimStore';
 import type { TransportControls } from '../../scenes/transport/ManipulationLayer';
+import type { PlacementControls } from '../../scenes/canonicalPose';
 import {
   KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, HOLD_STEP_FAST_MM,
   ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, ROTATION_STEP_FAST_DEG,
@@ -61,15 +62,54 @@ export interface ControlPadProps {
    *  manipulationCommitted=falseかつこれが未設定の場合は、既存のPlacementState経路へ
    *  フォールバックする（安全側のデフォルト、クラッシュしない）。 */
   transportControls?: TransportControls | null;
+  /**
+   * [D-4、Implementation Specification Section 11 Requirement 4] Placement段階（
+   * manipulationCommitted=true）でPosition/Rotate/Shaft RollをCollision Candidate評価
+   * 経由で操作するためのコールバック（SimScene→DraggableProsthesis経由）。
+   * `enforcePlacementCollisionGate`未指定/false時は、未設定の場合に従来通り
+   * useSimStore.getState()を直接呼ぶ（transportControlsと同じ安全側フォールバック、
+   * クラッシュしない）。`enforcePlacementCollisionGate=true`の呼び出し元では、この
+   * フォールバックはno-opへ置き換わる（下記参照）。
+   */
+  placementControls?: PlacementControls | null;
+  /**
+   * [D-4 Post-Implementation Review Finding 2、Architect Decision Section 23]
+   * true時、Placement段階（manipulationCommitted===true）でplacementControlsが未接続の間、
+   * Translation/Rotate/Shaft Roll操作をno-opとする（Collision Candidate評価を経由しない
+   * store直接書き込みを禁止する、Requirement 4）。
+   *
+   * 既定値false（未指定）——`placementControls`が伝播しないままD-4のCollision Candidate
+   * 経路を一切知らない既存の呼び出し元（例: StepFlowMode.tsx、D-4 Scope外・変更禁止、
+   * Post-Implementation Review Finding 3参照）は、このpropを渡さないことで完全に無変更の
+   * まま動作し続ける（`manipulationCommitted && !placementControls`だけでは、
+   * 「Placement Collision Candidate経路を持つ呼び出し元のpropagation待ち」と
+   * 「そもそもこの経路を持たない呼び出し元」を区別できないため、明示的なopt-inとして
+   * 新設した）。
+   *
+   * `SimulationMode.tsx`のPlacement flow（D-4 Investigation対象、Requirement 4適用対象）
+   * からは`true`で呼ぶ。
+   */
+  enforcePlacementCollisionGate?: boolean;
 }
 
-export function ControlPad({ manipulationCommitted = true, transportControls }: ControlPadProps = {}) {
+export function ControlPad({
+  manipulationCommitted = true, transportControls, placementControls,
+  enforcePlacementCollisionGate = false,
+}: ControlPadProps = {}) {
   const [expanded, setExpanded] = useState(false);
 
   const translate = (axis: 'x' | 'y' | 'z', sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
     const deltaMm = sign * moveStepMm(info.fast, info.fine);
     if (!manipulationCommitted && transportControls) {
       transportControls.translate(axis, deltaMm);
+    } else if (manipulationCommitted && placementControls) {
+      placementControls.translate(axis, deltaMm);
+    } else if (manipulationCommitted && enforcePlacementCollisionGate) {
+      // [D-4 Post-Implementation Review Finding 2、Architect Decision Section 23]
+      // Placement段階でplacementControlsが未接続の間はno-opとする（Collision Candidate
+      // 評価を経由しないstore直接書き込みを禁止する、Requirement 4）。
+      // enforcePlacementCollisionGate=falseの呼び出し元（StepFlowMode.tsx等、D-4 Scope外）
+      // には適用しない——下のelse節（既存fallback）が引き続き使われる。
     } else {
       useSimStore.getState().translateSelectedObject(axis, deltaMm);
     }
@@ -78,14 +118,29 @@ export function ControlPad({ manipulationCommitted = true, transportControls }: 
     const deltaDeg = sign * rotateStepDeg(info.fast, info.fine);
     if (!manipulationCommitted && transportControls) {
       transportControls.rotate(axis, deltaDeg);
+    } else if (manipulationCommitted && placementControls) {
+      placementControls.rotate(axis, deltaDeg);
+    } else if (manipulationCommitted && enforcePlacementCollisionGate) {
+      // [D-4 Post-Implementation Review Finding 2] translateと同じno-op（上記コメント参照）。
     } else {
       useSimStore.getState().rotateSelectedObject(axis, deltaDeg);
     }
   };
   // Phase1-B Step4: shaft roll（interactionShaftRollDeg、PlacementStateの外側）。
   // 既存のROTATION_STEP_DEG/FINE/FAST定数をそのまま再利用する。
+  // [D-4] Placement段階かつplacementControls利用可能時はCollision Candidate評価を経由する
+  // （Requirement 4、従来Shaft RollはCollision評価を一切経由していなかった）。
+  // [D-4 Post-Implementation Review Finding 2] translate/rotateと同じ規約
+  // （enforcePlacementCollisionGate=true時のみno-op、false時は既存store直接呼び出しを維持）。
   const rotateShaftRoll = (sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
-    useSimStore.getState().rotateShaftRoll(sign * rotateStepDeg(info.fast, info.fine));
+    const deltaDeg = sign * rotateStepDeg(info.fast, info.fine);
+    if (manipulationCommitted && placementControls) {
+      placementControls.rotateShaftRoll(deltaDeg);
+    } else if (manipulationCommitted && enforcePlacementCollisionGate) {
+      // no-op（translate/rotateと同じ理由、上記コメント参照）。
+    } else {
+      useSimStore.getState().rotateShaftRoll(deltaDeg);
+    }
   };
 
   // 折りたたみ時: 小さな展開チップのみ表示（3Dビューを塞がない）

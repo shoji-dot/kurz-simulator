@@ -1788,8 +1788,15 @@ export function ProsthesisModel({
   const mid = pose.position;
   const len = shaftLength;
 
-  const headOff  = len / 2 + 0.15;
-  const footOff  = -(len / 2);
+  // [R4 Geometry Migration、Architect Approved] Group origin(pose.position)がR1(shaft
+  // midpoint)からR4(resolveCanonicalPose()の出力、Anatomical/Foot Contact Anchor)へ変わった
+  // ことに伴う原点平行移動(+shaftLength/2)。footOff/headOffの相対距離(shaftLength+0.15)は
+  // 不変——新しいGeometryではなく、既存のFoot⇄Head相対配置をAnchor-origin基準へ
+  // 並進しただけ(shaftLength定義: docs/P2_Measurement_Definition_v1.0.md Layer4
+  // 「anchor〜Head Plate側」、+0.15の意味: Head Plate mesh assetのlocal originとshaft
+  // geometric topとのalignment offset、いずれも無変更)。
+  const headOff  = len + 0.15;
+  const footOff  = 0;
 
   // Phase1-B Step5: shaft roll はここでのみ合成する（pose自体・computeProsthesisModelPose()は
   // 無変更）。local +Y（shaft軸）まわりのpost-multiply。0/未指定時はpose.quaternionをそのまま使う。
@@ -1879,7 +1886,14 @@ export function ProsthesisModel({
         const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM)
                         : isFlat ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
                         : len;
-        const shaftY   = isBell ? BELL_HEIGHT_MM / 2
+        // [R4 Geometry Migration Shaft Fix、Architect Decision承認: docs/D4_Shaft_Geometry_R4_
+        // Migration_Architect_Decision_v1.0.md] isBell分岐のみ、shaftMidYの一般式
+        // footOff + BELL_HEIGHT_MM + shaftLen/2（P2_Measurement_Definition_v1.0.mdの
+        // 「anchor〜Bell apex=BELL_HEIGHT_MM」+「Bell apex〜Head Plate側=shaftLen」から導出、
+        // footOffを明示参照することで将来のorigin変更にも追従する）へ更新。footOff=0（R4）代入で
+        // BELL_HEIGHT_MM/2+len/2と数値的に一致。isFlat分岐は本Fixのスコープ外（Collision Proxy側が
+        // 現状BELL専用のため対応するズレが存在しない、Decision 2節）、変更しない。
+        const shaftY   = isBell ? footOff + BELL_HEIGHT_MM + shaftLen / 2
                         : isFlat ? FLAT_CEILING_Y_MM / 2
                         : 0;
         return (
@@ -1909,6 +1923,7 @@ export function IdealGhostProsthesis({
   idealLateralOffset = 0,
   idealAngle         = 0,
   basePos,
+  poseOverride,
 }: {
   product:             KurzProduct;
   length:              number;
@@ -1919,6 +1934,12 @@ export function IdealGhostProsthesis({
    *  (STAPES_HEAD/STAPES_FOOTPLATE)にフォールバックする(下のProsthesisModel既定ロジック)。
    *  SimScene.tsxはstapes状態を考慮した実際のbasePosを渡すため、これを省略せず渡すこと。 */
   basePos?:            THREE.Vector3;
+  /** [D-2 Migration、Decision 8] 指定時、下のProsthesisModelがcomputeProsthesisModelPose()
+   *  (R1、既定fallback)の代わりにこのposition/quaternionをそのまま使う。呼び出し元が
+   *  Canonical Pose Generator(R4、resolveCanonicalPose())で計算した値を渡すことを想定した、
+   *  ProsthesisModel既存のposeOverride機構(P4B-3由来)をそのまま貫通させるだけの受け口。
+   *  未指定時は従来通りcomputeProsthesisModelPose()を使う(既存呼び出し元は無変更で動く)。 */
+  poseOverride?:       { position: THREE.Vector3; quaternion: THREE.Quaternion };
 }) {
   return (
     <ProsthesisModel
@@ -1929,6 +1950,7 @@ export function IdealGhostProsthesis({
       lateralOffset={idealLateralOffset}
       angleTilt={idealAngle}
       ghost={true}
+      poseOverride={poseOverride}
     />
   );
 }

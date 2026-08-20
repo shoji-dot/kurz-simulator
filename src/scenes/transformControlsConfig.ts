@@ -52,3 +52,15 @@ export const RELEASE_INTERP_DURATION_MS = 200;
 // DraggableProsthesisのCollision Constraint（useFrame補正）が完全に無効化され、Phase C-2
 // 導入前の挙動（dragGroupRefがCollision Testを一切経由しない）に即座に戻せる。
 export const COLLISION_CONSTRAINT_ENABLED = true;
+
+// [D-4 Rotation R4、Decision 3 = PENDING REAL-DEVICE CONFIRMATION、Implementation Specification
+// Section 6.1] resolveCanonicalPose()（scenes/canonicalPose.ts）がangleTilt/angleTiltZをRx/Rzへ
+// 渡す直前に乗算する符号定数。数式・軸マッピング自体（座標系=coordGroupRef-local、
+// angleTilt=X軸/angleTiltZ=Z軸、合成順序=Rx*Rz*BaseAlignment）はCONFIRMED済みだが、実機での
+// 見た目の正負方向はまだ未確認（実機がdocument.hidden=trueの環境制約により検証できていない）。
+// 初期値は符号反転なし（1）。実機確認の結果、向きが逆であればこの定数のみを-1へ反転すればよい
+// （ROTATE_DEG_PER_PIXEL_TILT等と同じ「実機確認時に反転可能な最小定数」パターン）。
+// PlacementStateのangleTilt/angleTiltZ自体の値・保存形式・D-2 Migrationには影響しない
+// （表示直前の最終段のみに作用する）。
+export const ANGLE_TILT_SIGN: 1 | -1 = 1;
+export const ANGLE_TILT_Z_SIGN: 1 | -1 = 1;

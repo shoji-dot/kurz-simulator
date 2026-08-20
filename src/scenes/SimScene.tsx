@@ -60,9 +60,16 @@ import { poseToThree } from './debug/poseThreeAdapter';
 import { comparePoses, angleToVectorDeg } from './debug/poseCompareStats';
 import type { Vec3Tuple } from '../engine/coordinates/types';
 import { TRANSLATION_SNAP_MM, KEYBOARD_STEP_MM, KEYBOARD_STEP_CTRL_MM, ROTATION_STEP_DEG, ROTATION_STEP_FINE_DEG, DIRECT_MANIPULATION_UX, COLLISION_CONSTRAINT_ENABLED, RELEASE_INTERP_DURATION_MS } from './transformControlsConfig';
-import { useAnatomyCollisionIndex, type AnatomyCollisionKey } from '../engine/collision/anatomyCollisionIndex';
+import { useAnatomyCollisionIndex, type AnatomyCollisionKey, type AnatomyCollisionIndex } from '../engine/collision/anatomyCollisionIndex';
 import { buildProsthesisCollisionProxy, FOOT_CONTACT_TOLERANCE_MM } from '../engine/collision/prosthesisCollisionGeometry';
 import { testCollision } from '../engine/collision/collisionTest';
+import {
+  resolveCanonicalPose,
+  computeBaseAlignmentQuaternion,
+  type CanonicalPoseCommittedInputs,
+  type CanonicalPoseCandidateDelta,
+  type PlacementControls,
+} from './canonicalPose';
 import {
   TransportProsthesis,
   DirectTransportProsthesis,
@@ -351,6 +358,16 @@ interface SimSceneProps {
    */
   onTransportControlsReady?: (controls: TransportControls | null) => void;
   /**
+   * [D-4、Implementation Specification Section 11 Requirement 4] SimSceneがPlacement段階の
+   * Position/Rotate/Shaft Roll操作用コールバック（Collision Candidate評価を経由する、
+   * DraggableProsthesis内部のPlacementControlsをそのまま転送するだけの薄いラッパー）を
+   * 生成した際に親（SimulationMode.tsx）へ公開する。onTransportControlsReadyと同じ契約
+   * （マウント時/更新時に呼ばれ、アンマウント時・manipulation.committed=false時はnullで
+   * 呼ばれる）。ControlPad（sibling）がPlacement段階でもCollision Constraintを迂回せずに
+   * Translation/Rotate/Shaft Rollを実行できるようにするための経路。
+   */
+  onPlacementControlsReady?: (controls: PlacementControls | null) => void;
+  /**
    * [TEST-ONLY, 一時] Phase C-2実機検証（Architect依頼2026-08-14、Collision Boundary Warp）。
    * ボタン押下のたびにインクリメントされる値を渡すと、「側頭骨の外側・Collision発生直前
    * （まだ非衝突）」のlateralOffsetを二分探索で求めてPlacementStateへ書き込み、
@@ -616,6 +633,23 @@ interface DraggableProsthesisProps {
    * 未指定時はCollision Constraintを評価しない（anatomyRootRefと同じ安全側フォールバック）。
    */
   coordGroupRef?: RefObject<THREE.Group | null>;
+  /**
+   * [D-4、Implementation Specification Section 3] Placement Commit時に一度だけ確定する
+   * Base Alignment Quaternion。SimScene側で`manipulation.committed`の遷移に同期して保持する
+   * （所有者はSimScene、Section 3.3）。nullはBase Alignment未確定（Transport中、または
+   * Commit直後で計算前）を表す——DraggableProsthesis自体はmanipulation.committed===trueの
+   * ときのみ描画されるため、通常のレンダーパスでnullになることは想定しないが、念のため
+   * 呼び出し側（evaluateDragCandidate等）は安全側フォールバック（制約なし=true）で扱う。
+   */
+  baseAlignmentQuaternion?: THREE.Quaternion | null;
+  /**
+   * [D-4、Implementation Specification Section 11] ControlPad（SimSceneの兄弟コンポーネント）が
+   * Placement段階のTranslation/Rotate/Shaft RollをCollision Candidate評価経由で実行できるよう、
+   * このコンポーネント内部の判定済み関数を親（SimScene）経由で公開する。マウント時に1回、
+   * 関連する値が変化するたびに再呼び出しされ、アンマウント時にnullで呼ばれる
+   * （onTransportControlsReadyと同じ契約）。
+   */
+  onPlacementControlsReady?: (controls: PlacementControls | null) => void;
 }
 
 function DraggableProsthesis({
@@ -630,6 +664,8 @@ function DraggableProsthesis({
   onDragActiveChange,
   anatomyRootRef,
   coordGroupRef,
+  baseAlignmentQuaternion = null,
+  onPlacementControlsReady,
 }: DraggableProsthesisProps) {
   const tcRef = useRef<any>(null);
   const dragGroupRef = useRef<THREE.Group>(null);
@@ -810,35 +846,47 @@ function DraggableProsthesis({
   // Placement Drag側にも存在すると判明）。そのためRelease時にも同じ判定をもう一度行う。
   // D-4: useCallbackで安定化（evaluateRotationCandidateと同じ理由）。下部のキーボードuseEffectの
   // 依存配列にCamera-relative Depth用としてこの関数自体を追加するため、素の閉包のままだと
-  // eslint(react-hooks/exhaustive-deps)警告が出る。関数の中身・呼び出し引数（dragLocalDelta）・
-  // 戻り値の意味は一切変更していない（Collision Constraint仕様は無変更）。
+  // eslint(react-hooks/exhaustive-deps)警告が出る。
+  // [D-4、Implementation Specification Section 11.2] 内部実装をcomposeDragCandidatePose()から
+  // resolveCanonicalPose()（Canonical Pose Generator、Rendering/Collision Candidate共通のSingle
+  // Source of Truth、canonicalPose.ts）へ置き換えた。呼び出し引数（dragLocalDelta）・戻り値の
+  // 意味・Collision Constraint判定ロジック自体（testCollision/buildProsthesisCollisionProxy）は
+  // 無変更。旧実装が省略していたdragOffsetX/Y/Z（D4-B Integrity Auditで確認された既存offset
+  // 欠落）は、resolveCanonicalPose()のcommitted引数が常にフルセットを要求する設計そのものにより
+  // 構造的に解消される（Implementation Specification Section 12 INVARIANT表）。
   const evaluateDragCandidate = useCallback((dragLocalDelta: THREE.Vector3): boolean => {
     const anatomyRoot = anatomyRootRef?.current;
     const coordGroup = coordGroupRef?.current;
     if (!anatomyRoot || !coordGroup) {
-      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック）
+      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック、変更なし）
+    }
+    // [D-4 Post-Implementation Review Finding 1、Architect Decision Section 23 Decision 10]
+    // DraggableProsthesis自体はmanipulation.committed===trueのときのみマウントされるため、
+    // ここでbaseAlignmentQuaternionがnullなのは「Placement確定中のBase Alignment未確定」
+    // というinvariant違反（Decision 10によりUI構造上到達しないはずの状態）を意味する。
+    // MUST NOT: このnullを「制約なし」として扱わない（旧実装のfail-open）。
+    // MUST: fail-closed（候補を常に拒否）とする——staleな値へ戻す・その場で新しいBase
+    // Alignmentを再snapshotする、のいずれも行わない（Decision 10で明示的に不採用）。
+    if (!baseAlignmentQuaternion) {
+      return false;
     }
     // updateWorldMatrix(true, false)はparent chain（coordGroupRef含む）のmatrixWorldも
     // 同時に更新するため、coordGroup.matrixWorldを読む前にここで1回呼んでおく
     // （Phase C-3 STEP3 Ground Truth Investigation確定: 2回に分けて呼ぶと祖先側が
     // 一フレーム古い値のまま読まれる可能性がある）。
     anatomyRoot.updateWorldMatrix(true, false);
-    const candidatePose = composeDragCandidatePose({
+    const committed: CanonicalPoseCommittedInputs = {
       product, shaftLength: selectedLength, basePos,
-      lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
-      shaftRollDeg, dragLocalDelta,
-    });
-    const proxy = buildProsthesisCollisionProxy({
-      product, shaftLength: selectedLength,
-      position: candidatePose.position, quaternion: candidatePose.quaternion,
-      ancestorMatrix: coordGroup.matrixWorld,
-    });
+      lateralOffset, anteriorOffset, verticalOffset,
+      dragOffsetX, dragOffsetY, dragOffsetZ,
+      angleTilt, angleTiltZ, shaftRollDeg, baseAlignmentQuaternion,
+    };
+    const candidate: CanonicalPoseCandidateDelta = { kind: 'translate', localDelta: dragLocalDelta };
+    const { result, proxy } = testCanonicalCandidate(committed, candidate, coordGroup, anatomyIndex, anatomyRoot.matrixWorld);
 
     if (!proxy) {
       return true; // 未対応製品時は制約なし（安全側フォールバック）
     }
-
-    const result = testCollision(proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyRoot.matrixWorld);
 
     // [C3-P0-1-VERIFY, 一時] Phase B実装後の実機再診断（Architect依頼2026-08-15）。
     if (!p01VerifyLoggedAncestorsRef.current) {
@@ -850,8 +898,6 @@ function DraggableProsthesis({
     }
     console.log('[C3-P0-1-VERIFY][evaluateDragCandidate]', {
       dragLocalDelta: dragLocalDelta.toArray().map((v) => Number(v.toFixed(4))),
-      candidatePosition: candidatePose.position.toArray().map((v) => Number(v.toFixed(4))),
-      candidateQuaternion: candidatePose.quaternion.toArray().map((v) => Number(v.toFixed(6))),
       sphereCenters: proxy.spheres.map((s) => s.center.toArray().map((v) => Number(v.toFixed(4)))),
       boxMatrices: proxy.boxes.map((b) => b.matrix.toArray().map((v) => Number(v.toFixed(4)))),
       collided: result.collided,
@@ -861,17 +907,19 @@ function DraggableProsthesis({
     return !result.collided;
   }, [
     product, selectedLength, basePos,
-    lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
-    shaftRollDeg, anatomyIndex, anatomyRootRef, coordGroupRef,
+    lateralOffset, anteriorOffset, verticalOffset,
+    dragOffsetX, dragOffsetY, dragOffsetZ, angleTilt, angleTiltZ,
+    shaftRollDeg, baseAlignmentQuaternion, anatomyIndex, anatomyRootRef, coordGroupRef,
   ]);
 
   // Phase C-3（Rotation Collision Constraint）: Shift+矢印キーによるangleTilt/angleTiltZの
   // 離散ステップ候補がCollision-freeかを判定する。evaluateDragCandidateと同じCollision Engine
   // （buildProsthesisCollisionProxy/testCollision/anatomyIndex/anatomyRootRef/
-  // DRAG_COLLISION_TARGETS）を再利用し、判定ロジック自体は複製しない。dragOffsetX/Y/Zを
-  // lateral/vertical/anteriorへ加算するのは、Translation Dragが確定済みの状態でRotationしても
-  // 実際に描画されているPivotとCandidate Poseがズレないようにするため（composeDragCandidatePose
-  // とは異なりdragLocalDelta項を持たない＝ドラッグ中ではなく静止状態のRotation専用）。
+  // DRAG_COLLISION_TARGETS）を再利用し、判定ロジック自体は複製しない。
+  // [D-4、Implementation Specification Section 11.2] 内部実装をcomposeRotationCandidatePose()から
+  // resolveCanonicalPose()へ置き換えた。dragOffsetX/Y/Zをcommitted引数として渡す意味
+  // （Translation Dragが確定済みの状態でRotationしても実際に描画されているPivotとCandidate Pose
+  // がズレないようにするため）は無変更。
   // useCallbackで安定化する理由: 下部のキーボードuseEffectはisMoveのみを依存配列に持つ既存
   // パターンのため、この関数を素の閉包のまま依存配列に含めるとeslint(react-hooks/
   // exhaustive-deps)が「毎レンダー変わる関数」警告を出す。実際の必要動作（angleTilt等の
@@ -880,35 +928,33 @@ function DraggableProsthesis({
     const anatomyRoot = anatomyRootRef?.current;
     const coordGroup = coordGroupRef?.current;
     if (!anatomyRoot || !coordGroup) {
-      return true; // 未対応製品/ref未指定時は制約なし（evaluateDragCandidateと同じ安全側フォールバック）
+      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック、変更なし）
+    }
+    // [D-4 Post-Implementation Review Finding 1、Architect Decision Section 23 Decision 10]
+    // evaluateDragCandidateと同じinvariant違反判定（コメント参照）。fail-closedとする。
+    if (!baseAlignmentQuaternion) {
+      return false;
     }
     anatomyRoot.updateWorldMatrix(true, false);
-    const candidatePose = composeRotationCandidatePose({
+    const committed: CanonicalPoseCommittedInputs = {
       product, shaftLength: selectedLength, basePos,
       lateralOffset, anteriorOffset, verticalOffset,
       dragOffsetX, dragOffsetY, dragOffsetZ,
-      shaftRollDeg,
-      candidateAngleTilt: axis === 'tilt' ? candidateAngle : angleTilt,
-      candidateAngleTiltZ: axis === 'tiltZ' ? candidateAngle : angleTiltZ,
-    });
-    const proxy = buildProsthesisCollisionProxy({
-      product, shaftLength: selectedLength,
-      position: candidatePose.position, quaternion: candidatePose.quaternion,
-      ancestorMatrix: coordGroup.matrixWorld,
-    });
-
-    if (!proxy) {
-      return true; // 未対応製品時は制約なし（evaluateDragCandidateと同じ安全側フォールバック）
-    }
-
+      angleTilt, angleTiltZ, shaftRollDeg, baseAlignmentQuaternion,
+    };
+    const candidate: CanonicalPoseCandidateDelta = { kind: 'rotate', axis, candidateAngle };
     // [Foot-specific Contact Tolerance、Architect承認2026-08-15] evaluateRotationCandidate
     // （Rotate Mode/Keyboard/Boundary Warp共通）にのみFOOT_CONTACT_TOLERANCE_MMを渡す。
     // evaluateDragCandidate（C-2、Freeze維持）はこの引数を渡さず、従来通りの二値判定のまま
     // 変更しない——今回の問題（Rotate Modeが常にCollisionでブロックされる）に対して最小変更で
     // 対応するため、C-2で既にPASS/Freeze済みのDrag側の挙動には一切触れない。
-    const result = testCollision(
-      proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyRoot.matrixWorld, FOOT_CONTACT_TOLERANCE_MM,
+    const { result, proxy } = testCanonicalCandidate(
+      committed, candidate, coordGroup, anatomyIndex, anatomyRoot.matrixWorld, FOOT_CONTACT_TOLERANCE_MM,
     );
+
+    if (!proxy) {
+      return true; // 未対応製品時は制約なし（evaluateDragCandidateと同じ安全側フォールバック）
+    }
 
     return !result.collided;
   }, [
@@ -916,8 +962,98 @@ function DraggableProsthesis({
     lateralOffset, anteriorOffset, verticalOffset,
     dragOffsetX, dragOffsetY, dragOffsetZ,
     shaftRollDeg, angleTilt, angleTiltZ,
-    anatomyIndex, anatomyRootRef, coordGroupRef,
+    baseAlignmentQuaternion, anatomyIndex, anatomyRootRef, coordGroupRef,
   ]);
+
+  // [D-4、Implementation Specification Section 11 Requirement 4] Shaft RollのCollision Candidate
+  // 評価。既存evaluateDragCandidate/evaluateRotationCandidateと同じCollision Engineを再利用し、
+  // 新しい判定ロジックは追加しない。従来Shaft RollはCollision評価を一切経由していなかった
+  // （D4-B Integrity Auditで確認済みの既存欠落、今回新規に接続する）。evaluateRotationCandidateと
+  // 同じFoot Contact Toleranceを適用する（回転系操作としての扱いを揃える）。
+  const evaluateShaftRollCandidate = useCallback((candidateAngle: number): boolean => {
+    const anatomyRoot = anatomyRootRef?.current;
+    const coordGroup = coordGroupRef?.current;
+    if (!anatomyRoot || !coordGroup) {
+      return true; // 未対応製品/ref未指定時は制約なし（安全側フォールバック、変更なし）
+    }
+    // [D-4 Post-Implementation Review Finding 1、Architect Decision Section 23 Decision 10]
+    // evaluateDragCandidateと同じinvariant違反判定（コメント参照）。fail-closedとする。
+    if (!baseAlignmentQuaternion) {
+      return false;
+    }
+    anatomyRoot.updateWorldMatrix(true, false);
+    const committed: CanonicalPoseCommittedInputs = {
+      product, shaftLength: selectedLength, basePos,
+      lateralOffset, anteriorOffset, verticalOffset,
+      dragOffsetX, dragOffsetY, dragOffsetZ,
+      angleTilt, angleTiltZ, shaftRollDeg, baseAlignmentQuaternion,
+    };
+    const candidate: CanonicalPoseCandidateDelta = { kind: 'shaftRoll', candidateAngle };
+    const { result, proxy } = testCanonicalCandidate(
+      committed, candidate, coordGroup, anatomyIndex, anatomyRoot.matrixWorld, FOOT_CONTACT_TOLERANCE_MM,
+    );
+
+    if (!proxy) {
+      return true;
+    }
+
+    return !result.collided;
+  }, [
+    product, selectedLength, basePos,
+    lateralOffset, anteriorOffset, verticalOffset,
+    dragOffsetX, dragOffsetY, dragOffsetZ,
+    shaftRollDeg, angleTilt, angleTiltZ,
+    baseAlignmentQuaternion, anatomyIndex, anatomyRootRef, coordGroupRef,
+  ]);
+
+  // [D-4、Implementation Specification Section 11 Requirement 4] ControlPad（SimSceneの兄弟
+  // コンポーネント、SimulationMode.tsx）がPlacement段階のTranslation/Rotate/Shaft Rollを
+  // Collision Candidate評価を経由して実行できるようにする橋渡し。既存のTransportControls
+  // （ManipulationLayer.tsx、Transport段階向けの同種の橋渡し）と同じパターンを踏襲する。
+  // Arrow-key（下部のキーボードuseEffect）と全く同じ「候補を評価→PASSならtranslateSelectedObject/
+  // rotateSelectedObject/rotateShaftRollを呼ぶ」経路を共有する（新しい書き込み経路は追加しない）。
+  const placementTranslate = useCallback((axis: 'x' | 'y' | 'z', deltaMm: number) => {
+    const localDelta = new THREE.Vector3();
+    localDelta[axis] = deltaMm;
+    const passed = !COLLISION_CONSTRAINT_ENABLED || evaluateDragCandidate(localDelta);
+    if (passed) {
+      useSimStore.getState().translateSelectedObject(axis, deltaMm);
+    } else {
+      // Arrow Translationと同じ「衝突で書き込みをスキップした場合も、ユーザーは位置調整を
+      // 試みた事実に変わりない」原則（既存のKeyboard/Mouse Rotationのmarkタグ付け方針を踏襲）。
+      // translateSelectedObject()はPASS時のみ呼ばれるため、その内部で行われるmarkPositionTouched
+      // 相当の記録がFAIL時は起きない。ここで明示的に呼び、両分岐で確実に記録する。
+      useSimStore.getState().markPositionTouched();
+    }
+  }, [evaluateDragCandidate]);
+
+  const placementRotate = useCallback((axis: 'tilt' | 'tiltZ', deltaDeg: number) => {
+    const { placement } = useSimStore.getState();
+    const currentAngle = axis === 'tilt' ? placement.angleTilt : placement.angleTiltZ;
+    const candidateAngle = clampAngleDeg(currentAngle + deltaDeg);
+    if (!COLLISION_CONSTRAINT_ENABLED || evaluateRotationCandidate(axis, candidateAngle)) {
+      useSimStore.getState().updatePlacement({ [axis === 'tilt' ? 'angleTilt' : 'angleTiltZ']: candidateAngle });
+    }
+    useSimStore.getState().markAngleTouched();
+  }, [evaluateRotationCandidate]);
+
+  const placementRotateShaftRoll = useCallback((deltaDeg: number) => {
+    const currentAngle = useSimStore.getState().interactionShaftRollDeg;
+    const candidateAngle = clampAngleDeg(currentAngle + deltaDeg);
+    if (!COLLISION_CONSTRAINT_ENABLED || evaluateShaftRollCandidate(candidateAngle)) {
+      useSimStore.getState().rotateShaftRoll(deltaDeg);
+    }
+  }, [evaluateShaftRollCandidate]);
+
+  useEffect(() => {
+    const controls: PlacementControls = {
+      translate: placementTranslate,
+      rotate: placementRotate,
+      rotateShaftRoll: placementRotateShaftRoll,
+    };
+    onPlacementControlsReady?.(controls);
+    return () => onPlacementControlsReady?.(null);
+  }, [placementTranslate, placementRotate, placementRotateShaftRoll, onPlacementControlsReady]);
 
   // Phase1-B Step3: Placement済みプロステーシスの直接クリック→ドラッグ。ドラッグ終了時、
   // 既存DraggableProsthesis.handleMouseUpと同じ意味論・同じ±3mmクランプでdragOffsetX/Y/Zへ
@@ -1174,8 +1310,25 @@ function DraggableProsthesis({
         // 角度調整を試みた事実に変わりないため、両分岐で確実に呼ぶ。
         useSimStore.getState().markAngleTouched();
       } else {
+        // [D-4、Implementation Specification Section 11.1] Arrow Translation（Shiftなし）は
+        // 従来translateSelectedObject()を直接呼びCollision Candidate評価を一切経由していなかった
+        // （D4-B Runtime Verification 4.1節で確認済みのbypass）。Shift+矢印キー（Rotate、上記）と
+        // 同じ経路——先にevaluateDragCandidate()で判定し、PASSした場合のみtranslateSelectedObject()
+        // を呼ぶ——へ接続する。translateSelectedObject()自体のシグネチャ・クランプ・書き込み先は
+        // 無変更（Requirement 4、Section 18 MUST NOT CHANGE）。
         const moveStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
-        useSimStore.getState().translateSelectedObject(axis, sign * moveStep);
+        const deltaMm = sign * moveStep;
+        const localDelta = new THREE.Vector3();
+        localDelta[axis] = deltaMm;
+        if (!COLLISION_CONSTRAINT_ENABLED || evaluateDragCandidate(localDelta)) {
+          useSimStore.getState().translateSelectedObject(axis, deltaMm);
+        } else {
+          // Rotate/Depthと同じ「衝突で書き込みをスキップした場合も、ユーザーは位置調整を試みた
+          // 事実に変わりない」原則（上記コメント参照）。translateSelectedObject()はPASS時のみ
+          // 呼ばれるため、その内部のmarkPositionTouchedはFAIL時は発火しない。ここで明示的に
+          // 呼び、両分岐で確実に記録する。
+          useSimStore.getState().markPositionTouched();
+        }
       }
     };
     // [D-4 Option①] PageUp/PageDownのkeyupでDepth Sessionを終了する（押しっぱなしを離した
@@ -1352,6 +1505,32 @@ function DraggableProsthesis({
         }
       : undefined;
 
+  // [D-4、Implementation Specification Section 4.4 MUST] Rendering（候補評価なし）はresolveCanonicalPose
+  // (committed) をcandidate省略で呼ぶ（INVARIANT 1）。depthPoseOverride/releaseInterp（D-4 Option①/②、
+  // Freeze/Slerp、Section 14でVerification完了後に削除予定）とP4B-3 Debug Feature Flag（poseOverride
+  // prop）はどちらも既存のまま維持し、優先度（poseOverride > depthPoseOverride > canonicalPoseOverride）
+  // も変更しない。baseAlignmentQuaternion未確定（理論上到達しない、Section 3.3）の間はundefinedを返し
+  // ProsthesisModel自身のcomputeProsthesisModelPose()フォールバックへ委ねる（安全側）。
+  const canonicalPoseOverride = useMemo(() => {
+    if (!baseAlignmentQuaternion) return undefined;
+    return resolveCanonicalPose({
+      product, shaftLength: selectedLength, basePos,
+      lateralOffset, anteriorOffset, verticalOffset,
+      dragOffsetX, dragOffsetY, dragOffsetZ,
+      angleTilt, angleTiltZ, shaftRollDeg, baseAlignmentQuaternion,
+    });
+  }, [
+    product, selectedLength, basePos, lateralOffset, anteriorOffset, verticalOffset,
+    dragOffsetX, dragOffsetY, dragOffsetZ, angleTilt, angleTiltZ, shaftRollDeg, baseAlignmentQuaternion,
+  ]);
+  // resolveCanonicalPose()の戻り値はSection 2.2の式通りRoll(shaftRollDeg)を既に含むため、
+  // ProsthesisModel側のshaftRollDeg prop（quaternionへのpost-multiply、ProsthesisModels.tsx:
+  // 1796-1800）を重ねて適用すると二重ロールになる。poseOverride/depthPoseOverride（どちらもRoll
+  // 未適用のまま、ProsthesisModel側が別途shaftRollDegを乗算する既存の呼び出し規約）が使われている
+  // 間はshaftRollDegをそのまま渡し、canonicalPoseOverrideが実際に使われる場合のみ0にする。
+  const activePoseOverride = poseOverride ?? depthPoseOverride ?? canonicalPoseOverride;
+  const activeShaftRollDeg = (poseOverride ?? depthPoseOverride) ? shaftRollDeg : 0;
+
   return (
     <TransformControls
       ref={tcRef}
@@ -1393,9 +1572,9 @@ function DraggableProsthesis({
           anteriorOffset={anteriorOffset + dragOffsetZ}
           angleTilt={angleTilt}
           angleTiltZ={angleTiltZ}
-          poseOverride={poseOverride ?? depthPoseOverride}
+          poseOverride={activePoseOverride}
           interactionHitTarget={directManipulation}
-          shaftRollDeg={shaftRollDeg}
+          shaftRollDeg={activeShaftRollDeg}
         />
       </group>
     </TransformControls>
@@ -1429,80 +1608,34 @@ const ROTATE_DEG_PER_PIXEL_TILT = -0.3;
 const DRAG_COLLISION_TARGETS: AnatomyCollisionKey[] = ['bone'];
 
 /**
- * composeDragCandidatePose(): Placement Drag中のCandidate World Poseを計算する。
- * 「committed placement（store確定値、computeProsthesisModelPose()）+ dragGroupRefのraw local
- * delta（useScreenSpaceDrag.handleMoveが書き込む、まだstore未反映）」を合成する
- * （Architect指示: computeProsthesisModelPose()の生の戻り値ではなく、この合成後の値が
- * Candidate Poseである）。shaftRollDegの後乗せもProsthesisModels.tsx:1796-1800と同じ式を
- * ここで再現する（Frozen対象のcomputeProsthesisModelPose自体は無変更、値だけ再利用）。
+ * [D-4、Implementation Specification Section 11.2] testCanonicalCandidate(): 与えられた
+ * Canonical Pose Candidate（resolveCanonicalPose()、Rendering/Collision Candidate共通の
+ * Single Source of Truth）をCollision Proxy化し、testCollision()で判定する共通ヘルパー。
+ * composeDragCandidatePose()/composeRotationCandidatePose()（D4-B Integrity Auditで
+ * dragOffsetX/Y/Z欠落が確認された旧・独自近似式）の呼び出し元を置き換える
+ * （Decision 7、以後いかなるコードパスからも旧2関数を呼び出さない）。
+ * evaluateDragCandidate/evaluateRotationCandidate/evaluateShaftRollCandidateの3箇所が
+ * このヘルパーを共有する（Collision Proxy構築・testCollision呼び出し自体は複製しない）。
  */
-function composeDragCandidatePose(params: {
-  product: KurzProduct;
-  shaftLength: number;
-  basePos: THREE.Vector3;
-  lateralOffset: number;
-  anteriorOffset: number;
-  verticalOffset: number;
-  angleTilt: number;
-  angleTiltZ: number;
-  shaftRollDeg: number;
-  /** dragGroupRef.position（ドラッグ中のraw local delta、未確定値）。 */
-  dragLocalDelta: THREE.Vector3;
-}): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
-  const committed = computeProsthesisModelPose({
-    product: params.product, shaftLength: params.shaftLength, basePos: params.basePos,
-    lateralOffset: params.lateralOffset, anteriorOffset: params.anteriorOffset, verticalOffset: params.verticalOffset,
-    angleTilt: params.angleTilt, angleTiltZ: params.angleTiltZ,
+function testCanonicalCandidate(
+  committed: CanonicalPoseCommittedInputs,
+  candidate: CanonicalPoseCandidateDelta,
+  coordGroup: THREE.Object3D,
+  anatomyIndex: AnatomyCollisionIndex,
+  anatomyWorldMatrix: THREE.Matrix4,
+  footContactToleranceMm?: number,
+) {
+  const candidatePose = resolveCanonicalPose(committed, candidate);
+  const proxy = buildProsthesisCollisionProxy({
+    product: committed.product, shaftLength: committed.shaftLength,
+    position: candidatePose.position, quaternion: candidatePose.quaternion,
+    ancestorMatrix: coordGroup.matrixWorld,
   });
-  const position = committed.position.clone().add(params.dragLocalDelta);
-  const quaternion = params.shaftRollDeg
-    ? committed.quaternion.clone().multiply(
-        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (params.shaftRollDeg * Math.PI) / 180),
-      )
-    : committed.quaternion;
-  return { position, quaternion };
-}
-
-/**
- * composeRotationCandidatePose(): Rotation Candidate（Shift+矢印キー、angleTilt/angleTiltZの
- * 離散ステップ）のWorld Poseを計算する。composeDragCandidatePose（Placement Drag、dragLocalDelta
- * を後乗せする「まだstore未確定のドラッグ中raw値」用）とは異なり、Rotationはドラッグ中の
- * ジェスチャーではなく静止状態からの離散キー操作のため、dragLocalDelta相当の項は存在しない。
- * 代わりにdragOffsetX/Y/Z（既にstoreへ確定済みのTranslation Drag結果）をlateral/vertical/
- * anteriorへ加算する。理由: Translation Dragが確定済みの状態でRotationしても、実際に
- * 描画されているPivot（ProsthesisModelはlateralOffset+dragOffsetX等で描画される）と
- * Candidate Poseがズレないようにするため（Phase C-3 Architecture Review③）。shaftRollDeg
- * 後乗せの式はcomposeDragCandidatePoseと同一（Frozen対象のcomputeProsthesisModelPose自体は
- * 無変更、値だけ再利用）。
- */
-function composeRotationCandidatePose(params: {
-  product: KurzProduct;
-  shaftLength: number;
-  basePos: THREE.Vector3;
-  lateralOffset: number;
-  anteriorOffset: number;
-  verticalOffset: number;
-  dragOffsetX: number;
-  dragOffsetY: number;
-  dragOffsetZ: number;
-  shaftRollDeg: number;
-  /** clampAngleDeg適用済みのRotation Candidate角度。 */
-  candidateAngleTilt: number;
-  candidateAngleTiltZ: number;
-}): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
-  const pose = computeProsthesisModelPose({
-    product: params.product, shaftLength: params.shaftLength, basePos: params.basePos,
-    lateralOffset: params.lateralOffset + params.dragOffsetX,
-    verticalOffset: params.verticalOffset + params.dragOffsetY,
-    anteriorOffset: params.anteriorOffset + params.dragOffsetZ,
-    angleTilt: params.candidateAngleTilt, angleTiltZ: params.candidateAngleTiltZ,
-  });
-  const quaternion = params.shaftRollDeg
-    ? pose.quaternion.clone().multiply(
-        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (params.shaftRollDeg * Math.PI) / 180),
-      )
-    : pose.quaternion;
-  return { position: pose.position, quaternion };
+  if (!proxy) {
+    return { result: { collided: false } as const, proxy: null };
+  }
+  const result = testCollision(proxy, anatomyIndex, DRAG_COLLISION_TARGETS, anatomyWorldMatrix, footContactToleranceMm);
+  return { result, proxy };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1516,6 +1649,7 @@ export function SimScene({
   onManipulationCommitted,
   onDirectRelease,
   onTransportControlsReady,
+  onPlacementControlsReady,
   collisionBoundaryWarpRequestId,
   onCollisionBoundaryWarpResult,
   rotationBoundaryWarpRequestId,
@@ -1536,6 +1670,60 @@ export function SimScene({
   const bellHeadAvailable = stapStatus === 'intact' || stapStatus === 'suprastructure';
   const isTotal = product.footType === 'FLAT' || product.footType === 'PISTON';
   const basePos = (isTotal || !bellHeadAvailable) ? STAPES_FOOTPLATE : STAPES_HEAD;
+
+  // [D-4、Implementation Specification Section 3] Base Alignment Quaternion。Placement Commit
+  // （manipulation.committedがfalse→trueへ変わる瞬間）に一度だけ確定し、以降Translation
+  // （dragOffsetX/Y/Z）が変化してもBase Alignment自体は再計算しない（Section 3.1）。
+  // PlacementState外の独立したReact local state（所有者=SimScene、Section 3.3）。
+  // lazy initializerでmountの時点で既にmanipulation.committed===trueのケース（`manipulation`
+  // propを渡さない既存の呼び出し元、例: StepFlowMode.tsx）を初回レンダーから正しく扱う
+  // （useEffectだけに任せると初回レンダーはbaseAlignmentQuaternion=nullのまま描画されてしまう）。
+  const [baseAlignmentQuaternion, setBaseAlignmentQuaternion] = useState<THREE.Quaternion | null>(() => {
+    if (!manipulation.committed) return null;
+    const base = basePos.clone();
+    base.x += lateralOffset + dragOffsetX;
+    base.y += verticalOffset + dragOffsetY;
+    base.z += anteriorOffset + dragOffsetZ;
+    return computeBaseAlignmentQuaternion(product, base);
+  });
+  // 上のlazy initializerが初回レンダーの「既にcommitted」ケースを処理済みのため、prevCommittedRef
+  // はmanipulation.committedの実際の初期値で初期化する（Section 3.3の「committedの遷移そのものに
+  // 同期させる」ルールを、mount後に発生する遷移についてのみこの後のeffectが担当する）。
+  const prevManipulationCommittedRef = useRef(manipulation.committed);
+  useEffect(() => {
+    const prevCommitted = prevManipulationCommittedRef.current;
+    if (!prevCommitted && manipulation.committed) {
+      const base = basePos.clone();
+      base.x += lateralOffset + dragOffsetX;
+      base.y += verticalOffset + dragOffsetY;
+      base.z += anteriorOffset + dragOffsetZ;
+      setBaseAlignmentQuaternion(computeBaseAlignmentQuaternion(product, base));
+    } else if (prevCommitted && !manipulation.committed) {
+      // Placement→Transportへ戻る場合（Section 3.1、現行UIには戻す経路は無いが仕様通り実装する）。
+      setBaseAlignmentQuaternion(null);
+    }
+    prevManipulationCommittedRef.current = manipulation.committed;
+  }, [manipulation.committed, basePos, lateralOffset, anteriorOffset, verticalOffset, dragOffsetX, dragOffsetY, dragOffsetZ, product]);
+
+  // [D-4、Implementation Specification Section 3.3 MUST（安全側フォールバック）] Case変更時は
+  // baseAlignmentQuaternionを明示的にnullへリセットする。Product変更については、実装Task開始時の
+  // コードベース調査（SimulationMode.tsx PlacementStep）で、`manipulationCommitted`（Base Alignment
+  // 確定の起点）がPlacementStep自体のReact local stateであり、Placement段階から他のsimStep
+  // （product-select等）へ離れると必ずPlacementStepごとアンマウントされ、再訪時はfalseから
+  // 再開することを確認済み——つまりmanipulation.committed===trueを維持したままproductだけが
+  // 変わる経路は現行UIには存在しない。ただしこの結論はSimulationMode.tsx固有のUI構造に依存する
+  // ため、Case変更と同じ安全側フォールバックをproductにも適用しておく（既存のinteractionFlags/
+  // interactionShaftRollDeg同様、症例・製品の同一性が変わった以上は古い値を持ち越さない）。
+  // 初回マウント時は上のlazy initializerが既に正しく計算済みのため、ここでは無条件にリセット
+  // しない（mount直後の1回だけスキップする）。
+  const baseAlignmentResetMountRef = useRef(true);
+  useEffect(() => {
+    if (baseAlignmentResetMountRef.current) {
+      baseAlignmentResetMountRef.current = false;
+      return;
+    }
+    setBaseAlignmentQuaternion(null);
+  }, [surgicalCase.id, product.id]);
 
   // Phase1-B Step5 state（PlacementStateの外側、interactionFlagsと同じ並置パターン）。
   // 描画にのみ反映する（Safety/Score/GroundTruthには渡さない、Implementation Prompt §3 #1）。
@@ -1679,6 +1867,16 @@ export function SimScene({
     const tiltZRad = (angleTiltZ * Math.PI) / 180;
     const finalEuler = new THREE.Euler(euler.x + tiltXRad, euler.y, euler.z + tiltZRad);
 
+    // [R4 Geometry Migration Shaft Fix、調査時にArchitect Decisionの記載を再検証: docs/D4_Shaft_
+    // Geometry_R4_Migration_Architect_Decision_v1.0.md、Consumer #4] 変更しない。理由: このブロックは
+    // `mid`自体をこの直上（1854-1862行）で独立に自己完結計算しており（resolveCanonicalPose()を
+    // 呼ばず、R1 shaft-midpoint式`mid=(base+top)/2`をここに複製）、`footOff=-(selectedLength/2)`は
+    // その自己完結`mid`に対してのみ意味を持つ。rim = mid + footOff*dir = base（Foot Anchor）は
+    // tilt=0において常に成立する恒等式（他のFix対象2ファイルと異なり、外部から渡されたgroup
+    // originのローカルoffsetではなく、絶対World点をその場で再計算しているため）——footOffを
+    // 0（R4の値）に変えるとrimがmidそのものになってしまい、逆に不正確になる。tilt≠0でのapex/rimの
+    // 実際のRendering位置とのズレはDecision 3（Rotation Pivot semantics、既承認・別Scope）由来で、
+    // 本Shaft Geometry Fixの対象外。
     const footOff = -(selectedLength / 2);
     const rim  = mid.clone().add(new THREE.Vector3(0, footOff, 0).applyEuler(finalEuler));
     const apex = rim.clone().add(new THREE.Vector3(0, BELL_HEIGHT_MM, 0).applyEuler(finalEuler));
@@ -1910,6 +2108,36 @@ export function SimScene({
       candidateFwdVsTmDeg: angleToVectorDeg(candidateGhost.quaternion, TM_NORMAL_VEC3),
     };
   }, [referenceGhost, candidateGhost, anchorPose]);
+
+  // [D-2 Migration、Decision 8] 理想配置ゴースト(IdealGhostProsthesis)は従来ProsthesisModel
+  // 既定のcomputeProsthesisModelPose()(R1、Euler再合成)を経由していたが、Canonical Pose
+  // Generator(R4、resolveCanonicalPose、Decision 7)へ切り替える。Base Alignment Quaternionは
+  // DraggableProsthesis内のBase Alignment計算(本ファイル上部、offset適用後のbaseから算出)と
+  // 同じ規約に揃える必要がある — R1は「offset適用後のbaseからtarget方向を向く」を毎フレーム
+  // 再計算するため、R4側もBase Alignmentをoffset適用後のbaseから計算しないと一致しない
+  // (Architect Decision Section 12.5の恒等写像はこの規約を前提にした数値検証)。
+  // idealAnteriorOffset/idealVerticalOffset/idealAngleTiltZは現状IdealGhostProsthesisの
+  // 対象外(AD-2「9軸化しない」、Section 12.5は全既存データがangleTiltZ=0であることが前提)。
+  const idealPoseOverride = useMemo(() => {
+    const idealLateralOffset = resolveIdealLateralOffset(surgicalCase);
+    const idealAngle = resolveIdealAngle(surgicalCase);
+    const idealBase = basePos.clone();
+    idealBase.x += idealLateralOffset;
+    const idealBaseAlignmentQuaternion = computeBaseAlignmentQuaternion(product, idealBase);
+    return resolveCanonicalPose({
+      product,
+      shaftLength: surgicalCase.recommendedLength,
+      basePos,
+      lateralOffset: idealLateralOffset,
+      anteriorOffset: 0,
+      verticalOffset: 0,
+      dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+      angleTilt: idealAngle,
+      angleTiltZ: 0,
+      shaftRollDeg: 0,
+      baseAlignmentQuaternion: idealBaseAlignmentQuaternion,
+    });
+  }, [surgicalCase, product, basePos]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -2226,6 +2454,7 @@ export function SimScene({
               idealLateralOffset={resolveIdealLateralOffset(surgicalCase)}
               idealAngle={resolveIdealAngle(surgicalCase)}
               basePos={basePos.clone()}
+              poseOverride={idealPoseOverride}
             />
           )}
 
@@ -2310,6 +2539,8 @@ export function SimScene({
               onDragActiveChange={setDirectDragActive}
               anatomyRootRef={anatomyGroupRef}
               coordGroupRef={coordGroupRef}
+              baseAlignmentQuaternion={baseAlignmentQuaternion}
+              onPlacementControlsReady={onPlacementControlsReady}
             />
           ) : DIRECT_MANIPULATION_UX ? (
             // Phase1-B Step6: Transport段階もDirect Manipulation UXへ切り替え。Prosthesis
