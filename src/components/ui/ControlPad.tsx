@@ -21,7 +21,7 @@
  *   単体の変更のみ、canvas-wrapperの共有CSSは他画面への影響を避けるため触らない）。
  *   折りたたみ時は`詳細調整`パネル（SimulationMode.tsx）と同じ▾矢印回転パターンを踏襲。
  */
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { HoldButton } from './HoldButton';
 import { useSimStore } from '../../store/useSimStore';
 import type { TransportControls } from '../../scenes/transport/ManipulationLayer';
@@ -38,7 +38,34 @@ function rotateStepDeg(fast: boolean, fine: boolean): number {
   return fast ? ROTATION_STEP_FAST_DEG : fine ? ROTATION_STEP_FINE_DEG : ROTATION_STEP_DEG;
 }
 
-const sectionLabelStyle = { fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 4, textAlign: 'center' as const };
+/** [M-2 real-device follow-up 3、issue④] モバイルでは「全ボタンを上下内外と同じ正方形にし、
+ *  コンパクトに保つ」という実機フィードバックを反映するため、セクション背景/paddingと
+ *  ラベル表示はCSS変数駆動にする（index.cssのモバイルメディアクエリ側で上書き）。
+ *  デスクトップ/既定値はこれまでと完全に同じ（挙動無変更）。 */
+const sectionLabelStyle = {
+  display: 'var(--cp-label-display, block)',
+  fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '.04em', marginBottom: 4, textAlign: 'center' as const,
+};
+/** [M-2 real-device follow-up] 各セクション（位置/回転/シャフト回転/Depth）を囲む箱。
+ *  以前は`<hr>`風の区切り線で縦一列に連結していたが、2列reflow時にセクション境界が
+ *  わかりやすいよう、薄い背景+角丸で個別の箱として区切る。
+ *  [M-2 real-device follow-up 3] モバイルでは背景/paddingを畳んで、縦一列の中で
+ *  セクション境界が目立たない（＝1本の連続したボタン列に見える）ようにする。 */
+const sectionBoxStyle = {
+  background: 'var(--cp-section-bg, rgba(255,255,255,.03))', borderRadius: 8, padding: 'var(--cp-section-pad, 6px 4px)',
+};
+/** [M-2 real-device follow-up 4、issue④] セクション内部の2ボタングリッド（前後/回転/シャフト回転/
+ *  Depth）共通スタイル。real-device follow-up 3ではここをgrid⇄flex column可変にしていたが、
+ *  `gridTemplateColumns`を与え忘れており、デスクトップ側が意図せず縦積み（1列4行）に壊れていた
+ *  （画面幅にかかわらず2x2/2列で並ぶのが元の設計、real-device follow-up 2以前の挙動）。
+ *  今回shojiさんから「2列にすれば（left傾/right傾/シャフト回転ボタンが隠れず）見える」との
+ *  指摘を受け、このバグ修正と同時に、常時2列固定（モバイル/デスクトップ問わず）へ単純化する
+ *  ——ブレークポイントで値を変える必要自体がなくなったため、CSS変数を廃止し固定値に戻す。 */
+const gridSwitchStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, 1fr)',
+  gap: 6,
+};
 
 /** アイコン＋解剖学用語の2段ラベル（内外側/上下は既存AdjRow・「あなたの設置」表示と同じ用語）。 */
 function DirLabel({ icon, text }: { icon: string; text: string }) {
@@ -143,6 +170,24 @@ export function ControlPad({
     }
   };
 
+  // [M-2、M1 Investigation §6/§3③] Depth（camera-relative奥/手前移動）。既存のPageUp/PageDown
+  // ハンドラ（SimScene.tsx）が内部で呼ぶperformDepthStep()を、PlacementControls.depthStep経由で
+  // 呼ぶだけ——新しいDepth/Collision実装は追加しない。Depthは元々キーボードのみの機能で
+  // Transport段階には存在しなかった（DraggableProsthesisはmanipulationCommitted===trueのときのみ
+  // マウントされ、Depthハンドラもその内部にしかない）ため、translate/rotate/rotateShaftRollと
+  // 異なりTransport段階向けのレガシーfallbackは存在しない——manipulationCommitted===falseまたは
+  // placementControls未接続時は無条件でno-op（安全側、書き込みを一切行わない）。
+  const depthStep = (sign: 1 | -1) => (info: { fast: boolean; fine: boolean }) => {
+    if (manipulationCommitted && placementControls) {
+      placementControls.depthStep(sign, info.fine);
+    }
+  };
+  const depthEnd = () => {
+    if (manipulationCommitted && placementControls) {
+      placementControls.endDepth();
+    }
+  };
+
   // 折りたたみ時: 小さな展開チップのみ表示（3Dビューを塞がない）
   if (!expanded) {
     return (
@@ -155,6 +200,10 @@ export function ControlPad({
           background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)',
           border: 'none', padding: '8px 12px', minHeight: 44,
           color: 'var(--color-text-primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          // [M-2 issue②] ホスト側（SimulationMode.tsx等）はこのコンポーネントの外側に
+          // pointerEvents:'none'の背の高いラッパーを敷いてCanvasのドラッグ/オービットを塞がない
+          // ようにしている（.canvas-overlayと同じ既存パターン）ため、ここで明示的にautoへ戻す。
+          pointerEvents: 'auto',
         }}
       >
         <span style={{ fontSize: 15 }}>🎮</span> 操作パネル
@@ -164,55 +213,123 @@ export function ControlPad({
   }
 
   return (
-    <div style={{ background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)', padding: 8, width: 168 }}>
-      {/* ── 折りたたみボタン（開いている時のみ表示） ── */}
+    // [M-2 issue②、M1 Investigation §3②] Root Cause: 展開時パネルの実測高さ（位置6+回転4+
+    // シャフト回転2ボタン、約320〜340px）がモバイルの.canvas-wrapper（overflow:hidden）より
+    // 高くなり得るため、bottom基準で上へ伸びるこのパネルの上端（＝閉じるボタン）が可視範囲外へ
+    // クリップされ、開いたまま閉じられなくなっていた（トグル自体は常に正しく動作していた）。
+    // ここではトグルロジックには一切触れず、パネル自身にmaxHeight:'100%'（ホスト側で top+bottom
+    // 両方を指定した定高さコンテナ内でのみ有効、それ以外のホストでは実質無効化されて従来通り）+
+    // overflowY:'auto'を与え、中身が入りきらない場合はパネル内部でスクロールさせることで、
+    // パネル自体がホストの外へはみ出さないようにする。閉じるボタンはスクロール領域の外（常に
+    // 見える最上部）に固定する。
+    <div style={{
+      background: 'var(--glass-bg)', borderRadius: 'var(--radius-md)', backdropFilter: 'var(--glass-blur)',
+      padding: 'var(--cp-panel-padding, 8px)', width: 'var(--control-pad-width, 168px)', maxHeight: '100%',
+      display: 'flex', flexDirection: 'column', pointerEvents: 'auto',
+    }}>
+      {/* ── 閉じるボタン（スクロール領域の外、常に可視） ── */}
       <button
         type="button"
         aria-label="操作パネルを閉じる"
         onClick={() => setExpanded(false)}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
-          background: 'transparent', border: 'none', padding: '2px 2px 6px', margin: 0, cursor: 'pointer',
+          background: 'transparent', border: 'none', padding: 'var(--cp-close-btn-pad, 2px 2px 6px)', margin: 0, cursor: 'pointer',
           color: 'var(--color-text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
+          flexShrink: 0,
         }}
       >
-        <span>操作パネル</span>
+        {/* [M-2 real-device follow-up 3、issue④] モバイルではパネル幅が正方形ボタン1個分
+            （約60px）まで狭まるため、このラベル文字列は表示領域に収まらない。閉じる操作自体は
+            ボタン全体のクリック＋aria-labelで引き続き可能なため、視覚的なラベルのみモバイルで
+            非表示にする（スクリーンリーダーへの影響なし）。 */}
+        <span style={{ display: 'var(--cp-label-display, inline)' }}>操作パネル</span>
         <span style={{ fontSize: 11, display: 'inline-block', transform: 'rotate(180deg)' }}>▸</span>
       </button>
 
-      {/* ── 位置（左右=lateral、上下=vertical、前後=anterior） ── */}
-      <div style={sectionLabelStyle}>位置</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: 6, marginBottom: 8 }}>
-        <div />
-        <HoldButton ariaLabel="上へ移動" label={<DirLabel icon="↑" text="上" />} tone="neutral" onTick={translate('y', 1)} style={{ gridColumn: 2, gridRow: 1 }} />
-        <div />
-        <HoldButton ariaLabel="内側へ移動" label={<DirLabel icon="←" text="内" />} tone="neutral" onTick={translate('x', -1)} style={{ gridColumn: 1, gridRow: 2 }} />
-        <HoldButton ariaLabel="下へ移動" label={<DirLabel icon="↓" text="下" />} tone="neutral" onTick={translate('y', -1)} style={{ gridColumn: 2, gridRow: 2 }} />
-        <HoldButton ariaLabel="外側へ移動" label={<DirLabel icon="→" text="外" />} tone="neutral" onTick={translate('x', 1)} style={{ gridColumn: 3, gridRow: 2 }} />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 10 }}>
-        <HoldButton ariaLabel="前方向へ移動" label="前" tone="neutral" onTick={translate('z', 1)} />
-        <HoldButton ariaLabel="後方向へ移動" label="後" tone="neutral" onTick={translate('z', -1)} />
-      </div>
+      {/* ── スクロール領域（位置/回転/シャフト回転/Depth） ──
+          [M-2 real-device follow-up、issue A] 4セクションを縦一列に積むと、実機（iPhone Safari）で
+          「開くとPortrait画面の大部分を占有する」と報告された（overflow自体は既にissue②で解消済み
+          だが、正しくスクロール/収まっていても縦に長すぎる）。各セクションを個別の箱
+          （sectionBoxStyle）にラップし、外側をCSS Grid `repeat(auto-fit, minmax(148px, 1fr))`に
+          することで、パネル幅が狭い場合（デスクトップの既定168px）は従来通り1列積み、幅が
+          `--control-pad-width`によって広がるモバイルでは自動的に2列へ折り返す——新しい
+          レイアウトエンジンやJSブレークポイント判定を追加せず、CSS Gridの標準的な
+          auto-fit/minmaxのみで実現する。ボタン自体のサイズ（44pt touch target）・機能は無変更。 */}
+      {/* [M-2 real-device follow-up 3、issue④] 外側コンテナも同じgrid⇄flex column切替
+          （--cp-outer-*）。モバイルではセクション自体も1本の縦列の中に積まれる。 */}
+      <div style={{
+        overflowY: 'auto', minHeight: 0,
+        display: 'var(--cp-outer-display, grid)',
+        gridTemplateColumns: 'var(--cp-outer-cols, repeat(auto-fit, minmax(148px, 1fr)))',
+        flexDirection: 'var(--cp-outer-flexdir, column)' as CSSProperties['flexDirection'],
+        alignItems: 'var(--cp-outer-align, stretch)',
+        gap: 'var(--cp-outer-gap, 8px)',
+      }}>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '4px 0 8px' }} />
+      {/* ── 位置（左右=lateral、上下=vertical、前後=anterior） ── */}
+      <div style={sectionBoxStyle}>
+        <div style={sectionLabelStyle}>位置</div>
+        {/* [M-2 real-device follow-up 4-2] 従来はここが3列×2行の十字配置（上/内/下/外）で、
+            すぐ下の前/後だけ独立した2列グリッドだったため、列幅がセクションごとに異なり
+            「前」の位置が上の十字と横方向にずれて見えた（shoji指摘）。指示された表示順
+            （上下→内外→前後→前傾後傾→左傾右傾→左回転右回転）に合わせ、十字配置をやめて
+            他セクションと完全に同じ「対になる2ボタンをgridSwitchStyleで並べる」パターンへ
+            統一し、全セクションの列幅を揃える。DirLabel（アイコン+解剖学用語）自体は
+            上/内/下/外の意味の分かりやすさのために引き続き使う。 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={gridSwitchStyle}>
+            <HoldButton className="cp-btn" ariaLabel="上へ移動" label={<DirLabel icon="↑" text="上" />} tone="neutral" onTick={translate('y', 1)} />
+            <HoldButton className="cp-btn" ariaLabel="下へ移動" label={<DirLabel icon="↓" text="下" />} tone="neutral" onTick={translate('y', -1)} />
+          </div>
+          <div style={gridSwitchStyle}>
+            <HoldButton className="cp-btn" ariaLabel="内側へ移動" label={<DirLabel icon="←" text="内" />} tone="neutral" onTick={translate('x', -1)} />
+            <HoldButton className="cp-btn" ariaLabel="外側へ移動" label={<DirLabel icon="→" text="外" />} tone="neutral" onTick={translate('x', 1)} />
+          </div>
+          <div style={gridSwitchStyle}>
+            <HoldButton className="cp-btn" ariaLabel="前方向へ移動" label="前" tone="neutral" onTick={translate('z', 1)} />
+            <HoldButton className="cp-btn" ariaLabel="後方向へ移動" label="後" tone="neutral" onTick={translate('z', -1)} />
+          </div>
+        </div>
+      </div>
 
       {/* ── 回転（前後傾斜=angleTilt、左右傾斜=angleTiltZ） ── */}
-      <div style={sectionLabelStyle}>回転</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-        <HoldButton ariaLabel="前傾（前後傾斜を前方向へ）" label="前傾" tone="neutral" onTick={rotate('tilt', 1)} style={{ fontSize: 12 }} />
-        <HoldButton ariaLabel="後傾（前後傾斜を後方向へ）" label="後傾" tone="neutral" onTick={rotate('tilt', -1)} style={{ fontSize: 12 }} />
-        <HoldButton ariaLabel="左傾（左右傾斜を左方向へ）" label="左傾" tone="neutral" onTick={rotate('tiltZ', -1)} style={{ fontSize: 12 }} />
-        <HoldButton ariaLabel="右傾（左右傾斜を右方向へ）" label="右傾" tone="neutral" onTick={rotate('tiltZ', 1)} style={{ fontSize: 12 }} />
+      <div style={sectionBoxStyle}>
+        <div style={sectionLabelStyle}>回転</div>
+        <div style={gridSwitchStyle}>
+          <HoldButton className="cp-btn" ariaLabel="前傾（前後傾斜を前方向へ）" label="前傾" tone="neutral" onTick={rotate('tilt', 1)} style={{ fontSize: 12 }} />
+          <HoldButton className="cp-btn" ariaLabel="後傾（前後傾斜を後方向へ）" label="後傾" tone="neutral" onTick={rotate('tilt', -1)} style={{ fontSize: 12 }} />
+          <HoldButton className="cp-btn" ariaLabel="左傾（左右傾斜を左方向へ）" label="左傾" tone="neutral" onTick={rotate('tiltZ', -1)} style={{ fontSize: 12 }} />
+          <HoldButton className="cp-btn" ariaLabel="右傾（左右傾斜を右方向へ）" label="右傾" tone="neutral" onTick={rotate('tiltZ', 1)} style={{ fontSize: 12 }} />
+        </div>
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,.08)', margin: '8px 0 4px' }} />
-
       {/* ── Shaft Roll（Phase1-B Step4、interactionShaftRollDeg） ── */}
-      <div style={sectionLabelStyle}>シャフト回転</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-        <HoldButton ariaLabel="シャフトを反時計回りに回転" label="↺" tone="neutral" onTick={rotateShaftRoll(-1)} style={{ fontSize: 14 }} />
-        <HoldButton ariaLabel="シャフトを時計回りに回転" label="↻" tone="neutral" onTick={rotateShaftRoll(1)} style={{ fontSize: 14 }} />
+      <div style={sectionBoxStyle}>
+        <div style={sectionLabelStyle}>シャフト回転</div>
+        <div style={gridSwitchStyle}>
+          <HoldButton className="cp-btn" ariaLabel="シャフトを反時計回りに回転" label="↺" tone="neutral" onTick={rotateShaftRoll(-1)} style={{ fontSize: 14 }} />
+          <HoldButton className="cp-btn" ariaLabel="シャフトを時計回りに回転" label="↻" tone="neutral" onTick={rotateShaftRoll(1)} style={{ fontSize: 14 }} />
+        </div>
+      </div>
+
+      {/* [M-2 issue③] Depth（camera-relative奥/手前）: Transport段階（manipulationCommitted===false）
+          にはDepth自体が存在しない（既存キーボードPageUp/PageDownもDraggableProsthesis内部
+          （＝Placement段階のみ）にしか実装がない）ため、Placement段階でのみ表示する。さらに
+          placementControlsが未接続の呼び出し元（StepFlowMode.tsx、D-4 Scope外でPlacementControls
+          自体を配線していない）では、押しても何も起きないボタンを表示しないよう、
+          placementControls接続済みの場合のみ表示する（depthStep/depthEnd自体は接続有無に関わらず
+          no-opで安全だが、UI上は「動くボタンだけを見せる」方が誤解を招かない）。 */}
+      {manipulationCommitted && placementControls && (
+        <div style={sectionBoxStyle}>
+          <div style={sectionLabelStyle}>Depth（視点方向）</div>
+          <div style={gridSwitchStyle}>
+            <HoldButton className="cp-btn" ariaLabel="手前へ移動（Depth、視点に近づく方向）" label="手前" tone="neutral" onTick={depthStep(-1)} onRelease={depthEnd} style={{ fontSize: 12 }} />
+            <HoldButton className="cp-btn" ariaLabel="奥へ移動（Depth、視点から離れる方向）" label="奥" tone="neutral" onTick={depthStep(1)} onRelease={depthEnd} style={{ fontSize: 12 }} />
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   );

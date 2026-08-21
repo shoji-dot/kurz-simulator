@@ -1045,15 +1045,72 @@ function DraggableProsthesis({
     }
   }, [evaluateShaftRollCandidate]);
 
+  // [M-2、M1 Investigation §6/§3③] 下部のキーボードuseEffect（PageUp/PageDownハンドラ）に
+  // インラインで実装されていたDepthロジックを、タッチ操作（ControlPad）からも呼べる形へ
+  // そのまま抽出したもの。camera.getWorldDirection() → dragGroupRefのローカル座標系へ変換 →
+  // evaluateDragCandidate()（既存Collision Candidate評価、C-2/D-4 Frozen・無変更）→
+  // Depth Session（Quaternion snapshot）というロジック・数式・呼び出し順序は一切変更しない
+  // （Architect指示§11「数学的意味を変えずに抽出する」）。sign/fineの意味は元のkeydown分岐と同じ
+  // （sign: 1=PageDown相当=奥、-1=PageUp相当=手前。fine: trueならKEYBOARD_STEP_CTRL_MM）。
+  const performDepthStep = useCallback((sign: 1 | -1, fine: boolean) => {
+    const group = dragGroupRef.current;
+    if (!group || !group.parent) return;
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const parentInverseRotation = new THREE.Matrix3().setFromMatrix4(
+      new THREE.Matrix4().copy(group.parent.matrixWorld).invert(),
+    );
+    const localDir = camDir.clone().applyMatrix3(parentInverseRotation).normalize();
+    const depthStepMm = fine ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
+    const depthDelta = localDir.multiplyScalar(sign * depthStepMm);
+    if (!COLLISION_CONSTRAINT_ENABLED || evaluateDragCandidate(depthDelta)) {
+      const { placement } = useSimStore.getState();
+      const nextDragOffsetX = clamp3(placement.dragOffsetX + depthDelta.x);
+      const nextDragOffsetY = clamp3(placement.dragOffsetY + depthDelta.y);
+      const nextDragOffsetZ = clamp3(placement.dragOffsetZ + depthDelta.z);
+      if (depthSessionQuat === null) {
+        const newSnapshot = computeProsthesisModelPose({
+          product, shaftLength: selectedLength, basePos,
+          lateralOffset: lateralOffset + placement.dragOffsetX,
+          anteriorOffset: anteriorOffset + placement.dragOffsetZ,
+          verticalOffset: verticalOffset + placement.dragOffsetY,
+          angleTilt, angleTiltZ,
+        }).quaternion.clone();
+        setDepthSessionQuat(newSnapshot);
+        depthSessionQuatRef.current = newSnapshot;
+        depthSessionActiveRef.current = true;
+        cancelReleaseInterpolation();
+      }
+      depthLastOffsetRef.current = { x: nextDragOffsetX, y: nextDragOffsetY, z: nextDragOffsetZ };
+      useSimStore.getState().updatePlacement({
+        dragOffsetX: nextDragOffsetX,
+        dragOffsetY: nextDragOffsetY,
+        dragOffsetZ: nextDragOffsetZ,
+      });
+      useSimStore.getState().markPositionTouched();
+    }
+  }, [
+    camera, evaluateDragCandidate, depthSessionQuat, cancelReleaseInterpolation,
+    product, selectedLength, basePos, lateralOffset, anteriorOffset, verticalOffset, angleTilt, angleTiltZ,
+  ]);
+
+  // [M-2、M1 Investigation §3③] endDepthSession(true)（自然なRelease、通常Poseへのslerp補間
+  // 開始）をタッチ操作から呼べるようにする薄いラッパー。keyupハンドラ（下部）と全く同じ呼び方。
+  const endDepth = useCallback(() => {
+    endDepthSession(true);
+  }, [endDepthSession]);
+
   useEffect(() => {
     const controls: PlacementControls = {
       translate: placementTranslate,
       rotate: placementRotate,
       rotateShaftRoll: placementRotateShaftRoll,
+      depthStep: performDepthStep,
+      endDepth,
     };
     onPlacementControlsReady?.(controls);
     return () => onPlacementControlsReady?.(null);
-  }, [placementTranslate, placementRotate, placementRotateShaftRoll, onPlacementControlsReady]);
+  }, [placementTranslate, placementRotate, placementRotateShaftRoll, performDepthStep, endDepth, onPlacementControlsReady]);
 
   // Phase1-B Step3: Placement済みプロステーシスの直接クリック→ドラッグ。ドラッグ終了時、
   // 既存DraggableProsthesis.handleMouseUpと同じ意味論・同じ±3mmクランプでdragOffsetX/Y/Zへ
@@ -1210,76 +1267,13 @@ function DraggableProsthesis({
       // 動かす。新規PlacementStateフィールドは追加しない（既存3フィールドを再利用）。
       if (e.key === 'PageUp' || e.key === 'PageDown') {
         e.preventDefault();
-        const group = dragGroupRef.current;
-        if (!group || !group.parent) return;
-        // camera.getWorldDirection()はカメラが向いている方向（画面奥へ向かうベクトル、
-        // Three.js標準の挙動——符号を推測せず、useScreenSpaceDrag（ManipulationLayer.tsx）が
-        // 既に同じ関数を同じ目的（ドラッグ平面の法線）で使っている実装をそのまま踏襲する）を
-        // 返す。それをdragGroupRef.parentのmatrixWorldの回転成分のみ（平行移動を含まない
-        // Matrix3、useScreenSpaceDragと同一手法）でローカル座標系へ変換すれば、
-        // dragOffsetX/Y/Zと同じ意味の方向ベクトルになる。
-        const camDir = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        const parentInverseRotation = new THREE.Matrix3().setFromMatrix4(
-          new THREE.Matrix4().copy(group.parent.matrixWorld).invert(),
-        );
-        const localDir = camDir.clone().applyMatrix3(parentInverseRotation).normalize();
-        const depthStep = e.ctrlKey ? KEYBOARD_STEP_CTRL_MM : KEYBOARD_STEP_MM;
-        // PageDown=奥（camDir方向＝カメラから離れる）、PageUp=手前（camDirの逆方向＝カメラに
-        // 近づく）。Interactive Validation（Test A/B）で画面上の向きと一致することを実機確認
-        // する。符号が逆であればこの1行のsignのみを反転すればよい（ROTATE_DEG_PER_PIXEL_TILT
-        // と同じ「実機確認時に反転可能な最小定数」パターン）。
+        // [M-2] インラインだったDepthロジックはperformDepthStep()（上部、evaluateDragCandidate
+        // useCallback群の直後）へ抽出済み——数式・Collision評価・Depth Session処理は無変更のまま
+        // 移設しただけで、ここでは呼ぶだけになる。PageDown=奥（sign=1）、PageUp=手前（sign=-1）は
+        // 元の分岐と同じ。タッチ操作（ControlPad）はPlacementControls.depthStep経由で同じ
+        // performDepthStepを呼ぶ（新しいDepth/Collision実装は追加しない）。
         const sign = e.key === 'PageDown' ? 1 : -1;
-        const depthDelta = localDir.multiplyScalar(sign * depthStep);
-        // 既存Collision Constraint（evaluateDragCandidate、C-2、Frozen・無変更）へ、既存の
-        // マウスドラッグと同じ形（dragGroupRefローカル座標系のcandidate delta）で候補姿勢を
-        // 渡すだけ。Collision Engine自体・判定ロジックには一切触れない。
-        if (!COLLISION_CONSTRAINT_ENABLED || evaluateDragCandidate(depthDelta)) {
-          const { placement } = useSimStore.getState();
-          const nextDragOffsetX = clamp3(placement.dragOffsetX + depthDelta.x);
-          const nextDragOffsetY = clamp3(placement.dragOffsetY + depthDelta.y);
-          const nextDragOffsetZ = clamp3(placement.dragOffsetZ + depthDelta.z);
-          // [D-4 Option① Minimal Fix、Architect承認2026-08-19] Depth Session開始（まだ開始して
-          // いなければ）: 「Depth押下直前に画面に表示されているQuaternion」をsnapshotする
-          // （Architect指示§1/§3）。これは通常のnon-override Rendering式と同一の5入力
-          // （lateralOffset+dragOffsetX等、dragOffsetX/Y/Zを含む——placement.dragOffsetX/Y/Zは
-          // このDepth Stepで書き込む直前＝「押下直前」の値）を使う。
-          //
-          // [Bug History] 当初はcomposeDragCandidatePose()と同一の5入力（dragOffsetX/Y/Zを
-          // 含まない）でsnapshotしていたが、これはCollision Candidate Poseとは一致するものの、
-          // 「現在表示中のQuaternion」とは一致しないことが実機Investigation（2026-08-19、
-          // dragOffsetX/Y/Z≠0の状態からDepth開始したケースで90.99°のQuaternion jumpを実測）で
-          // 判明したため、Architect Decisionにより本式へ修正した。Depth中のRendering
-          // QuaternionとCollision Candidate Quaternionは一致しなくなる場合があるが、これは
-          // 既存X/Y/Z操作が元々持つFrozenな既知の特性と同じであり、新規の問題ではない
-          // （Architect指示§7）。
-          if (depthSessionQuat === null) {
-            const newSnapshot = computeProsthesisModelPose({
-              product, shaftLength: selectedLength, basePos,
-              lateralOffset: lateralOffset + placement.dragOffsetX,
-              anteriorOffset: anteriorOffset + placement.dragOffsetZ,
-              verticalOffset: verticalOffset + placement.dragOffsetY,
-              angleTilt, angleTiltZ,
-            }).quaternion.clone();
-            setDepthSessionQuat(newSnapshot);
-            depthSessionQuatRef.current = newSnapshot;
-            depthSessionActiveRef.current = true;
-            // [D-4 Option②] 前回のRelease補間がまだ完了していないうちに新しいDepth Sessionが
-            // 始まった場合、その補間を打ち切ってから新しいSessionを開始する（補間の補間という
-            // 二重状態を作らない、Architect指示§5と同じ「新しい操作が始まったら即キャンセル」
-            // 方針をDepth自身の再開始にも適用する）。
-            cancelReleaseInterpolation();
-          }
-          // 自分（Depth）がこれから書き込む値を記録しておく（下部の不変条件チェック用）。
-          depthLastOffsetRef.current = { x: nextDragOffsetX, y: nextDragOffsetY, z: nextDragOffsetZ };
-          useSimStore.getState().updatePlacement({
-            dragOffsetX: nextDragOffsetX,
-            dragOffsetY: nextDragOffsetY,
-            dragOffsetZ: nextDragOffsetZ,
-          });
-          // 既存のマウスドラッグ（onDirectDragPointerDown）と同じ「位置操作を試みた」扱い。
-          useSimStore.getState().markPositionTouched();
-        }
+        performDepthStep(sign, e.ctrlKey);
         return;
       }
 
@@ -1354,17 +1348,15 @@ function DraggableProsthesis({
     // (angleTilt/angleTiltZ/evaluateRotationCandidate)を直接参照するため、再登録なしでは
     // 2回目以降のShift+矢印キー押下がstaleなclosureのcurrentAngleを使ってしまい、1ステップ
     // 目以降進まなくなる（実装時に発見、既存のtranslateSelectedObject経路には影響なし）。
-    // D-4: camera/evaluateDragCandidateはPageUp/PageDown（Camera-relative Depth）ハンドラが
-    // 直接参照するため追加。cameraはuseThree()が返す安定参照（OrbitControls等が内部で
-    // position/quaternionを書き換えるのみで、参照自体は再レンダーを跨いで同一）だが、
-    // eslint(react-hooks/exhaustive-deps)を満たすため明示する。
-    // D-4 Option①: product/selectedLength/basePos/lateralOffset/anteriorOffset/verticalOffset/
-    // depthSessionQuat/endDepthSessionはDepth Session開始（snapshot計算）・終了判定のため
-    // ハンドラ内で直接参照するので追加する。
+    // [M-2] Depthロジックの抽出（performDepthStep）に伴い、Depth枝だけが必要としていた
+    // camera/product/selectedLength/basePos/lateralOffset/anteriorOffset/verticalOffset/
+    // depthSessionQuat/cancelReleaseInterpolationは依存配列から除去し、代わりに
+    // performDepthStep自体を依存に追加した（呼び出しは`performDepthStep(sign, e.ctrlKey)`のみ）。
+    // evaluateDragCandidateは引き続きArrow Translation枝（Shiftなし）が直接参照するため残す。
+    // endDepthSessionはonKeyUpが直接参照するため残す。
   }, [
-    isMove, angleTilt, angleTiltZ, evaluateRotationCandidate, camera, evaluateDragCandidate,
-    product, selectedLength, basePos, lateralOffset, anteriorOffset, verticalOffset,
-    depthSessionQuat, endDepthSession, cancelReleaseInterpolation,
+    isMove, angleTilt, angleTiltZ, evaluateRotationCandidate, evaluateDragCandidate,
+    performDepthStep, endDepthSession,
   ]);
 
   // [D-4 Option①] Rotate（Shift+矢印キー/マウスRotate両方ともangleTilt/angleTiltZを更新する）

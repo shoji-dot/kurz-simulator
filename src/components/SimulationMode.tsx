@@ -841,6 +841,12 @@ function posHint(latDev: number, antDev: number, vertDev: number): string {
 }
 
 function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCase }) {
+  // [M-2 issue⑤] モバイルでの下部情報パネル高さ削減のため、既存の詳細調整/3D表示切替と同じ
+  // アコーディオンパターンを適用する。「常時表示すべき本質情報＋折りたたみ可能な副次情報」の
+  // 原則（Task Order指示）に従い、一目でわかるべき総合ステータス（配置良好/要調整/要修正の
+  // バッジ）は常に表示したまま、シャフト長/設置位置/設置角度の内訳3行のみを折りたたみ対象にする
+  // （情報の削除ではなく、既定折りたたみ＋タップで展開）。
+  const [detailOpen, setDetailOpen] = useState(false);
   // D-2 AD-2: idealPlacement保存時はそちらを優先（未指定なら従来値へフォールバック）。
   // computeScore()と同じ解決ロジックを使い、リアルタイムフィードバックとGround Truthの
   // 不一致を防ぐ。
@@ -889,13 +895,24 @@ function PlacementFeedback({ safeP, sc }: { safeP: SafePlacement; sc: SurgicalCa
 
   return (
     <div className="card" style={{ borderColor: `rgba(${PF_COLOR_RGB[overall]},0.27)`, background: `rgba(${PF_COLOR_RGB[overall]},0.03)`, padding: '12px 14px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', letterSpacing: '.04em' }}>配置状況</div>
+      <div
+        onClick={() => setDetailOpen(v => !v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetailOpen(v => !v); } }}
+        aria-expanded={detailOpen}
+        className="kz-focusable"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: detailOpen ? 10 : 0, cursor: 'pointer', userSelect: 'none' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', letterSpacing: '.04em' }}>配置状況</div>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'inline-block', transform: detailOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▾</span>
+        </div>
         <div style={{ fontSize: 11, fontWeight: 700, color: PF_COLOR[overall], padding: '3px 10px', borderRadius: 99, background: `rgba(${PF_COLOR_RGB[overall]},0.09)` }}>
           {overallLabel}
         </div>
       </div>
-      {rows.map((row) => (
+      {detailOpen && rows.map((row) => (
         <div key={row.label} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
             <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{row.label}</span>
@@ -961,6 +978,14 @@ function PlacementStep() {
   const [viewMode, setViewMode] = useState<SimViewMode>('normal');
   const [vis3dOpen, setVis3dOpen] = useState(false);
   const [adjPanelOpen, setAdjPanelOpen] = useState(false);
+  // [M-2 real-device follow-up、issue B root cause] 実機（iPhone Safari）でLower Information
+  // Panel（PlacementFeedback/ViewPresetPanel）の開閉トリガーに到達できないという報告の実際の
+  // 原因は、sidebarの一番上のカード（🔧プロステーシス留置の案内＋下記2つの[TEST-ONLY]ボタン）が
+  // 442px（sidebarの可視領域260pxの1.7倍）にも達し、その下にある本来の折りたたみトリガーへ
+  // 到達するのに440px超のスクロールを要していたこと（DOM実測で確認、elementFromPointによる
+  // 実際のヒットテストではトリガー自体は正しく機能していた）。TEST-ONLY判定用ボタン
+  // （Phase C-2実機検証用、削除は別タスク）を折りたたみ可能にして、この最大の占有源を縮小する。
+  const [testToolsOpen, setTestToolsOpen] = useState(false);
   const [showCamDebug, setShowCamDebug] = useState(false);
   const [camInfo, setCamInfo] = useState<{pos:[number,number,number];target:[number,number,number]} | null>(null);
 
@@ -1017,6 +1042,109 @@ function PlacementStep() {
     dragOffsetY:    placement.dragOffsetY    ?? 0,
     dragOffsetZ:    placement.dragOffsetZ    ?? 0,
   };
+
+  // [M-2 real-device follow-up 3、issue①] 実機フィードバック（2026-08-20）: モバイルでは
+  // このツールバー（移動/視点/通常/内視鏡/理想位置/軟骨/回転）を画面上部（Canvas右上）に
+  // 置いたままだと、片手操作時に毎回指を画面上部まで動かす必要があり操作性が悪いとの指摘。
+  // 下のTTP-VARIAC PORPカード（サイドバー最上部、親指の届く範囲）へ移設する。デスクトップは
+  // 従来通りCanvas右上のToolbarContainerに残す（実機フィードバックはモバイルのみが対象）。
+  // JSXを2箇所で完全に重複させると状態分岐（顕微鏡時のみの2ボタン等）がズレる危険があるため、
+  // 中身を1つのローカル変数として1度だけ定義し、2箇所ではCSSクラス（.toolbar-desktop-only/
+  // .toolbar-mobile-only、index.cssのモバイルメディアクエリで表示を切り替え）で出し分けるだけに
+  // する——「祖先のdisplay:noneは子の実描画そのものを止める」という既知の挙動を利用し、
+  // 非表示側は文字通りDOMから見えなくなる（インラインstyleとCSSクラスの優先順位問題を踏まない）。
+  const toolbarRow = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 'var(--toolbar-pill-gap, var(--space-1))', flexWrap: 'nowrap',
+      overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', paddingBottom: 2,
+    }}>
+      <PillToggleGroup<DragMode>
+        ariaLabel="操作モード"
+        value={dragMode}
+        onChange={setDragMode}
+        options={
+          manipulationCommitted
+            ? [
+                { value: 'move', label: '移動' },
+                { value: 'rotate', label: '回転' },
+                { value: 'view', label: '視点' },
+              ]
+            : [
+                { value: 'move', label: '移動' },
+                { value: 'view', label: '視点' },
+              ]
+        }
+      />
+      <PillToggleGroup<SimViewMode>
+        ariaLabel="視野モード"
+        value={viewMode}
+        onChange={(mode) => {
+          setViewMode(mode);
+          if (mode === 'microscope') {
+            setDragMode('view');
+            setMicroscopePositionMode(false);
+            setSimPanMode(false);
+          }
+        }}
+        options={[
+          { value: 'normal' as SimViewMode, label: '👁 通常' },
+          { value: 'endoscope' as SimViewMode, label: '🔭 内視鏡' },
+        ]}
+      />
+      <IconButton
+        aria-label="理想配置位置を表示/非表示"
+        title="理想配置位置を表示/非表示"
+        active={showIdeal}
+        onClick={() => setShowIdeal(!showIdeal)}
+        style={{ width: 'auto', height: 'auto', flexShrink: 0, whiteSpace: 'nowrap', padding: 'var(--toolbar-pill-py, var(--space-1)) var(--toolbar-pill-px, var(--space-3))', fontSize: 'var(--toolbar-pill-fs, 11px)', fontWeight: 700 }}
+      >📍 理想位置</IconButton>
+      <IconButton
+        aria-label="軟骨スライスを表示/非表示"
+        title="軟骨スライスを表示/非表示"
+        active={showCartilage}
+        onClick={() => setShowCartilage(!showCartilage)}
+        style={{ width: 'auto', height: 'auto', flexShrink: 0, whiteSpace: 'nowrap', padding: 'var(--toolbar-pill-py, var(--space-1)) var(--toolbar-pill-px, var(--space-3))', fontSize: 'var(--toolbar-pill-fs, 11px)', fontWeight: 700 }}
+      >🩺 軟骨</IconButton>
+
+      {/* 顕微鏡時のみ — 固定/移動中 + 回転/平行移動 */}
+      {viewMode === 'microscope' && (
+        <>
+          <IconButton
+            aria-label={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
+            title={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
+            active={microscopePositionMode}
+            onClick={() => setMicroscopePositionMode(v => !v)}
+            style={{ width: 'auto', height: 'auto', flexShrink: 0, whiteSpace: 'nowrap', padding: 'var(--toolbar-pill-py, var(--space-1)) var(--toolbar-pill-px, var(--space-3))', fontSize: 'var(--toolbar-pill-fs, 11px)', fontWeight: 700 }}
+          >
+            {microscopePositionMode ? '🔓 移動中' : '🔒 固定'}
+          </IconButton>
+          {microscopePositionMode && (
+            <IconButton
+              aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+              title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+              active={simPanMode}
+              onClick={() => setSimPanMode(v => !v)}
+              style={{ width: 'auto', height: 'auto', flexShrink: 0, whiteSpace: 'nowrap', padding: 'var(--toolbar-pill-py, var(--space-1)) var(--toolbar-pill-px, var(--space-3))', fontSize: 'var(--toolbar-pill-fs, 11px)', fontWeight: 700 }}
+            >
+              {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+            </IconButton>
+          )}
+        </>
+      )}
+
+      {viewMode !== 'microscope' && (
+        <IconButton
+          aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+          title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
+          active={simPanMode}
+          onClick={() => setSimPanMode(v => !v)}
+          style={{ width: 'auto', height: 'auto', flexShrink: 0, whiteSpace: 'nowrap', padding: 'var(--toolbar-pill-py, var(--space-1)) var(--toolbar-pill-px, var(--space-3))', fontSize: 'var(--toolbar-pill-fs, 11px)', fontWeight: 700 }}
+        >
+          {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
+        </IconButton>
+      )}
+    </div>
+  );
 
   return (
     <div className="layout-split" style={{ height: '100%' }}>
@@ -1092,119 +1220,55 @@ function PlacementStep() {
           </div>
         )}
         <div className="canvas-overlay top-left">
-          <ContextTagBar
-            procedureTags={selectedCase.tags.procedure}
-            lesionTags={selectedCase.tags.lesion}
-          />
-        </div>
-        {/* ── ツールバー: top-right（KURZ Design System v1: ToolbarContainer + PillToggleGroup） ── */}
-        <ToolbarContainer anchor="top-right" style={{ alignItems: 'flex-end', maxWidth: 'calc(100% - 20px)', padding: 'var(--space-2)' }}>
-          <div style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {/* Phase1-C UX修正（Architect依頼2026-08-15）: Transport段階
-                （manipulationCommitted===false）ではDraggableProsthesis自体が未マウントのため、
-                Rotate Mode（dragMode==='rotate'）を選んでもDirectTransportProsthesis側の
-                Position dragが常に実行され、「回転が効かない」ように見えるRoot Causeが実機で
-                確認された（3回のドラッグ全てでMOVE-listenerのみ発火、Rotate側は一度も未発火）。
-                「回転」はPlacement段階でのみ意味を持つため、manipulationCommitted===falseの間は
-                選択肢から外す。「視点」（Camera Orbit、OrbitControls）はDraggableProsthesisの
-                Move/Rotateとは独立した機構で、Transport段階でも既存どおり機能する
-                （enabled条件はdragMode==='view'のみでmanipulation.committedを見ていない、
-                SimScene.tsx参照）ため、今回の修正対象に含めない。 */}
-            <PillToggleGroup<DragMode>
-              ariaLabel="操作モード"
-              value={dragMode}
-              onChange={setDragMode}
-              options={
-                manipulationCommitted
-                  ? [
-                      { value: 'move', label: '移動' },
-                      { value: 'rotate', label: '回転' },
-                      { value: 'view', label: '視点' },
-                    ]
-                  : [
-                      { value: 'move', label: '移動' },
-                      { value: 'view', label: '視点' },
-                    ]
-              }
+          {/* [M-2 real-device follow-up 7、issue③] 実機（iPhone Safari縦画面）で procedure
+              タグ（青、鼓室形成型/PORP等）とlesionタグ（オレンジ、慢性穿孔性中耳炎等）が
+              1本のflex-wrap行に混在しているため、症例によって3行以上に折り返り読みにくいと
+              の指摘。デスクトップでは折り返さず収まっている（無変更）ため、モバイルのみ
+              種類ごとに2行へグルーピングする（青=1行目、オレンジ=2行目）。ContextTagBar自体
+              （StepFlowMode.tsx等、他の呼び出し元と共有）は変更せず、`wrap={false}`で本体
+              (タグのみ)を取り出し、ここで2行のレイアウトを組む——共有コンポーネントの既定挙動
+              には一切影響しない。 */}
+          <div className="tagbar-desktop-only">
+            <ContextTagBar
+              procedureTags={selectedCase.tags.procedure}
+              lesionTags={selectedCase.tags.lesion}
             />
-            <PillToggleGroup<SimViewMode>
-              ariaLabel="視野モード"
-              value={viewMode}
-              onChange={(mode) => {
-                setViewMode(mode);
-                if (mode === 'microscope') {
-                  setDragMode('view');
-                  setMicroscopePositionMode(false);
-                  setSimPanMode(false);
-                }
-              }}
-              options={[
-                { value: 'normal' as SimViewMode, label: '👁 通常' },
-                { value: 'endoscope' as SimViewMode, label: '🔭 内視鏡' },
-              ]}
-            />
-            <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-              <IconButton
-                aria-label="理想配置位置を表示/非表示"
-                title="理想配置位置を表示/非表示"
-                active={showIdeal}
-                onClick={() => setShowIdeal(!showIdeal)}
-                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
-              >📍 理想位置</IconButton>
-              <IconButton
-                aria-label="軟骨スライスを表示/非表示"
-                title="軟骨スライスを表示/非表示"
-                active={showCartilage}
-                onClick={() => setShowCartilage(!showCartilage)}
-                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
-              >🩺 軟骨</IconButton>
+          </div>
+          {/* displayはここに書かず.tagbar-mobile-onlyクラス側で管理する（inline styleの
+              displayがメディアクエリ上書きに常に勝つ罠、issue③/toolbar-mobile-onlyと同じ理由）。 */}
+          <div className="tagbar-mobile-only" style={{ flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <ContextTagBar wrap={false} procedureTags={selectedCase.tags.procedure} lesionTags={[]} />
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <ContextTagBar wrap={false} procedureTags={[]} lesionTags={selectedCase.tags.lesion} />
             </div>
           </div>
-
-          {/* 顕微鏡時のみ — 固定/移動中 + 回転/平行移動 */}
-          {viewMode === 'microscope' && (
-            <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
-              <IconButton
-                aria-label={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
-                title={microscopePositionMode ? '移動モード中 — クリックで固定へ' : '固定モード — クリックで移動可へ'}
-                active={microscopePositionMode}
-                onClick={() => setMicroscopePositionMode(v => !v)}
-                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
-              >
-                {microscopePositionMode ? '🔓 移動中' : '🔒 固定'}
-              </IconButton>
-              {microscopePositionMode && (
-                <IconButton
-                  aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
-                  title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
-                  active={simPanMode}
-                  onClick={() => setSimPanMode(v => !v)}
-                  style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
-                >
-                  {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
-                </IconButton>
-              )}
-            </div>
-          )}
-
-          {/* Phase22.2 GUI Follow-up P1: 通常/内視鏡モードでもPan(平行移動)の存在を明示するトグル。
-              右ドラッグ=Panは以前からコード上動作していたが、UIに手がかりがなく「回転しかできない」
-              という誤解を招いていた（shojiさんGUI確認で指摘）。顕微鏡モードの🔒固定/🔓移動中トグルとは
-              独立に、simPanMode（既存state）をそのまま再利用する。 */}
-          {viewMode !== 'microscope' && (
-            <div style={{ display: 'flex', gap: 'var(--space-1)', justifyContent: 'flex-end' }}>
-              <IconButton
-                aria-label={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
-                title={simPanMode ? '平行移動モード中 — クリックで回転へ' : '回転モード中 — クリックで平行移動へ'}
-                active={simPanMode}
-                onClick={() => setSimPanMode(v => !v)}
-                style={{ width: 'auto', height: 'auto', whiteSpace: 'nowrap', padding: 'var(--space-1) var(--space-3)', fontSize: 11, fontWeight: 700 }}
-              >
-                {simPanMode ? '↔↕ 平行移動' : '↺↻ 回転'}
-              </IconButton>
-            </div>
-          )}
-        </ToolbarContainer>
+        </div>
+        {/* ── ツールバー: top-right（KURZ Design System v1: ToolbarContainer + PillToggleGroup） ── */}
+        {/* [M-2 real-device follow-up、issue C] 実機（iPhone Safari）でこのツールバーが左上の
+            ContextTagBar（.canvas-overlay.top-left、モバイルでmax-width:55%）と重なる報告あり。
+            root causeはmaxWidth: 'calc(100% - 20px)'（デスクトップでは適切だが、モバイルでは
+            Canvas幅のほぼ全域まで広がることを許してしまい、右上アンカーのはずが実質ほぼ全幅の
+            バーになっていた——実機DOM測定で338px/359px幅のCanvasを確認）。
+            var(--toolbar-container-maxwidth)へ切り出し、モバイルのみ58%へ絞ることで
+            top-leftのタグと重ならない領域に収める（デスクトップは既存値のまま無変更）。 */}
+        {/* [M-2 real-device follow-up 2] 実機スクリーンショットで「移動/視点」「通常/内視鏡」
+            「理想位置」「軟骨」「回転」の各グループが縦に5行積みになり、Canvasの半分近くを覆う
+            との指摘を受けた。全グループを1本のflex行（flexWrap:'nowrap'）にまとめ、行自体の幅を
+            ToolbarContainerの実効幅（var(--toolbar-container-maxwidth)、左上ContextTagBarとの
+            重なりを避けるために据え置き）に固定した上でoverflowX:'auto'を与える——4〜7個の
+            コントロールが1行の視覚幅に収まらない場合は横スクロールで到達させる（タップ領域や
+            フォントサイズを再び犠牲にしない、iOSのコントロールストリップ等でも一般的なパターン）。 */}
+        {/* [M-2 real-device follow-up 3、issue①] このツールバーはデスクトップ/タブレットのみ
+            ここ（Canvas右上）に残す。モバイルでは.toolbar-desktop-onlyがdisplay:noneとなり
+            （index.css）、サイドバー最上部（下記.toolbar-mobile-only）へ完全に切り替わる。
+            中身はtoolbarRow（上でローカル変数化、二重管理を避けるため）を共有する。 */}
+        <div className="toolbar-desktop-only">
+          <ToolbarContainer anchor="top-right" style={{ alignItems: 'flex-end', maxWidth: 'var(--toolbar-container-maxwidth, calc(100% - 20px))', padding: 'var(--space-2)' }}>
+            {toolbarRow}
+          </ToolbarContainer>
+        </div>
 
         {/* Phase22.2 GUI Follow-up P1: STEP6(StepFlowMode)で確立したControlPadをSimulationMode
             にも展開（横展開、shojiさん指示「操作体系を統一する」）。既存の詳細調整(AdjRow)パネルは
@@ -1213,7 +1277,18 @@ function PlacementStep() {
             表示位置・zIndexはSTEP6と同一（bottom:16, left:12, Z_INDEX.toolbar）でアプリ全体の
             操作パネル位置を統一。dragModeに関わらず常時表示（translateSelectedObject/
             rotateSelectedObjectはTransformControlsの選択状態と独立した純粋なstore操作のため）。 */}
-        <div style={{ position: 'absolute', bottom: 16, left: 12, zIndex: Z_INDEX.toolbar }}>
+        {/* [M-2 issue②] top・bottom両方を指定することで、position:relativeな.canvas-wrapper内で
+            このホストdivに確定した高さを与える（M1投資調査：旧実装はbottomのみでheight:autoだった
+            ため、ControlPad展開時に.canvas-wrapperのoverflow:hiddenへ突き当たり閉じるボタンが
+            クリップされていた）。ControlPad自身のmaxHeight:'100%'はこの確定高さを基準に解決され、
+            それを超える分は内部スクロールへ回るため、パネル自体が.canvas-wrapperの外へはみ出さない。
+            このdiv自体はpointerEvents:'none'とし、ControlPadの実描画領域だけがauto（.canvas-overlay
+            と同じ既存パターン）——空の領域がCanvasのドラッグ/オービット操作を塞がないようにする。 */}
+        <div style={{
+          position: 'absolute', top: 12, bottom: 16, left: 12, zIndex: Z_INDEX.toolbar,
+          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+          pointerEvents: 'none',
+        }}>
           <ControlPad
             manipulationCommitted={manipulationCommitted}
             transportControls={transportControls}
@@ -1226,11 +1301,127 @@ function PlacementStep() {
       {/* Controls */}
       <div className="sidebar">
         <div className="card">
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{selectedProduct.name}</div>
+          {/* [M-2 real-device follow-up 3、issue①] モバイル専用: このカード（TTP-VARIAC PORP等の
+              製品情報カード）の一番上にツールバーを移設（片手操作時の親指到達範囲、実機指摘対応）。
+              デスクトップでは.toolbar-mobile-onlyがdisplay:noneのまま（index.css）で、Canvas右上の
+              既存ToolbarContainerのみが表示される。 */}
+          <div className="toolbar-mobile-only">{toolbarRow}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{selectedProduct.name}</div>
+            {/* [M-2 real-device follow-up 2、issue③] モバイルではステップ進行バー行から退避した
+                判断クイズバッジ（.step-quiz-badge-mobile、既定display:none、モバイルのみflex）。
+                デスクトップは.step-quiz-badge-desktop（ステップ進行バー行）が引き続き表示するため
+                ここは常にdisplay:noneのまま。PlacementStepはSimulationMode本体のskipQuiz state
+                を受け取っていないため、同じlocalStorageキーを読むloadSkipQuiz()を直接呼ぶ
+                （CaseSelect後は値が変わらないため、propバケツリレーより単純で安全）。 */}
+            {loadSkipQuiz() && (
+              <div
+                className="step-quiz-badge-mobile"
+                title="設定でスキップされています。症例選択画面のトグルで解除できます。"
+                style={{
+                  flexShrink: 0, alignItems: 'center',
+                  padding: '2px 6px', borderRadius: 999, fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap',
+                  background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning)', color: 'var(--color-warning)',
+                }}
+              >
+                クイズOFF
+              </div>
+            )}
+          </div>
           {getAnchorBasis(selectedCase) && (
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               再建経路: <strong style={{ color: 'var(--color-primary)' }}>{getAnchorBasis(selectedCase)}</strong>
             </div>
+          )}
+        </div>
+
+        {/* [M-2 real-device follow-up、issue B] 実機（iPhone Safari）実測で、PlacementFeedback/
+            ViewPresetPanel（＝「Lower Information Panel」acceptance criterionの対象）の折りたたみ
+            トリガーが、この下にある案内カード・開発者検証ツール・詳細調整セクション（合計約380px）
+            より後ろに置かれていたため、260px程度しかないsidebarの可視領域内では378px分の
+            スクロールを経ないと到達できなかった（トリガー自体はelementFromPointで正しく機能する
+            ことを確認済み——純粋な到達性の問題）。この2つを製品情報の直後、案内カード等より前へ
+            移動し、スクロールなしまたは最小限のスクロールで到達できるようにする
+            （情報は削除しない、位置のみ変更）。 */}
+        <PlacementFeedback safeP={safeP} sc={selectedCase} />
+
+        <div className="card" style={{ padding: '10px 12px' }}>
+          <ViewPresetPanel
+              collapsible
+              defaultOpen={false}
+              onSelectView={v => setSimCameraView(shiftViewForSim(v))}
+              surgicalKeys={['overview', 'tympanic_membrane', 'tympanoplasty', 'ossicles']}
+              showAnatomical={false}
+              getCamera={() => {
+                const c = getSimCam();
+                // SIM_OFF = [2.12, 2.65, 0.84] を逆適用して未シフト座標に変換
+                return {
+                  pos:    [c.pos[0]-2.12, c.pos[1]-2.65, c.pos[2]-0.84] as [number,number,number],
+                  target: [c.target[0]-2.12, c.target[1]-2.65, c.target[2]-0.84] as [number,number,number],
+                };
+              }}
+            />
+        </div>
+
+        <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '0 4px' }}>
+          <Button variant="ghost" size="sm" style={{ flex: 1 }} onClick={saveSimCam}>
+            視点を保存
+          </Button>
+          <Button variant="ghost" size="sm" style={{ flex: 1, color: 'var(--color-text-muted)' }} onClick={resetSimCam}>
+            視点リセット
+          </Button>
+        </div>
+
+        <div className="card">
+          {/* [M-2 real-device follow-up、issue B root cause fix] 実機（iPhone Safari）でLower
+              Information Panel（PlacementFeedback/ViewPresetPanel）の開閉トリガーに到達できない
+              という報告のroot causeは、以下の複数の[TEST-ONLY]開発者検証ツール（Phase C-2/C-3
+              実機検証用、既存コメント参照・削除はしない）が常時展開表示され、sidebarの可視領域
+              （260px程度）の1.7倍超（実機DOM測定: 442px）を占有していたこと。トグルはCommit前
+              （Transport段階）・Commit後のどちらでも同じ場所からアクセスできるよう、
+              `!manipulationCommitted`の条件分岐の外（カード最上部）に置く。 */}
+          <div
+            onClick={() => setTestToolsOpen(v => !v)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTestToolsOpen(v => !v); } }}
+            aria-expanded={testToolsOpen}
+            className="kz-focusable"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none', marginBottom: 10, paddingBottom: 8, borderBottom: '1px dashed rgba(255,255,255,.08)' }}
+          >
+            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 700, letterSpacing: '.04em' }}>🧪 開発者検証ツール</span>
+            <span style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'inline-block', transform: testToolsOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▾</span>
+          </div>
+          {testToolsOpen && !manipulationCommitted && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                style={{ width: '100%', marginBottom: 8, borderStyle: 'dashed' }}
+                onClick={() => {
+                  updatePlacement({
+                    lateralOffset: selectedCase.idealLateralOffset,
+                    anteriorOffset: 0, verticalOffset: 0,
+                    angleTilt: selectedCase.idealAngle, angleTiltZ: 0,
+                    dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
+                  });
+                  setManipulationCommitted(true);
+                }}
+              >
+                🧪 [TEST] 理想位置で配置を強制確定
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                style={{ width: '100%', marginBottom: 10, borderStyle: 'dashed' }}
+                onClick={() => {
+                  setCollisionBoundaryWarpStatus('探索中…');
+                  setCollisionBoundaryWarpRequestId((n) => n + 1);
+                }}
+              >
+                🧪 [TEST] Collision境界直前へワープ（Bone手前・非衝突）
+              </Button>
+            </>
           )}
 
           {/* ── Phase1-B: Direct Manipulation UX（既定、DIRECT_MANIPULATION_UX=true）──
@@ -1246,44 +1437,6 @@ function PlacementStep() {
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 プロステーシスは現在、術野の外（Transport位置）にあります。3Dビューでプロステーシスを直接クリックしてドラッグし、留置位置で離してください。
               </div>
-              {/* [TEST-ONLY, 一時] Phase C-2 Placement Drag Collision Constraint検証用。
-                  ±3mm以内へのTransport→Release精密操作が手動テストでは難しいため、理想位置へ
-                  スナップした上でmanipulationCommittedを直接trueにするショートカット。
-                  isTransportPoseWithinPlacementRange()等Transport/Release本体のロジックには
-                  一切触れていない（ManipulationLayer.tsx無変更）。Phase C検証完了後に削除する。 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                style={{ width: '100%', marginTop: 8, borderStyle: 'dashed' }}
-                onClick={() => {
-                  updatePlacement({
-                    lateralOffset: selectedCase.idealLateralOffset,
-                    anteriorOffset: 0, verticalOffset: 0,
-                    angleTilt: selectedCase.idealAngle, angleTiltZ: 0,
-                    dragOffsetX: 0, dragOffsetY: 0, dragOffsetZ: 0,
-                  });
-                  setManipulationCommitted(true);
-                }}
-              >
-                🧪 [TEST] 理想位置で配置を強制確定
-              </Button>
-              {/* [TEST-ONLY, 一時] Phase C-2実機検証用（Architect依頼2026-08-14）。上のボタンは
-                  理想位置(Bone内部相当)へ直接ワープするため「外側から近づいて止まる」挙動を
-                  再現できない。こちらは「側頭骨の外側・Collision発生直前(まだ非衝突)」の位置を
-                  二分探索で機械的に求めてワープする（SimScene.tsx/CollisionVerifyOverlay.tsx
-                  のCollisionBoundaryWarpTracker参照）。isTransportPoseWithinPlacementRange()等
-                  Transport/Release本体のロジックには一切触れていない。Phase C検証完了後に削除する。 */}
-              <Button
-                variant="ghost"
-                size="sm"
-                style={{ width: '100%', marginTop: 8, borderStyle: 'dashed' }}
-                onClick={() => {
-                  setCollisionBoundaryWarpStatus('探索中…');
-                  setCollisionBoundaryWarpRequestId((n) => n + 1);
-                }}
-              >
-                🧪 [TEST] Collision境界直前へワープ（Bone手前・非衝突）
-              </Button>
             </div>
           )}
 
@@ -1379,7 +1532,12 @@ function PlacementStep() {
               CollisionVerifyOverlay.tsx のRotationBoundaryWarpTracker参照）。Phase C-3検証
               完了後もC-2の前例（Collision Boundary Warp）に倣い、恒久的なテストツールとして
               温存する想定。 */}
-          {manipulationCommitted && (
+          {/* [M-2 real-device follow-up、issue B] このカードも🔧プロステーシス留置カードの2ボタンと
+              同じ「開発者検証ツール」に分類されるTEST-ONLYブロック（既存コメント参照、恒久的な
+              テストツールとして温存する想定・削除はしない）。Placement Commit後に表示される
+              ため、Commit前のtestToolsOpen（同じstate）と合わせて一貫した「開発者検証ツール」
+              トグルの下に畳み、Commit後もsidebarの大半を占有しないようにする。 */}
+          {manipulationCommitted && testToolsOpen && (
             <div className="card" style={{ marginBottom: 'var(--space-3)', border: '1px dashed rgba(0,180,216,0.35)' }}>
               <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--text-secondary)' }}>
                 🧪 [TEST] Rotation Boundary Warp（Bone手前・非衝突角度へ）
@@ -1563,37 +1721,6 @@ function PlacementStep() {
               })}
             </>
           )}
-        </div>
-
-        {/* ── リアルタイム教育フィードバック ── */}
-        <PlacementFeedback safeP={safeP} sc={selectedCase} />
-
-        {/* ── 視点プリセット ── */}
-        <div className="card" style={{ padding: '10px 12px' }}>
-          <div className="section-title" style={{ marginBottom: 8, fontSize: 11 }}>視点プリセット</div>
-          <ViewPresetPanel
-              onSelectView={v => setSimCameraView(shiftViewForSim(v))}
-              surgicalKeys={['overview', 'tympanic_membrane', 'tympanoplasty', 'ossicles']}
-              showAnatomical={false}
-              getCamera={() => {
-                const c = getSimCam();
-                // SIM_OFF = [2.12, 2.65, 0.84] を逆適用して未シフト座標に変換
-                return {
-                  pos:    [c.pos[0]-2.12, c.pos[1]-2.65, c.pos[2]-0.84] as [number,number,number],
-                  target: [c.target[0]-2.12, c.target[1]-2.65, c.target[2]-0.84] as [number,number,number],
-                };
-              }}
-            />
-        </div>
-
-        {/* ── 視点保存 ── */}
-        <div style={{ display: 'flex', gap: 'var(--space-2)', padding: '0 4px' }}>
-          <Button variant="ghost" size="sm" style={{ flex: 1 }} onClick={saveSimCam}>
-            視点を保存
-          </Button>
-          <Button variant="ghost" size="sm" style={{ flex: 1, color: 'var(--color-text-muted)' }} onClick={resetSimCam}>
-            視点リセット
-          </Button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 4px' }}>
@@ -2179,10 +2306,20 @@ export function SimulationMode() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 56px)' }}>
-      {/* ── 6ステップ プログレスバー（KURZ Design System v1: 共通StepProgress） ── */}
+      {/* ── 6ステップ プログレスバー（KURZ Design System v1: 共通StepProgress） ──
+          [M-2 real-device follow-up 2、issue③] 実機スクリーンショットで「製品選択」「サイズ」の
+          先まで見切れる（画面右端で見えなくなる）ことを確認。root causeはこの行が
+          justify-content:space-betweenのflex行で、幅を持て余さない限りStepProgress自身の
+          flex-wrapが働かず、6ステップ分のラベル幅がバッジ分の余白を差し引いた残り幅を
+          超えると水平方向に溢れてしまうこと。バッジ（判断クイズ: OFF）をこの行から完全に外し
+          （モバイルではsidebar側、issue②で圧縮済みの製品情報カードの下に小さく再配置——デスクトップは
+          従来通りこの位置に残す、.step-quiz-badge-desktopクラスで表示切替）、StepProgress自体は
+          overflowX:'auto'による横スクロールへフォールバックさせることで、6ステップすべてに
+          （スクロールしてでも）到達可能にする——ラベルの短縮や情報の削減はしない。 */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
+        display: 'flex', alignItems: 'center', padding: '0 16px',
         height: 36, borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0,
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch',
       }}>
         <StepProgress
           items={visibleSimSteps.map((s, i) => ({
@@ -2193,9 +2330,14 @@ export function SimulationMode() {
         />
         {skipQuiz && (
           <div
+            className="step-quiz-badge-desktop"
             title="設定でスキップされています。症例選択画面のトグルで解除できます。"
             style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center',
+              // [M-2 real-device follow-up 2、issue③] displayはここに書かず.step-quiz-badge-desktop
+              // クラス側（index.css）に置く——inline styleのdisplay:'flex'はCSSクラスの
+              // display:noneメディアクエリ上書きより常に優先されてしまい、モバイルでバッジが
+              // 非表示にならない不具合が実機検証で判明したため。
+              flexShrink: 0, alignItems: 'center', marginLeft: 'var(--space-3)',
               padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 700,
               background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning)', color: 'var(--color-warning)',
             }}

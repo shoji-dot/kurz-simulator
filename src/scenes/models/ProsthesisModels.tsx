@@ -299,6 +299,14 @@ function HeadPlateDome4Fin({ ghost }: { ghost?: boolean }) {
 //   simple/valid, no self-intersection, no mutual overlap, fully inside the
 //   translated disc, earcut triangulated area matches disc−holes to 100.000%.
 // ================================================================
+/**
+ * BellTop（headType='BELL_TOP'、PORP/TORP標準ヘッドプレート）のローカルY座標(mm)。
+ * 「Shaft fixation pin」（下記、シャフトが実際に固定される部材）の中心高さ。
+ * [M-2 real-device follow-up 8] ProsthesisModel()のシャフト上端計算（isBell/isFlat）から
+ * 参照するためexportに昇格。BELL_HEIGHT_MM/FLAT_CEILING_Y_MMと同じ理由・パターン。
+ */
+export const BELL_TOP_PIN_Y_MM = 0.13;
+
 function BellTop({ ghost }: { ghost?: boolean }) {
   const discGeo = useMemo<THREE.BufferGeometry>(() => {
     const ellipsePoints = (cx: number, cy: number, rx: number, ry: number, n = 48): THREE.Vector2[] => {
@@ -429,7 +437,7 @@ function BellTop({ ghost }: { ghost?: boolean }) {
         <TitaniumMatDS ghost={ghost} />
       </mesh>
       {/* Shaft fixation pin — centered on shaft axis (world origin of this group) */}
-      <mesh position={[0, 0.13, 0]}>
+      <mesh position={[0, BELL_TOP_PIN_Y_MM, 0]}>
         <cylinderGeometry args={[0.13, 0.10, 0.04, 10]} />
         <TitaniumMatDS ghost={ghost} />
       </mesh>
@@ -1883,18 +1891,43 @@ export function ProsthesisModel({
           );
         }
 
-        const shaftLen = isBell ? Math.max(0.01, len - BELL_HEIGHT_MM)
-                        : isFlat ? Math.max(0.01, len - FLAT_CEILING_Y_MM)
+        // [M-2 real-device follow-up 6→8] shojiさん実機確認: PORP(BELL)・TORP(FLAT)双方で
+        // 「ヘッドプレート上部にシャフトが少し飛び出るのは問題ないが、ヘッドプレートとシャフトが
+        // 離断し、上端が浮いて見える」との指摘（follow-up 8のPORP側面スクリーンショットで、
+        // follow-up 6の修正後もなお隙間が残ることを確認）。
+        // follow-up 6は「シャフト上端をheadOff（HeadPlateグループのローカル原点）まで伸ばせば
+        // 十分」という前提で修正したが、これはPORP/TORP標準のheadType='BELL_TOP'
+        // （HeadPlateFenestratedではない——誤った部材を分析していた）の実際のジオメトリと
+        // 食い違っていた。BellTop()内の「Shaft fixation pin」（シャフトが実際に固定される部材、
+        // コメントに明記）はグループ原点からさらに+BELL_TOP_PIN_Y_MM(=0.13)上、
+        // ローカルY∈[0.11,0.15]に位置し、原点（=headOff）はこのPinよりかなり下——シャフトを
+        // headOffまでしか伸ばさなかったfollow-up 6は、Pinの手前0.11〜0.15mmで止まっており、
+        // 隙間はほぼ解消していなかった。上端をheadOff+BELL_TOP_PIN_Y_MM（Pinの中心の高さ）まで
+        // 伸ばし、Pin本体にしっかり食い込ませる（Pin上端0.15を大きくは超えないため「少し飛び出る」
+        // 範囲に収まる、shoji許容範囲内）。下端（Bell apex/Flat天井、footOff+<Foot高さ>）は
+        // 完全に無変更——shaftLenを「Pinの中心までの距離」として再定義するだけで、shaftY側の式
+        // （下記）は変更不要（下端固定のまま上端だけ伸びる）。
+        const shaftLen = isBell ? Math.max(0.01, headOff + BELL_TOP_PIN_Y_MM - (footOff + BELL_HEIGHT_MM))
+                        : isFlat ? Math.max(0.01, headOff + BELL_TOP_PIN_Y_MM - (footOff + FLAT_CEILING_Y_MM))
                         : len;
         // [R4 Geometry Migration Shaft Fix、Architect Decision承認: docs/D4_Shaft_Geometry_R4_
         // Migration_Architect_Decision_v1.0.md] isBell分岐のみ、shaftMidYの一般式
         // footOff + BELL_HEIGHT_MM + shaftLen/2（P2_Measurement_Definition_v1.0.mdの
         // 「anchor〜Bell apex=BELL_HEIGHT_MM」+「Bell apex〜Head Plate側=shaftLen」から導出、
         // footOffを明示参照することで将来のorigin変更にも追従する）へ更新。footOff=0（R4）代入で
-        // BELL_HEIGHT_MM/2+len/2と数値的に一致。isFlat分岐は本Fixのスコープ外（Collision Proxy側が
-        // 現状BELL専用のため対応するズレが存在しない、Decision 2節）、変更しない。
+        // BELL_HEIGHT_MM/2+len/2と数値的に一致。
+        // [M-2 real-device follow-up 5] isFlat分岐は当時「本Fixのスコープ外（Collision Proxy側が
+        // 現状BELL専用のため対応するズレが存在しない、Decision 2節）」として未修正のまま残された
+        // （同Decision doc 48-52行・375-377行は「Rendering側の妥当性は未調査」と明記しており、
+        // 「意図的に正しいとされた」わけではなく単に手つかずだった）。旧`FLAT_CEILING_Y_MM/2`固定値は
+        // len（シャフト長）に一切追従せず、TORPでヘッドプレートとの離断・Foot下部への突き抜けが
+        // 実機報告された（数式で確認済み）。isBellと同じ導出パターン（footOff + <Footの天井Y> +
+        // shaftLen/2）をisFlatにも適用し、下端をFoot天井ちょうどに固定する（Foot内部へ侵入しない）。
+        // 上端の位置はshaftLen自体の定義（上記、follow-up 8でheadOff+Pin位置基準に更新）で決まる。
+        // base/dir/shaftLength/headOff/footOff・Collision Proxy（BELL専用のまま無変更）には
+        // 一切触れない、純粋なRendering位置修正。
         const shaftY   = isBell ? footOff + BELL_HEIGHT_MM + shaftLen / 2
-                        : isFlat ? FLAT_CEILING_Y_MM / 2
+                        : isFlat ? footOff + FLAT_CEILING_Y_MM + shaftLen / 2
                         : 0;
         return (
           <mesh position={[0, shaftY, 0]}>

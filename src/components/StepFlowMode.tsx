@@ -713,8 +713,16 @@ export function StepFlowMode() {
               パネルは本パネルに置き換え、削除した（3種類の操作UIが混在する状態を避けるため）。
               内部はuseSimStore.getState().translateSelectedObject()/rotateSelectedObject()を
               呼ぶのみ（矢印キーと完全に同じAPI）。常時表示（開閉トグルなし、shojiさん指定）。 */}
+          {/* [M-2 issue②] SimulationMode.tsxと同じoverflow-clipping修正（M1投資調査§3②）:
+              top+bottom両方を指定してこのホストdivに確定高さを与え、ControlPad自身の
+              maxHeight:'100%'+内部スクロールが機能するようにする（.canvas-wrapperの
+              overflow:hiddenに閉じるボタンがクリップされる問題の対策）。 */}
           {step.useSimScene && (
-            <div style={{ position: 'absolute', bottom: 16, left: 12, zIndex: Z_INDEX.toolbar }}>
+            <div style={{
+              position: 'absolute', top: 12, bottom: 16, left: 12, zIndex: Z_INDEX.toolbar,
+              display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+              pointerEvents: 'none',
+            }}>
               <ControlPad />
             </div>
           )}

@@ -18,11 +18,11 @@ export interface StepProgressProps {
  */
 export function StepProgress({ items }: StepProgressProps) {
   return (
-    <div role="list" aria-label="進行状況" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+    <div role="list" aria-label="進行状況" style={{ display: 'flex', alignItems: 'center', gap: 'var(--step-progress-gap, var(--space-2))', flexWrap: 'wrap', flexShrink: 0 }}>
       {items.map((item, i) => {
         const clickable = item.status !== 'upcoming' && !!item.onClick;
         return (
-          <div key={item.key} role="listitem" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <div key={item.key} role="listitem" style={{ display: 'flex', alignItems: 'center', gap: 'var(--step-progress-gap, var(--space-2))', flexShrink: 0 }}>
             <div
               onClick={clickable ? item.onClick : undefined}
               role={clickable ? 'button' : undefined}
@@ -31,13 +31,13 @@ export function StepProgress({ items }: StepProgressProps) {
               aria-current={item.status === 'current' ? 'step' : undefined}
               className={clickable ? 'kz-focusable' : undefined}
               style={{
-                width: 22,
-                height: 22,
+                width: 'var(--step-progress-dot, 22px)',
+                height: 'var(--step-progress-dot, 22px)',
                 borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '11px',
+                fontSize: 'var(--step-progress-dot-fs, 11px)',
                 fontWeight: 700,
                 flexShrink: 0,
                 cursor: clickable ? 'pointer' : 'default',
@@ -48,11 +48,11 @@ export function StepProgress({ items }: StepProgressProps) {
             >
               {item.status === 'done' ? '\u2713' : (item.icon ?? i + 1)}
             </div>
-            <span style={{ font: 'var(--text-small)', color: item.status === 'upcoming' ? 'var(--color-text-muted)' : 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>
+            <span style={{ font: 'var(--step-progress-font, var(--text-small))', color: item.status === 'upcoming' ? 'var(--color-text-muted)' : 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>
               {item.label}
             </span>
             {i < items.length - 1 && (
-              <span aria-hidden="true" style={{ width: 16, height: 1, background: 'var(--color-border-bright)', flexShrink: 0 }} />
+              <span aria-hidden="true" style={{ width: 'var(--step-progress-connector, 16px)', height: 1, background: 'var(--color-border-bright)', flexShrink: 0 }} />
             )}
           </div>
         );

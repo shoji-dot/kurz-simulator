@@ -13,8 +13,8 @@ export function IconButton({ active = false, className, style, children, ...rest
       type="button"
       className={['kz-focusable', className].filter(Boolean).join(' ')}
       style={{
-        width: 32,
-        height: 32,
+        width: 'var(--toolbar-icon-size, 32px)',
+        height: 'var(--toolbar-icon-size, 32px)',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',

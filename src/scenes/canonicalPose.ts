@@ -65,6 +65,19 @@ export interface PlacementControls {
   translate: (axis: 'x' | 'y' | 'z', deltaMm: number) => void;
   rotate: (axis: 'tilt' | 'tiltZ', deltaDeg: number) => void;
   rotateShaftRoll: (deltaDeg: number) => void;
+  /**
+   * [M-2、M1 Investigation §6/§3③] タッチ操作でのDepth（camera-relative奥/手前移動）用。
+   * PageUp/PageDown（SimScene.tsx keydownハンドラ）が使うのと同一のperformDepthStep()を
+   * 呼ぶだけの薄いラッパー——camera.getWorldDirection()→evaluateDragCandidate()という既存の
+   * Collision Candidate経路をそのまま再利用し、新規Depth/Collision実装は一切追加しない。
+   * sign: 1=奥（PageDownと同じ）、-1=手前（PageUpと同じ）。fine: true時はKEYBOARD_STEP_CTRL_MM。
+   */
+  depthStep: (sign: 1 | -1, fine: boolean) => void;
+  /**
+   * Depth Sessionの終了（keyupのendDepthSession(true)と同じ、通常Poseへのslerp Releaseを開始する）。
+   * タッチ操作ではpointerup/pointerleave/pointercancelで呼ぶ。
+   */
+  endDepth: () => void;
 }
 
 const AXIS_X = new THREE.Vector3(1, 0, 0);
